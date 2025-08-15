@@ -1,0 +1,80 @@
+# Go-CESI Configuration Example
+# Copy this file to config.toml and modify according to your setup
+
+[server]
+# Port for the web server
+port = 8081
+
+[admin]
+# Default admin user credentials
+# Change these before first run!
+username = "admin"
+password = "admin123"
+email = "admin@example.com"
+
+# Supervisor nodes configuration
+# Add as many nodes as needed
+
+[[nodes]]
+name = "production-web"
+environment = "production"
+host = "192.168.1.100"
+port = 9001
+username = "supervisor"
+password = "supervisor123"
+
+[[nodes]]
+name = "production-worker"
+environment = "production"
+host = "192.168.1.101"
+port = 9001
+username = "supervisor"
+password = "supervisor123"
+
+[[nodes]]
+name = "staging-server"
+environment = "staging"
+host = "192.168.1.200"
+port = 9001
+username = "supervisor"
+password = "supervisor123"
+
+[[nodes]]
+name = "development-local"
+environment = "development"
+host = "localhost"
+port = 9001
+username = "supervisor"
+password = "supervisor123"
+
+# Configuration Notes:
+# 
+# 1. Server Port:
+#    - Choose an available port for the web interface
+#    - Default is 8081
+#
+# 2. Admin User:
+#    - This user will be created automatically on first run
+#    - Change the default password for security
+#    - Additional users can be created through the web interface
+#
+# 3. Nodes:
+#    - name: Unique identifier for the node
+#    - environment: Logical grouping (production, staging, development, etc.)
+#    - host: IP address or hostname of the Supervisor instance
+#    - port: Supervisor XML-RPC port (usually 9001)
+#    - username/password: Supervisor authentication credentials
+#
+# 4. Supervisor Setup:
+#    - Ensure Supervisor XML-RPC interface is enabled
+#    - Add this to your supervisord.conf:
+#    
+#    [inet_http_server]
+#    port=*:9001
+#    username=supervisor
+#    password=supervisor123
+#
+# 5. Security:
+#    - Use strong passwords
+#    - Consider using HTTPS in production
+#    - Restrict network access to Supervisor ports

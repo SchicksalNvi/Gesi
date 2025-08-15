@@ -1,0 +1,134 @@
+package api
+
+import (
+	"bufio"
+	"encoding/json"
+	"log"
+	"net/http"
+	"os"
+	"strconv"
+	"strings"
+
+	"github.com/gin-gonic/gin"
+	"go-cesi/internal/models"
+	"go-cesi/internal/services"
+	"gorm.io/gorm"
+)
+
+type LogsAPI struct {
+	logger *services.ActivityLogService
+	db     *gorm.DB
+}
+
+func NewLogsAPI(logger *services.ActivityLogService, db *gorm.DB) *LogsAPI {
+	return &LogsAPI{logger: logger, db: db}
+}
+
+func (a *LogsAPI) GetLogs(c *gin.Context) {
+	// Check authentication
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"status":  "error",
+			"message": "Authentication required",
+		})
+		return
+	}
+	
+	// Get user from database
+	var user models.User
+	if err := a.db.First(&user, userID).Error; err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"status":  "error",
+			"message": "User not found",
+		})
+		return
+	}
+	
+	// Check admin permission
+	if !user.IsAdmin {
+		c.JSON(http.StatusForbidden, gin.H{
+			"status":  "error",
+			"message": "Admin privileges required",
+		})
+		return
+	}
+
+	// Get query parameters
+	level := c.Query("level")
+	search := c.Query("search")
+	limitStr := c.DefaultQuery("limit", "100")
+	limit, err := strconv.Atoi(limitStr)
+	if err != nil {
+		limit = 100
+	}
+
+	// Open log file
+	file, err := os.Open("logs/activity.log")
+	if err != nil {
+		log.Printf("Failed to open log file for user %s: %v", user.Username, err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "error",
+			"message": "Failed to open log file",
+		})
+		return
+	}
+	defer file.Close()
+
+	// Read logs line by line
+	var logs []map[string]interface{}
+	scanner := bufio.NewScanner(file)
+	count := 0
+
+	for scanner.Scan() {
+		if limitStr != "all" && count >= limit {
+			break
+		}
+
+		line := scanner.Text()
+		var logEntry map[string]interface{}
+		if err := json.Unmarshal([]byte(line), &logEntry); err != nil {
+			continue
+		}
+
+		// Apply filters
+		if level != "" && logEntry["level"] != level {
+			continue
+		}
+
+		if search != "" {
+			match := false
+			for _, v := range logEntry {
+				if strVal, ok := v.(string); ok {
+					if strings.Contains(strings.ToLower(strVal), strings.ToLower(search)) {
+						match = true
+						break
+					}
+				}
+			}
+			if !match {
+				continue
+			}
+		}
+
+		logs = append(logs, logEntry)
+		count++
+	}
+
+	if err := scanner.Err(); err != nil {
+		log.Printf("Failed to read log file for user %s: %v", user.Username, err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "error",
+			"message": "Failed to read log file",
+		})
+		return
+	}
+
+	log.Printf("Logs accessed by user %s, count: %d", user.Username, len(logs))
+
+	c.JSON(http.StatusOK, gin.H{
+		"status": "success",
+		"logs":   logs,
+		"count":  len(logs),
+	})
+}

@@ -1,0 +1,25 @@
+# 服务器配置
+[server]
+port = 8081
+
+# 管理员账户配置
+[admin]
+username = "admin"
+password = "${ADMIN_PASSWORD}"  # 从环境变量获取管理员密码
+email = "${ADMIN_EMAIL}"  # 从环境变量获取管理员邮箱
+
+# 数据库配置
+database = "data/cesi.db"
+
+# 节点配置
+[[nodes]]
+name = "local"
+environment = "production"
+host = "127.0.0.1"
+port = 9001
+username = "user"
+password = "${NODE_PASSWORD}"  # 从环境变量获取节点密码
+
+
+
+
