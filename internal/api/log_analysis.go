@@ -7,10 +7,11 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"go-cesi/internal/models"
 	"go-cesi/internal/services"
 	"go-cesi/internal/validation"
+
+	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
@@ -31,16 +32,16 @@ func NewLogAnalysisHandler(db *gorm.DB) *LogAnalysisHandler {
 // CreateLogEntry 创建日志条目
 func (h *LogAnalysisHandler) CreateLogEntry(c *gin.Context) {
 	var req struct {
-		Timestamp   *time.Time `json:"timestamp"`
-		Level       string     `json:"level" binding:"required"`
-		Source      string     `json:"source" binding:"required"`
-		ProcessName string     `json:"process_name" binding:"required"`
-		NodeID      *uint      `json:"node_id"`
-		Message     string     `json:"message" binding:"required"`
-		RawLog      string     `json:"raw_log"`
+		Timestamp   *time.Time              `json:"timestamp"`
+		Level       string                  `json:"level" binding:"required"`
+		Source      string                  `json:"source" binding:"required"`
+		ProcessName string                  `json:"process_name" binding:"required"`
+		NodeID      *uint                   `json:"node_id"`
+		Message     string                  `json:"message" binding:"required"`
+		RawLog      string                  `json:"raw_log"`
 		Metadata    *map[string]interface{} `json:"metadata"`
-		Tags        *[]string  `json:"tags"`
-		Category    string     `json:"category"`
+		Tags        *[]string               `json:"tags"`
+		Category    string                  `json:"category"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -177,10 +178,10 @@ func (h *LogAnalysisHandler) GetLogEntries(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"data":       entries,
-		"total":      total,
-		"page":       page,
-		"page_size":  pageSize,
+		"data":        entries,
+		"total":       total,
+		"page":        page,
+		"page_size":   pageSize,
 		"total_pages": (total + int64(pageSize) - 1) / int64(pageSize),
 	})
 }
@@ -232,16 +233,16 @@ func (h *LogAnalysisHandler) CreateAnalysisRule(c *gin.Context) {
 	}
 
 	var req struct {
-		Name        string                 `json:"name" binding:"required"`
-		Description string                 `json:"description"`
-		Pattern     string                 `json:"pattern" binding:"required"`
-		PatternType string                 `json:"pattern_type"`
+		Name        string                  `json:"name" binding:"required"`
+		Description string                  `json:"description"`
+		Pattern     string                  `json:"pattern" binding:"required"`
+		PatternType string                  `json:"pattern_type"`
 		Conditions  *map[string]interface{} `json:"conditions"`
 		Actions     *map[string]interface{} `json:"actions"`
-		Priority    int                    `json:"priority"`
-		IsActive    bool                   `json:"is_active"`
-		Category    string                 `json:"category"`
-		Tags        *[]string              `json:"tags"`
+		Priority    int                     `json:"priority"`
+		IsActive    bool                    `json:"is_active"`
+		Category    string                  `json:"category"`
+		Tags        *[]string               `json:"tags"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -341,10 +342,10 @@ func (h *LogAnalysisHandler) GetAnalysisRules(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"data":       rules,
-		"total":      total,
-		"page":       page,
-		"page_size":  pageSize,
+		"data":        rules,
+		"total":       total,
+		"page":        page,
+		"page_size":   pageSize,
 		"total_pages": (total + int64(pageSize) - 1) / int64(pageSize),
 	})
 }
@@ -510,10 +511,10 @@ func (h *LogAnalysisHandler) GetLogAlerts(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"data":       alerts,
-		"total":      total,
-		"page":       page,
-		"page_size":  pageSize,
+		"data":        alerts,
+		"total":       total,
+		"page":        page,
+		"page_size":   pageSize,
 		"total_pages": (total + int64(pageSize) - 1) / int64(pageSize),
 	})
 }
@@ -743,10 +744,10 @@ func (h *LogAnalysisHandler) GetLogExports(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"data":       exports,
-		"total":      total,
-		"page":       page,
-		"page_size":  pageSize,
+		"data":        exports,
+		"total":       total,
+		"page":        page,
+		"page_size":   pageSize,
 		"total_pages": (total + int64(pageSize) - 1) / int64(pageSize),
 	})
 }

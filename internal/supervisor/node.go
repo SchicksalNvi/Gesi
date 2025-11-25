@@ -10,7 +10,7 @@ import (
 )
 
 // ErrNodeNotConnected 节点未连接错误
-var ErrNodeNotConnected = errors.NewConnectionError("node is not connected")
+var ErrNodeNotConnected = errors.NewConnectionError("node", nil)
 
 type Node struct {
 	Name         string

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { authAPI } from '../services/api';
+import errorHandler from '../services/errorHandler';
 
 const AuthContext = createContext();
 
@@ -50,7 +51,7 @@ export const AuthProvider = ({ children }) => {
       
       return { success: true };
     } catch (error) {
-      console.error('Login failed:', error);
+      errorHandler.handleApiError(error, { context: 'Login', showToast: false });
       return { 
         success: false, 
         error: error.response?.data?.message || 'Login failed' 
@@ -62,7 +63,7 @@ export const AuthProvider = ({ children }) => {
     try {
       await authAPI.logout();
     } catch (error) {
-      console.error('Logout error:', error);
+      errorHandler.handleApiError(error, { context: 'Logout', showToast: false });
     } finally {
       // 清除localStorage中的token
       localStorage.removeItem('token');

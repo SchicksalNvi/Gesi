@@ -95,8 +95,9 @@ func InitDynamicLogger() error {
 	// 创建logger
 	logger := zap.New(core, zap.AddCaller(), zap.AddStacktrace(zapcore.ErrorLevel))
 
-	Logger = logger
+	globalLogger = logger
 	Sugar = logger.Sugar()
+	zap.ReplaceGlobals(logger)
 
 	// 记录初始化日志
 	Info("Dynamic logger initialized", zap.String("initial_level", dynamicLevel.Level().String()))

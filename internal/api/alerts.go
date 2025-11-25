@@ -5,9 +5,10 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"go-cesi/internal/models"
 	"go-cesi/internal/services"
+
+	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
@@ -26,18 +27,18 @@ func NewAlertHandler(db *gorm.DB) *AlertHandler {
 // CreateAlertRule 创建告警规则
 func (h *AlertHandler) CreateAlertRule(c *gin.Context) {
 	var req struct {
-		Name        string   `json:"name" binding:"required"`
-		Description string   `json:"description"`
-		Metric      string   `json:"metric" binding:"required"`
-		Condition   string   `json:"condition" binding:"required"`
-		Threshold   float64  `json:"threshold" binding:"required"`
-		Duration    int      `json:"duration" binding:"required"`
-		Severity    string   `json:"severity" binding:"required"`
-		Enabled     bool     `json:"enabled"`
-		NodeID      *uint    `json:"node_id,omitempty"`
-		ProcessName *string  `json:"process_name,omitempty"`
-		Tags        string   `json:"tags"`
-		ChannelIDs  []uint   `json:"channel_ids"`
+		Name        string  `json:"name" binding:"required"`
+		Description string  `json:"description"`
+		Metric      string  `json:"metric" binding:"required"`
+		Condition   string  `json:"condition" binding:"required"`
+		Threshold   float64 `json:"threshold" binding:"required"`
+		Duration    int     `json:"duration" binding:"required"`
+		Severity    string  `json:"severity" binding:"required"`
+		Enabled     bool    `json:"enabled"`
+		NodeID      *uint   `json:"node_id,omitempty"`
+		ProcessName *string `json:"process_name,omitempty"`
+		Tags        string  `json:"tags"`
+		ChannelIDs  []uint  `json:"channel_ids"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -133,10 +134,10 @@ func (h *AlertHandler) GetAlertRules(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"data":       rules,
-		"total":      total,
-		"page":       page,
-		"page_size":  pageSize,
+		"data":        rules,
+		"total":       total,
+		"page":        page,
+		"page_size":   pageSize,
 		"total_pages": (total + int64(pageSize) - 1) / int64(pageSize),
 	})
 }
@@ -173,18 +174,18 @@ func (h *AlertHandler) UpdateAlertRule(c *gin.Context) {
 	}
 
 	var req struct {
-		Name        string   `json:"name"`
-		Description string   `json:"description"`
-		Metric      string   `json:"metric"`
-		Condition   string   `json:"condition"`
-		Threshold   float64  `json:"threshold"`
-		Duration    int      `json:"duration"`
-		Severity    string   `json:"severity"`
-		Enabled     *bool    `json:"enabled"`
-		NodeID      *uint    `json:"node_id"`
-		ProcessName *string  `json:"process_name"`
-		Tags        string   `json:"tags"`
-		ChannelIDs  []uint   `json:"channel_ids"`
+		Name        string  `json:"name"`
+		Description string  `json:"description"`
+		Metric      string  `json:"metric"`
+		Condition   string  `json:"condition"`
+		Threshold   float64 `json:"threshold"`
+		Duration    int     `json:"duration"`
+		Severity    string  `json:"severity"`
+		Enabled     *bool   `json:"enabled"`
+		NodeID      *uint   `json:"node_id"`
+		ProcessName *string `json:"process_name"`
+		Tags        string  `json:"tags"`
+		ChannelIDs  []uint  `json:"channel_ids"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -305,10 +306,10 @@ func (h *AlertHandler) GetAlerts(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"data":       alerts,
-		"total":      total,
-		"page":       page,
-		"page_size":  pageSize,
+		"data":        alerts,
+		"total":       total,
+		"page":        page,
+		"page_size":   pageSize,
 		"total_pages": (total + int64(pageSize) - 1) / int64(pageSize),
 	})
 }
@@ -448,10 +449,10 @@ func (h *AlertHandler) GetNotificationChannels(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"data":       channels,
-		"total":      total,
-		"page":       page,
-		"page_size":  pageSize,
+		"data":        channels,
+		"total":       total,
+		"page":        page,
+		"page_size":   pageSize,
 		"total_pages": (total + int64(pageSize) - 1) / int64(pageSize),
 	})
 }
@@ -553,12 +554,12 @@ func (h *AlertHandler) GetAlertStatistics(c *gin.Context) {
 // RecordSystemMetric 记录系统指标
 func (h *AlertHandler) RecordSystemMetric(c *gin.Context) {
 	var req struct {
-		NodeID      *uint   `json:"node_id,omitempty"`
-		ProcessName *string `json:"process_name,omitempty"`
-		MetricType  string  `json:"metric_type" binding:"required"`
-		MetricName  string  `json:"metric_name" binding:"required"`
-		Value       float64 `json:"value" binding:"required"`
-		Unit        string  `json:"unit"`
+		NodeID      *uint      `json:"node_id,omitempty"`
+		ProcessName *string    `json:"process_name,omitempty"`
+		MetricType  string     `json:"metric_type" binding:"required"`
+		MetricName  string     `json:"metric_name" binding:"required"`
+		Value       float64    `json:"value" binding:"required"`
+		Unit        string     `json:"unit"`
 		Timestamp   *time.Time `json:"timestamp,omitempty"`
 	}
 
@@ -628,7 +629,7 @@ func (h *AlertHandler) GetSystemMetrics(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"data": metrics,
+		"data":  metrics,
 		"count": len(metrics),
 	})
 }

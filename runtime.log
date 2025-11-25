@@ -1,8 +1,0 @@
-internal/loggers/activity.go:10:2: no required module provides package go.uber.org/zap; to add it:
-	go get go.uber.org/zap
-internal/loggers/activity.go:11:2: no required module provides package go.uber.org/zap/zapcore; to add it:
-	go get go.uber.org/zap/zapcore
-internal/loggers/activity.go:12:2: no required module provides package gopkg.in/natefinch/lumberjack.v2; to add it:
-	go get gopkg.in/natefinch/lumberjack.v2
-internal/config/config.go:7:2: no required module provides package github.com/spf13/viper; to add it:
-	go get github.com/spf13/viper

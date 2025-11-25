@@ -13,13 +13,14 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"go-cesi/internal/config"
 	"go-cesi/internal/database"
 	"go-cesi/internal/middleware"
 	"go-cesi/internal/supervisor"
 	"go-cesi/internal/utils"
 	"go-cesi/internal/validation"
+
+	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
@@ -77,19 +78,19 @@ type PerformanceMetrics struct {
 }
 
 type SystemMetrics struct {
-	Uptime       string  `json:"uptime"`
-	MemoryUsage  string  `json:"memoryUsage"`
-	CPUUsage     string  `json:"cpuUsage"`
-	DiskUsage    string  `json:"diskUsage"`
-	Goroutines   int     `json:"goroutines"`
-	GCPauses     float64 `json:"gcPauses"`
+	Uptime      string  `json:"uptime"`
+	MemoryUsage string  `json:"memoryUsage"`
+	CPUUsage    string  `json:"cpuUsage"`
+	DiskUsage   string  `json:"diskUsage"`
+	Goroutines  int     `json:"goroutines"`
+	GCPauses    float64 `json:"gcPauses"`
 }
 
 type APIMetrics struct {
-	TotalRequests       int     `json:"totalRequests"`
-	RequestsPerMinute   int     `json:"requestsPerMinute"`
-	AverageResponseTime string  `json:"averageResponseTime"`
-	ErrorRate           string  `json:"errorRate"`
+	TotalRequests       int    `json:"totalRequests"`
+	RequestsPerMinute   int    `json:"requestsPerMinute"`
+	AverageResponseTime string `json:"averageResponseTime"`
+	ErrorRate           string `json:"errorRate"`
 }
 
 type DatabaseMetrics struct {
@@ -100,27 +101,27 @@ type DatabaseMetrics struct {
 }
 
 type WebSocketMetrics struct {
-	ActiveConnections  int `json:"activeConnections"`
-	MessagesPerSecond  int `json:"messagesPerSecond"`
-	TotalMessages      int `json:"totalMessages"`
+	ActiveConnections int `json:"activeConnections"`
+	MessagesPerSecond int `json:"messagesPerSecond"`
+	TotalMessages     int `json:"totalMessages"`
 }
 
 // TestResult represents the result of an API endpoint test
 type TestResult struct {
-	Success      bool              `json:"success"`
-	StatusCode   int               `json:"status_code"`
-	ResponseTime string            `json:"response_time"`
-	Message      string            `json:"message"`
-	Response     string            `json:"response,omitempty"`
-	Headers      http.Header       `json:"headers,omitempty"`
-	Error        string            `json:"error,omitempty"`
+	Success      bool        `json:"success"`
+	StatusCode   int         `json:"status_code"`
+	ResponseTime string      `json:"response_time"`
+	Message      string      `json:"message"`
+	Response     string      `json:"response,omitempty"`
+	Headers      http.Header `json:"headers,omitempty"`
+	Error        string      `json:"error,omitempty"`
 }
 
 // GetApiEndpoints returns available API endpoints
 func (api *DeveloperToolsAPI) GetApiEndpoints(c *gin.Context) {
 	// 从配置生成API端点文档
 	endpoints := []APIEndpoint{}
-	
+
 	if api.config.APIDocsEnabled {
 		// 核心API端点
 		endpoints = append(endpoints, []APIEndpoint{
@@ -228,21 +229,21 @@ func (api *DeveloperToolsAPI) TestApiEndpoint(c *gin.Context) {
 // executeEndpointTest executes the actual API endpoint test
 func (api *DeveloperToolsAPI) executeEndpointTest(path, method, headers, body string) TestResult {
 	startTime := time.Now()
-	
+
 	// 构建完整的URL（假设测试本地服务器）
 	baseURL := "http://localhost:8080" // 可以从配置中获取
 	fullURL := baseURL + path
-	
+
 	// 创建HTTP请求
 	var req *http.Request
 	var err error
-	
+
 	if body != "" && (method == "POST" || method == "PUT" || method == "PATCH") {
 		req, err = http.NewRequest(method, fullURL, bytes.NewBufferString(body))
 	} else {
 		req, err = http.NewRequest(method, fullURL, nil)
 	}
-	
+
 	if err != nil {
 		return TestResult{
 			Success:      false,
@@ -252,7 +253,7 @@ func (api *DeveloperToolsAPI) executeEndpointTest(path, method, headers, body st
 			Error:        err.Error(),
 		}
 	}
-	
+
 	// 设置请求头
 	if headers != "" {
 		var headerMap map[string]string
@@ -271,17 +272,17 @@ func (api *DeveloperToolsAPI) executeEndpointTest(path, method, headers, body st
 			}
 		}
 	}
-	
+
 	// 设置默认Content-Type
 	if body != "" && req.Header.Get("Content-Type") == "" {
 		req.Header.Set("Content-Type", "application/json")
 	}
-	
+
 	// 执行请求
 	client := &http.Client{
 		Timeout: 30 * time.Second,
 	}
-	
+
 	resp, err := client.Do(req)
 	if err != nil {
 		return TestResult{
@@ -293,7 +294,7 @@ func (api *DeveloperToolsAPI) executeEndpointTest(path, method, headers, body st
 		}
 	}
 	defer resp.Body.Close()
-	
+
 	// 读取响应体
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -305,14 +306,14 @@ func (api *DeveloperToolsAPI) executeEndpointTest(path, method, headers, body st
 			Error:        err.Error(),
 		}
 	}
-	
+
 	// 构建测试结果
 	success := resp.StatusCode >= 200 && resp.StatusCode < 400
 	message := "Request completed successfully"
 	if !success {
 		message = fmt.Sprintf("Request failed with status %d", resp.StatusCode)
 	}
-	
+
 	return TestResult{
 		Success:      success,
 		StatusCode:   resp.StatusCode,
@@ -371,8 +372,6 @@ func (api *DeveloperToolsAPI) GetDebugLogs(c *gin.Context) {
 	c.JSON(http.StatusOK, logs)
 }
 
-
-
 // ClearDebugLogs clears debug logs
 func (api *DeveloperToolsAPI) ClearDebugLogs(c *gin.Context) {
 	// In a real implementation, this would clear the debug logs
@@ -411,12 +410,12 @@ func (api *DeveloperToolsAPI) getCPUUsage() float64 {
 	if err != nil {
 		return 0.0
 	}
-	
+
 	usage, err := strconv.ParseFloat(strings.TrimSpace(string(output)), 64)
 	if err != nil {
 		return 0.0
 	}
-	
+
 	return usage
 }
 
@@ -428,16 +427,16 @@ func (api *DeveloperToolsAPI) getDiskUsage() float64 {
 	if err != nil {
 		return 0.0
 	}
-	
+
 	// 计算使用率
 	total := stat.Blocks * uint64(stat.Bsize)
 	free := stat.Bavail * uint64(stat.Bsize)
 	used := total - free
-	
+
 	if total == 0 {
 		return 0.0
 	}
-	
+
 	return float64(used) / float64(total) * 100
 }
 
@@ -474,7 +473,7 @@ func (api *DeveloperToolsAPI) GetSystemMetrics(c *gin.Context) {
 
 	// 获取CPU使用率
 	cpuUsage := api.getCPUUsage()
-	
+
 	// 获取磁盘使用率
 	diskUsage := api.getDiskUsage()
 
@@ -494,21 +493,21 @@ func (api *DeveloperToolsAPI) GetSystemMetrics(c *gin.Context) {
 func (api *DeveloperToolsAPI) GetApiMetrics(c *gin.Context) {
 	// 从性能监控中间件获取真实的API指标
 	perfMetrics := middleware.GetPerformanceMetrics()
-	
+
 	// 计算每分钟请求数（基于最近的统计时间）
 	minutesSinceReset := time.Since(perfMetrics.LastResetTime).Minutes()
 	requestsPerMinute := int64(0)
 	if minutesSinceReset > 0 {
 		requestsPerMinute = int64(float64(perfMetrics.RequestCount) / minutesSinceReset)
 	}
-	
+
 	// 计算错误率
 	errorRate := "0%"
 	if perfMetrics.RequestCount > 0 {
 		errorRateFloat := float64(perfMetrics.ErrorCount) / float64(perfMetrics.RequestCount) * 100
 		errorRate = strconv.FormatFloat(errorRateFloat, 'f', 1, 64) + "%"
 	}
-	
+
 	metrics := APIMetrics{
 		TotalRequests:       int(perfMetrics.RequestCount),
 		RequestsPerMinute:   int(requestsPerMinute),
@@ -527,7 +526,7 @@ func (api *DeveloperToolsAPI) GetDatabaseMetrics(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get database stats"})
 		return
 	}
-	
+
 	stats := sqlDB.Stats()
 	metrics := DatabaseMetrics{
 		Connections:    stats.OpenConnections,

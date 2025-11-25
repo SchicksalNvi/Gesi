@@ -7,10 +7,11 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"go-cesi/internal/models"
 	"go-cesi/internal/services"
 	"go-cesi/internal/validation"
+
+	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
@@ -36,13 +37,13 @@ func (h *ConfigurationHandler) getUserWithPermissions(c *gin.Context) (*models.U
 	if !exists {
 		return nil, fmt.Errorf("unauthorized")
 	}
-	
+
 	var user models.User
 	err := h.db.Preload("Roles.Permissions").Where("id = ?", userID.(string)).First(&user).Error
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return &user, nil
 }
 
@@ -52,7 +53,7 @@ func (h *ConfigurationHandler) checkSecretPermission(user *models.User, resource
 	if user.IsSuperAdmin() {
 		return true
 	}
-	
+
 	// 检查具体权限
 	switch resourceType {
 	case "config":
@@ -74,21 +75,21 @@ func (h *ConfigurationHandler) CreateConfiguration(c *gin.Context) {
 	}
 
 	var req struct {
-		Key          string                 `json:"key" binding:"required"`
-		Value        string                 `json:"value"`
-		DefaultValue string                 `json:"default_value"`
-		Description  string                 `json:"description"`
-		Category     string                 `json:"category" binding:"required"`
-		Type         string                 `json:"type" binding:"required"`
-		Scope        string                 `json:"scope" binding:"required"`
-		NodeID       *uint                  `json:"node_id"`
-		UserID       *uint                  `json:"user_id"`
-		IsRequired   bool                   `json:"is_required"`
-		IsReadonly   bool                   `json:"is_readonly"`
-		IsSecret     bool                   `json:"is_secret"`
+		Key          string                  `json:"key" binding:"required"`
+		Value        string                  `json:"value"`
+		DefaultValue string                  `json:"default_value"`
+		Description  string                  `json:"description"`
+		Category     string                  `json:"category" binding:"required"`
+		Type         string                  `json:"type" binding:"required"`
+		Scope        string                  `json:"scope" binding:"required"`
+		NodeID       *uint                   `json:"node_id"`
+		UserID       *uint                   `json:"user_id"`
+		IsRequired   bool                    `json:"is_required"`
+		IsReadonly   bool                    `json:"is_readonly"`
+		IsSecret     bool                    `json:"is_secret"`
 		Validation   *map[string]interface{} `json:"validation"`
-		Options      *[]interface{}         `json:"options"`
-		Order        int                    `json:"order"`
+		Options      *[]interface{}          `json:"options"`
+		Order        int                     `json:"order"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -188,10 +189,10 @@ func (h *ConfigurationHandler) GetConfigurations(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"data":       configs,
-		"total":      total,
-		"page":       page,
-		"page_size":  pageSize,
+		"data":        configs,
+		"total":       total,
+		"page":        page,
+		"page_size":   pageSize,
 		"total_pages": (total + int64(pageSize) - 1) / int64(pageSize),
 	})
 }
@@ -359,10 +360,10 @@ func (h *ConfigurationHandler) GetEnvironmentVariables(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"data":       envVars,
-		"total":      total,
-		"page":       page,
-		"page_size":  pageSize,
+		"data":        envVars,
+		"total":       total,
+		"page":        page,
+		"page_size":   pageSize,
 		"total_pages": (total + int64(pageSize) - 1) / int64(pageSize),
 	})
 }
@@ -537,10 +538,10 @@ func (h *ConfigurationHandler) GetBackups(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"data":       backups,
-		"total":      total,
-		"page":       page,
-		"page_size":  pageSize,
+		"data":        backups,
+		"total":       total,
+		"page":        page,
+		"page_size":   pageSize,
 		"total_pages": (total + int64(pageSize) - 1) / int64(pageSize),
 	})
 }
@@ -757,10 +758,10 @@ func (h *ConfigurationHandler) GetConfigurationHistory(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"data":       history,
-		"total":      total,
-		"page":       page,
-		"page_size":  pageSize,
+		"data":        history,
+		"total":       total,
+		"page":        page,
+		"page_size":   pageSize,
 		"total_pages": (total + int64(pageSize) - 1) / int64(pageSize),
 	})
 }
@@ -825,10 +826,10 @@ func (h *ConfigurationHandler) GetAuditLogs(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"data":       audits,
-		"total":      total,
-		"page":       page,
-		"page_size":  pageSize,
+		"data":        audits,
+		"total":       total,
+		"page":        page,
+		"page_size":   pageSize,
 		"total_pages": (total + int64(pageSize) - 1) / int64(pageSize),
 	})
 }

@@ -3,8 +3,9 @@ package api
 import (
 	"net/http"
 
-	"github.com/gin-gonic/gin"
 	"go-cesi/internal/supervisor"
+
+	"github.com/gin-gonic/gin"
 )
 
 type GroupsAPI struct {
@@ -18,7 +19,7 @@ func NewGroupsAPI(service *supervisor.SupervisorService) *GroupsAPI {
 // GetGroups 获取所有进程分组
 func (g *GroupsAPI) GetGroups(c *gin.Context) {
 	groups := g.service.GetGroups()
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"status": "success",
 		"groups": groups,
@@ -28,19 +29,19 @@ func (g *GroupsAPI) GetGroups(c *gin.Context) {
 // GetGroupDetails 获取特定分组的详细信息
 func (g *GroupsAPI) GetGroupDetails(c *gin.Context) {
 	groupName := c.Param("group_name")
-	
+
 	group := g.service.GetGroupDetails(groupName)
 	if group == nil {
 		c.JSON(http.StatusNotFound, gin.H{
-			"status": "error",
+			"status":  "error",
 			"message": "Group not found",
 		})
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"status": "success",
-		"group": group,
+		"group":  group,
 	})
 }
 
@@ -48,18 +49,18 @@ func (g *GroupsAPI) GetGroupDetails(c *gin.Context) {
 func (g *GroupsAPI) StartGroupProcesses(c *gin.Context) {
 	groupName := c.Param("group_name")
 	environmentName := c.Query("environment")
-	
+
 	err := g.service.StartGroupProcesses(groupName, environmentName)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"status": "error",
+			"status":  "error",
 			"message": err.Error(),
 		})
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{
-		"status": "success",
+		"status":  "success",
 		"message": "Group processes started successfully",
 	})
 }
@@ -68,18 +69,18 @@ func (g *GroupsAPI) StartGroupProcesses(c *gin.Context) {
 func (g *GroupsAPI) StopGroupProcesses(c *gin.Context) {
 	groupName := c.Param("group_name")
 	environmentName := c.Query("environment")
-	
+
 	err := g.service.StopGroupProcesses(groupName, environmentName)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"status": "error",
+			"status":  "error",
 			"message": err.Error(),
 		})
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{
-		"status": "success",
+		"status":  "success",
 		"message": "Group processes stopped successfully",
 	})
 }
@@ -88,18 +89,18 @@ func (g *GroupsAPI) StopGroupProcesses(c *gin.Context) {
 func (g *GroupsAPI) RestartGroupProcesses(c *gin.Context) {
 	groupName := c.Param("group_name")
 	environmentName := c.Query("environment")
-	
+
 	err := g.service.RestartGroupProcesses(groupName, environmentName)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"status": "error",
+			"status":  "error",
 			"message": err.Error(),
 		})
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{
-		"status": "success",
+		"status":  "success",
 		"message": "Group processes restarted successfully",
 	})
 }

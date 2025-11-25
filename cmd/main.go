@@ -10,13 +10,11 @@ import (
 	"strings"
 	"syscall"
 	"time"
-	
-	"github.com/spf13/viper"
+
 	"github.com/gin-contrib/cors"
+	"github.com/spf13/viper"
 	"go.uber.org/zap"
 
-	"github.com/gin-gonic/gin"
-	"github.com/joho/godotenv"
 	"go-cesi/internal/api"
 	"go-cesi/internal/auth"
 	"go-cesi/internal/config"
@@ -27,6 +25,9 @@ import (
 	"go-cesi/internal/models"
 	"go-cesi/internal/supervisor"
 	"go-cesi/internal/websocket"
+
+	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
 	"gorm.io/gorm"
 )
 
@@ -146,7 +147,7 @@ func main() {
 		os.Exit(1)
 	}
 	defer logger.Close()
-	
+
 	// 记录日志系统启动信息
 	logger.Info("Dynamic logging system initialized successfully")
 
@@ -212,7 +213,7 @@ func main() {
 	// 启动性能监控
 	if appConfig.Performance.MemoryMonitoringEnabled {
 		middleware.StartMemoryMonitoring(appConfig.Performance.MemoryUpdateInterval)
-		logger.Info("Memory monitoring started", 
+		logger.Info("Memory monitoring started",
 			zap.Duration("update_interval", appConfig.Performance.MemoryUpdateInterval))
 	}
 
@@ -281,13 +282,11 @@ func main() {
 	if err != nil {
 		logger.Fatal("Failed to get working directory", zap.Error(err))
 	}
-	
-	// 设置模板目录
-	templatesPath := filepath.Join(projectRoot, "web", "templates", "*")
-	router.LoadHTMLGlob(templatesPath)
-	// 设置静态文件目录
+
+	// 设置静态文件目录（仅保留 CSS 等静态资源）
 	staticPath := filepath.Join(projectRoot, "web", "static")
 	router.Static("/static", staticPath)
+
 	// 设置React应用静态文件
 	reactBuildPath := filepath.Join(projectRoot, "web", "react-app", "build")
 	router.Static("/react", reactBuildPath)
@@ -308,17 +307,10 @@ func main() {
 		hub.HandleWebSocket(c)
 	})
 
-	// 设置前端页面路由
-	
-	// 登录页面路由
-	router.GET("/login", func(c *gin.Context) {
-		c.HTML(http.StatusOK, "login.html", nil)
-	})
-
 	// React应用路由 - 服务于所有前端路由
 	router.NoRoute(func(c *gin.Context) {
 		// 如果是API请求，返回404
-		if len(c.Request.URL.Path) >= 4 && c.Request.URL.Path[:4] == "/api" {
+		if strings.HasPrefix(c.Request.URL.Path, "/api") {
 			c.JSON(http.StatusNotFound, gin.H{"error": "API endpoint not found"})
 			return
 		}
@@ -327,43 +319,14 @@ func main() {
 		c.File(indexPath)
 	})
 
-	// 受保护的前端页面路由（保留用于传统模板）
-	protectedGroup := router.Group("/legacy", authService.AuthMiddleware())
-	{
-		protectedGroup.GET("/", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "index.html", nil)
-		})
-		protectedGroup.GET("/dashboard", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "dashboard.html", nil)
-		})
-		protectedGroup.GET("/nodes", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "nodes.html", nil)
-		})
-		protectedGroup.GET("/logs", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "logs.html", nil)
-		})
-		protectedGroup.GET("/users", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "users.html", nil)
-		})
-		protectedGroup.GET("/environments", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "environments.html", nil)
-		})
-		protectedGroup.GET("/groups", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "groups.html", nil)
-		})
-		protectedGroup.GET("/activity-logs", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "activity-logs.html", nil)
-		})
-	}
-
 	// 设置优雅关闭
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	
+
 	// 设置信号处理
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGHUP)
-	
+
 	// 启动配置热重载协程
 	go func() {
 		for range sigChan {
@@ -373,7 +336,7 @@ func main() {
 				logger.Error("Failed to reload config", zap.Error(err))
 				continue
 			}
-			
+
 			// 更新节点配置
 			for _, node := range newConfig.Nodes {
 				if _, err := supervisorService.GetNode(node.Name); err != nil {
@@ -392,15 +355,15 @@ func main() {
 					}
 				}
 			}
-			
+
 			// 更新admin配置
-			if newConfig.Admin.Username != nodeConfig.Admin.Username || 
-			   newConfig.Admin.Password != nodeConfig.Admin.Password {
+			if newConfig.Admin.Username != nodeConfig.Admin.Username ||
+				newConfig.Admin.Password != nodeConfig.Admin.Password {
 				if err := updateAdminUser(db, newConfig); err != nil {
 					logger.Error("Failed to update admin user", zap.Error(err))
 				}
 			}
-			
+
 			nodeConfig = newConfig
 			logger.Info("Configuration reloaded successfully")
 		}
@@ -412,7 +375,7 @@ func main() {
 		Addr:    serverAddr,
 		Handler: router,
 	}
-	
+
 	// 在goroutine中启动服务器
 	go func() {
 		logger.Info("Server starting", zap.String("address", serverAddr))
@@ -420,41 +383,41 @@ func main() {
 			logger.Fatal("Failed to start server", zap.Error(err))
 		}
 	}()
-	
+
 	// 等待中断信号
 	<-quit
 	logger.Info("Shutting down server...")
-	
+
 	// 优雅关闭资源
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	
+
 	// 关闭HTTP服务器
 	if err := server.Shutdown(ctx); err != nil {
 		logger.Error("Server forced to shutdown", zap.Error(err))
 	}
-	
+
 	// 关闭WebSocket Hub
 	hub.Close()
-	
+
 	// 停止自动刷新
 	supervisorService.StopAutoRefresh(stopRefresh)
-	
+
 	// 停止性能监控
 	if appConfig.Performance.MemoryMonitoringEnabled {
 		middleware.StopMemoryMonitoring()
 		logger.Info("Memory monitoring stopped")
 	}
-	
+
 	if appConfig.Performance.MetricsCleanupEnabled {
 		middleware.StopPerformanceCleanup()
 		logger.Info("Performance metrics cleanup stopped")
 	}
-	
+
 	// 关闭数据库连接
 	database.Close()
 	logger.Info("Database connection closed")
-	
+
 	logger.Info("Server exited")
 }
 
@@ -467,7 +430,7 @@ func updateAdminUser(db *gorm.DB, config *Config) error {
 	if err := adminUser.SetPassword(config.Admin.Password); err != nil {
 		return fmt.Errorf("failed to set admin password: %v", err)
 	}
-	
+
 	// 更新或创建admin用户
 	var existingUser models.User
 	if err := db.Where("is_admin = ?", true).First(&existingUser).Error; err == nil {
@@ -490,7 +453,7 @@ func loadConfig() (*Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to get working directory: %v", err)
 	}
-	
+
 	viper.SetConfigName("config")
 	viper.SetConfigType("toml")
 	viper.AddConfigPath(projectRoot)

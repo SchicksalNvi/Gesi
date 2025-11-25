@@ -9,9 +9,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/gin-gonic/gin"
 	"go-cesi/internal/models"
 	"go-cesi/internal/services"
+
+	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
@@ -34,7 +35,7 @@ func (a *LogsAPI) GetLogs(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// Get user from database
 	var user models.User
 	if err := a.db.First(&user, userID).Error; err != nil {
@@ -44,7 +45,7 @@ func (a *LogsAPI) GetLogs(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// Check admin permission
 	if !user.IsAdmin {
 		c.JSON(http.StatusForbidden, gin.H{

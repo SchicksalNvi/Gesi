@@ -5,9 +5,10 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"go-cesi/internal/services"
 	"go-cesi/internal/validation"
+
+	"github.com/gin-gonic/gin"
 )
 
 type ActivityLogsAPI struct {
@@ -26,16 +27,16 @@ func (a *ActivityLogsAPI) GetActivityLogs(c *gin.Context) {
 	// 验证分页参数
 	validator := validation.NewValidator()
 	page, pageSize := validator.ValidatePagination(pageStr, pageSizeStr)
-	
+
 	// 检查验证错误
-		if validator.HasErrors() {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"status": "error",
-				"message": "Validation failed",
-				"errors": validator.Errors(),
-			})
-			return
-		}
+	if validator.HasErrors() {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  "error",
+			"message": "Validation failed",
+			"errors":  validator.Errors(),
+		})
+		return
+	}
 
 	// 验证时间范围参数
 	startTimeStr := c.Query("start_time")
@@ -73,7 +74,7 @@ func (a *ActivityLogsAPI) GetActivityLogs(c *gin.Context) {
 	logs, total, err := a.service.GetActivityLogs(page, pageSize, filters)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"status": "error",
+			"status":  "error",
 			"message": "Failed to get activity logs: " + err.Error(),
 		})
 		return
@@ -87,7 +88,7 @@ func (a *ActivityLogsAPI) GetActivityLogs(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"status": "success",
 		"data": gin.H{
-			"logs":        logs,
+			"logs": logs,
 			"pagination": gin.H{
 				"page":        page,
 				"page_size":   pageSize,
@@ -104,7 +105,7 @@ func (a *ActivityLogsAPI) GetActivityLogs(c *gin.Context) {
 func (a *ActivityLogsAPI) GetRecentLogs(c *gin.Context) {
 	validator := validation.NewValidator()
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
-	
+
 	// 验证限制参数
 	limitStr := c.DefaultQuery("limit", "20")
 	limit, err := strconv.Atoi(limitStr)
@@ -113,21 +114,21 @@ func (a *ActivityLogsAPI) GetRecentLogs(c *gin.Context) {
 	} else {
 		validator.ValidateRange("limit", limit, 1, 100)
 	}
-	
+
 	// 检查验证错误
-		if validator.HasErrors() {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"status": "error",
-				"message": "Validation failed",
-				"errors": validator.Errors(),
-			})
-			return
-		}
+	if validator.HasErrors() {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  "error",
+			"message": "Validation failed",
+			"errors":  validator.Errors(),
+		})
+		return
+	}
 
 	logs, err := a.service.GetRecentLogs(limit)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"status": "error",
+			"status":  "error",
 			"message": "Failed to get recent logs: " + err.Error(),
 		})
 		return
@@ -143,7 +144,7 @@ func (a *ActivityLogsAPI) GetRecentLogs(c *gin.Context) {
 func (a *ActivityLogsAPI) GetLogStatistics(c *gin.Context) {
 	validator := validation.NewValidator()
 	days, _ := strconv.Atoi(c.DefaultQuery("days", "7"))
-	
+
 	// 验证天数参数
 	daysStr := c.DefaultQuery("days", "7")
 	days, err := strconv.Atoi(daysStr)
@@ -152,21 +153,21 @@ func (a *ActivityLogsAPI) GetLogStatistics(c *gin.Context) {
 	} else {
 		validator.ValidateRange("days", days, 1, 365)
 	}
-	
+
 	// 检查验证错误
-		if validator.HasErrors() {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"status": "error",
-				"message": "Validation failed",
-				"errors": validator.Errors(),
-			})
-			return
-		}
+	if validator.HasErrors() {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  "error",
+			"message": "Validation failed",
+			"errors":  validator.Errors(),
+		})
+		return
+	}
 
 	stats, err := a.service.GetLogStatistics(days)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"status": "error",
+			"status":  "error",
 			"message": "Failed to get log statistics: " + err.Error(),
 		})
 		return
@@ -182,7 +183,7 @@ func (a *ActivityLogsAPI) GetLogStatistics(c *gin.Context) {
 func (a *ActivityLogsAPI) CleanOldLogs(c *gin.Context) {
 	validator := validation.NewValidator()
 	days, _ := strconv.Atoi(c.DefaultQuery("days", "90"))
-	
+
 	// 验证保留天数参数
 	retentionDaysStr := c.Query("retention_days")
 	var retentionDays int
@@ -197,31 +198,31 @@ func (a *ActivityLogsAPI) CleanOldLogs(c *gin.Context) {
 	}
 
 	// 检查验证错误
-		if validator.HasErrors() {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"status": "error",
-				"message": "Validation failed",
-				"errors": validator.Errors(),
-			})
-			return
-		}
+	if validator.HasErrors() {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  "error",
+			"message": "Validation failed",
+			"errors":  validator.Errors(),
+		})
+		return
+	}
 
 	err := a.service.CleanOldLogs(days)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"status": "error",
+			"status":  "error",
 			"message": "Failed to clean old logs: " + err.Error(),
 		})
 		return
 	}
 
 	// 记录清理操作
-	a.service.LogWithContext(c, "INFO", "clean_logs", "system", "", 
-		"Cleaned logs older than "+strconv.Itoa(days)+" days", 
+	a.service.LogWithContext(c, "INFO", "clean_logs", "system", "",
+		"Cleaned logs older than "+strconv.Itoa(days)+" days",
 		map[string]int{"days": days})
 
 	c.JSON(http.StatusOK, gin.H{
-		"status": "success",
+		"status":  "success",
 		"message": "Old logs cleaned successfully",
 	})
 }

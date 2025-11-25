@@ -3,9 +3,10 @@ package api
 import (
 	"net/http"
 
-	"github.com/gin-gonic/gin"
 	"go-cesi/internal/supervisor"
 	"go-cesi/internal/validation"
+
+	"github.com/gin-gonic/gin"
 )
 
 type NodesAPI struct {
@@ -30,24 +31,24 @@ func (api *NodesAPI) GetNodes(c *gin.Context) {
 
 func (api *NodesAPI) GetNode(c *gin.Context) {
 	nodeName := c.Param("node_name")
-	
+
 	// 输入验证
 	validator := validation.NewValidator()
 	validator.ValidateNodeName("node_name", nodeName)
 	validator.ValidateNoSQLInjection("node_name", nodeName)
-	
+
 	if validator.HasErrors() {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"status": "error",
+			"status":  "error",
 			"message": "输入验证失败",
-			"errors": validator.Errors(),
+			"errors":  validator.Errors(),
 		})
 		return
 	}
-	
+
 	// 清理输入
 	nodeName = validation.SanitizeInput(nodeName)
-	
+
 	node, err := api.service.GetNode(nodeName)
 	if err != nil {
 		handleNotFound(c, "node", nodeName)
@@ -72,27 +73,27 @@ func (api *NodesAPI) GetNodeProcesses(c *gin.Context) {
 func (api *NodesAPI) StartProcess(c *gin.Context) {
 	nodeName := c.Param("node_name")
 	processName := c.Param("process_name")
-	
+
 	// 输入验证
 	validator := validation.NewValidator()
 	validator.ValidateNodeName("node_name", nodeName)
 	validator.ValidateProcessName("process_name", processName)
 	validator.ValidateNoSQLInjection("node_name", nodeName)
 	validator.ValidateNoSQLInjection("process_name", processName)
-	
+
 	if validator.HasErrors() {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"status": "error",
+			"status":  "error",
 			"message": "输入验证失败",
-			"errors": validator.Errors(),
+			"errors":  validator.Errors(),
 		})
 		return
 	}
-	
+
 	// 清理输入
 	nodeName = validation.SanitizeInput(nodeName)
 	processName = validation.SanitizeInput(processName)
-	
+
 	if err := api.service.StartProcess(nodeName, processName); err != nil {
 		handleAppError(c, err)
 		return

@@ -5,9 +5,10 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"go-cesi/internal/logger"
 	"go-cesi/internal/validation"
+
+	"github.com/gin-gonic/gin"
 )
 
 type LogManagementAPI struct{}

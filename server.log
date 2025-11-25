@@ -1,6 +1,0 @@
-cmd/main.go:8:2: no required module provides package github.com/yourusername/go-cesi/internal/api; to add it:
-	go get github.com/yourusername/go-cesi/internal/api
-cmd/main.go:9:2: no required module provides package github.com/yourusername/go-cesi/internal/config; to add it:
-	go get github.com/yourusername/go-cesi/internal/config
-cmd/main.go:10:2: no required module provides package github.com/yourusername/go-cesi/internal/models; to add it:
-	go get github.com/yourusername/go-cesi/internal/models

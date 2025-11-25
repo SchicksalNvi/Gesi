@@ -1,25 +1,12 @@
 package api
 
 import (
-	"errors"
-	"net/http"
 	"strconv"
 
-	"github.com/gin-gonic/gin"
 	appErrors "go-cesi/internal/errors"
+
+	"github.com/gin-gonic/gin"
 )
-
-// ErrorResponse 统一错误响应格式
-type ErrorResponse struct {
-	Error string `json:"error"`
-}
-
-// SuccessResponse 统一成功响应格式
-type SuccessResponse struct {
-	Status  string      `json:"status"`
-	Message string      `json:"message,omitempty"`
-	Data    interface{} `json:"data,omitempty"`
-}
 
 // parseIDParam 解析URL参数中的ID
 func parseIDParam(c *gin.Context, paramName string) (uint, error) {
@@ -39,36 +26,38 @@ func getUserID(c *gin.Context) (uint, bool) {
 	return userID.(uint), true
 }
 
-// handleError 统一错误处理
+// 旧的响应类型（保持向后兼容）
+type ErrorResponse = ErrorResponseLegacy
+type SuccessResponse = SuccessResponseLegacy
+
+// SuccessResponse 别名函数，保持向后兼容
+func SuccessResponseFunc(c *gin.Context, data interface{}) {
+	Success(c, data)
+}
+
+// ErrorResponse 别名函数，保持向后兼容
+func ErrorResponseFunc(c *gin.Context, err error) {
+	Error(c, err)
+}
+
+// handleError 统一错误处理（已废弃，使用 Error() 代替）
 func handleError(c *gin.Context, statusCode int, message string) {
 	c.JSON(statusCode, ErrorResponse{Error: message})
 }
 
 // handleAppError 处理应用程序错误
 func handleAppError(c *gin.Context, err error) {
-	var appErr *appErrors.AppError
-	if errors.As(err, &appErr) {
-		c.JSON(appErr.HTTPStatus(), ErrorResponse{Error: appErr.Message})
-	} else {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
-	}
+	Error(c, err)
 }
 
 // handleSuccess 统一成功响应
 func handleSuccess(c *gin.Context, message string, data interface{}) {
-	response := SuccessResponse{
-		Status:  "success",
-		Message: message,
-	}
-	if data != nil {
-		response.Data = data
-	}
-	c.JSON(http.StatusOK, response)
+	SuccessWithMessage(c, message, data)
 }
 
 // handleInvalidID 处理无效ID错误
 func handleInvalidID(c *gin.Context, resourceType string) {
-	err := appErrors.NewValidationError("INVALID_ID", "Invalid "+resourceType+" ID")
+	err := appErrors.NewValidationError("id", "Invalid "+resourceType+" ID")
 	handleAppError(c, err)
 }
 
@@ -86,7 +75,7 @@ func handleInternalError(c *gin.Context, err error) {
 
 // handleBadRequest 处理请求参数错误
 func handleBadRequest(c *gin.Context, err error) {
-	appErr := appErrors.NewValidationError("BAD_REQUEST", "Invalid request parameters", err.Error())
+	appErr := appErrors.NewValidationError("request", "Invalid request parameters: "+err.Error())
 	handleAppError(c, appErr)
 }
 

@@ -1,0 +1,67 @@
+# Binaries
+go-cesi
+cesi
+main
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test binary
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# Logs
+*.log
+logs/
+debug.log
+runtime.log
+server.log
+
+# Database
+data/*.db
+data/*.db-shm
+data/*.db-wal
+
+# Environment
+.env
+.env.local
+
+# Temporary files
+*.tmp
+*.swp
+*.swo
+*~
+cookies.txt
+
+# IDE
+.vscode/
+.idea/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Backup
+backup_*/
+
+# Build
+build/
+dist/
+
+# Node modules (for React frontend)
+node_modules/
+web/react-app/build/
+web/react-app/node_modules/
+
+# PID files
+pids/*.pid
+
+# Optimization docs (keep only final report)
+OPTIMIZATION_PROGRESS.md
+OPTIMIZATION_SUMMARY.md
+COMPLETION_SUMMARY.md
+AGENT.md

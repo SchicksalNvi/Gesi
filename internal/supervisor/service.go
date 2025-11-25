@@ -544,3 +544,94 @@ func (s *SupervisorService) IsShutdown() bool {
 	defer s.mu.RUnlock()
 	return s.shutdown
 }
+
+// Lifecycle 接口实现
+
+// Start 启动 SupervisorService
+func (s *SupervisorService) Start(ctx context.Context) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.shutdown {
+		return errors.NewInternalError("service already shutdown", nil)
+	}
+
+	logger.Info("Starting SupervisorService")
+
+	// 初始化 stopChan（如果需要）
+	if s.stopChan == nil {
+		s.stopChan = make(chan struct{})
+	}
+
+	// 尝试连接所有节点
+	for _, node := range s.nodes {
+		if err := node.Connect(); err != nil {
+			logger.Warn("Failed to connect to node during startup",
+				zap.String("node_name", node.Name),
+				zap.Error(err))
+			node.IsConnected = false
+		} else {
+			node.IsConnected = true
+			node.LastPing = time.Now()
+			logger.Info("Node connected successfully",
+				zap.String("node_name", node.Name))
+		}
+	}
+
+	logger.Info("SupervisorService started successfully")
+	return nil
+}
+
+// Stop 停止 SupervisorService（实现 Lifecycle 接口）
+func (s *SupervisorService) Stop(ctx context.Context) error {
+	return s.Shutdown(ctx)
+}
+
+// Health 健康检查（实现 Lifecycle 接口）
+func (s *SupervisorService) Health() HealthStatus {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	if s.shutdown {
+		return HealthStatus{
+			Status:    "unhealthy",
+			Timestamp: time.Now(),
+			Details: map[string]interface{}{
+				"reason": "service is shutdown",
+			},
+		}
+	}
+
+	// 统计节点状态
+	totalNodes := len(s.nodes)
+	connectedNodes := 0
+	for _, node := range s.nodes {
+		if node.IsConnected {
+			connectedNodes++
+		}
+	}
+
+	// 确定健康状态
+	status := "healthy"
+	if connectedNodes == 0 && totalNodes > 0 {
+		status = "unhealthy"
+	} else if connectedNodes < totalNodes {
+		status = "degraded"
+	}
+
+	return HealthStatus{
+		Status:    status,
+		Timestamp: time.Now(),
+		Details: map[string]interface{}{
+			"total_nodes":     totalNodes,
+			"connected_nodes": connectedNodes,
+		},
+	}
+}
+
+// HealthStatus 健康状态（与 lifecycle.HealthStatus 兼容）
+type HealthStatus struct {
+	Status    string
+	Timestamp time.Time
+	Details   map[string]interface{}
+}

@@ -6,43 +6,44 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"go-cesi/internal/logger"
 	"go-cesi/internal/supervisor"
+
+	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
 type HealthAPI struct {
-	db              *gorm.DB
-	supervisorSvc   *supervisor.SupervisorService
-	startTime       time.Time
+	db            *gorm.DB
+	supervisorSvc *supervisor.SupervisorService
+	startTime     time.Time
 }
 
 type HealthStatus struct {
-	Status      string                 `json:"status"`
-	Timestamp   time.Time              `json:"timestamp"`
-	Uptime      string                 `json:"uptime"`
-	Version     string                 `json:"version"`
-	Services    map[string]ServiceInfo `json:"services"`
-	System      SystemInfo             `json:"system"`
-	Database    DatabaseInfo           `json:"database"`
-	Nodes       NodesInfo              `json:"nodes"`
+	Status    string                 `json:"status"`
+	Timestamp time.Time              `json:"timestamp"`
+	Uptime    string                 `json:"uptime"`
+	Version   string                 `json:"version"`
+	Services  map[string]ServiceInfo `json:"services"`
+	System    SystemInfo             `json:"system"`
+	Database  DatabaseInfo           `json:"database"`
+	Nodes     NodesInfo              `json:"nodes"`
 }
 
 type ServiceInfo struct {
-	Status      string    `json:"status"`
-	LastCheck   time.Time `json:"last_check"`
-	Message     string    `json:"message,omitempty"`
-	ResponseTime string   `json:"response_time,omitempty"`
+	Status       string    `json:"status"`
+	LastCheck    time.Time `json:"last_check"`
+	Message      string    `json:"message,omitempty"`
+	ResponseTime string    `json:"response_time,omitempty"`
 }
 
 type SystemInfo struct {
-	GoVersion    string  `json:"go_version"`
-	Goroutines   int     `json:"goroutines"`
-	MemoryUsage  string  `json:"memory_usage"`
-	CPUCount     int     `json:"cpu_count"`
-	LoadAverage  float64 `json:"load_average,omitempty"`
+	GoVersion   string  `json:"go_version"`
+	Goroutines  int     `json:"goroutines"`
+	MemoryUsage string  `json:"memory_usage"`
+	CPUCount    int     `json:"cpu_count"`
+	LoadAverage float64 `json:"load_average,omitempty"`
 }
 
 type DatabaseInfo struct {
@@ -53,10 +54,10 @@ type DatabaseInfo struct {
 }
 
 type NodesInfo struct {
-	Total    int `json:"total"`
-	Online   int `json:"online"`
-	Offline  int `json:"offline"`
-	Unknown  int `json:"unknown"`
+	Total   int `json:"total"`
+	Online  int `json:"online"`
+	Offline int `json:"offline"`
+	Unknown int `json:"unknown"`
 }
 
 func NewHealthAPI(db *gorm.DB, supervisorSvc *supervisor.SupervisorService) *HealthAPI {
@@ -70,16 +71,16 @@ func NewHealthAPI(db *gorm.DB, supervisorSvc *supervisor.SupervisorService) *Hea
 // GetHealth 获取系统健康状态
 func (h *HealthAPI) GetHealth(c *gin.Context) {
 	startTime := time.Now()
-	
+
 	// 检查数据库状态
 	dbInfo := h.checkDatabaseHealth()
-	
+
 	// 检查节点状态
 	nodesInfo := h.checkNodesHealth()
-	
+
 	// 检查系统信息
 	systemInfo := h.getSystemInfo()
-	
+
 	// 检查各个服务状态
 	services := map[string]ServiceInfo{
 		"database": {
@@ -94,12 +95,12 @@ func (h *HealthAPI) GetHealth(c *gin.Context) {
 			ResponseTime: time.Since(startTime).String(),
 		},
 		"logger": {
-			Status:       "healthy",
-			LastCheck:    time.Now(),
-			Message:      "Logger service is operational",
+			Status:    "healthy",
+			LastCheck: time.Now(),
+			Message:   "Logger service is operational",
 		},
 	}
-	
+
 	// 确定整体状态
 	overallStatus := "healthy"
 	if dbInfo.Status != "healthy" {
@@ -107,7 +108,7 @@ func (h *HealthAPI) GetHealth(c *gin.Context) {
 	} else if nodesInfo.Offline > 0 {
 		overallStatus = "degraded"
 	}
-	
+
 	health := HealthStatus{
 		Status:    overallStatus,
 		Timestamp: time.Now(),
@@ -118,7 +119,7 @@ func (h *HealthAPI) GetHealth(c *gin.Context) {
 		Database:  dbInfo,
 		Nodes:     nodesInfo,
 	}
-	
+
 	// 根据状态返回相应的HTTP状态码
 	statusCode := http.StatusOK
 	if overallStatus == "unhealthy" {
@@ -126,7 +127,7 @@ func (h *HealthAPI) GetHealth(c *gin.Context) {
 	} else if overallStatus == "degraded" {
 		statusCode = http.StatusPartialContent
 	}
-	
+
 	c.JSON(statusCode, health)
 }
 
@@ -142,7 +143,7 @@ func (h *HealthAPI) GetHealthLive(c *gin.Context) {
 func (h *HealthAPI) GetHealthReady(c *gin.Context) {
 	// 检查关键依赖是否就绪
 	dbReady := h.isDatabaseReady()
-	
+
 	if !dbReady {
 		c.JSON(http.StatusServiceUnavailable, gin.H{
 			"status":  "not ready",
@@ -150,7 +151,7 @@ func (h *HealthAPI) GetHealthReady(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"status":    "ready",
 		"timestamp": time.Now(),
@@ -159,13 +160,13 @@ func (h *HealthAPI) GetHealthReady(c *gin.Context) {
 
 func (h *HealthAPI) checkDatabaseHealth() DatabaseInfo {
 	startTime := time.Now()
-	
+
 	// 执行简单的数据库查询来检查连接
 	var result int
 	err := h.db.Raw("SELECT 1").Scan(&result).Error
-	
+
 	responseTime := time.Since(startTime).String()
-	
+
 	if err != nil {
 		logger.Error("Database health check failed", zap.Error(err))
 		return DatabaseInfo{
@@ -175,7 +176,7 @@ func (h *HealthAPI) checkDatabaseHealth() DatabaseInfo {
 			Message:      err.Error(),
 		}
 	}
-	
+
 	// 获取数据库连接池信息
 	sqlDB, err := h.db.DB()
 	connections := 0
@@ -183,7 +184,7 @@ func (h *HealthAPI) checkDatabaseHealth() DatabaseInfo {
 		stats := sqlDB.Stats()
 		connections = stats.OpenConnections
 	}
-	
+
 	return DatabaseInfo{
 		Status:       "healthy",
 		Connections:  connections,
@@ -201,12 +202,12 @@ func (h *HealthAPI) checkNodesHealth() NodesInfo {
 			Unknown: 0,
 		}
 	}
-	
+
 	nodes := h.supervisorSvc.GetAllNodes()
 	nodesInfo := NodesInfo{
 		Total: len(nodes),
 	}
-	
+
 	for _, node := range nodes {
 		if node.IsConnected {
 			nodesInfo.Online++
@@ -214,14 +215,14 @@ func (h *HealthAPI) checkNodesHealth() NodesInfo {
 			nodesInfo.Offline++
 		}
 	}
-	
+
 	return nodesInfo
 }
 
 func (h *HealthAPI) getSystemInfo() SystemInfo {
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
-	
+
 	return SystemInfo{
 		GoVersion:   runtime.Version(),
 		Goroutines:  runtime.NumGoroutine(),

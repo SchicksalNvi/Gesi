@@ -5,9 +5,10 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"go-cesi/internal/models"
 	"go-cesi/internal/services"
+
+	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
@@ -106,10 +107,10 @@ func (h *ProcessEnhancedHandler) GetProcessGroups(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"data":       groups,
-		"total":      total,
-		"page":       page,
-		"page_size":  pageSize,
+		"data":        groups,
+		"total":       total,
+		"page":        page,
+		"page_size":   pageSize,
 		"total_pages": (total + int64(pageSize) - 1) / int64(pageSize),
 	})
 }
@@ -267,13 +268,13 @@ func (h *ProcessEnhancedHandler) CreateProcessDependency(c *gin.Context) {
 	}
 
 	var req struct {
-		ProcessName       string `json:"process_name" binding:"required"`
-		NodeID            uint   `json:"node_id" binding:"required"`
-		DependentProcess  string `json:"dependent_process" binding:"required"`
-		DependentNodeID   uint   `json:"dependent_node_id" binding:"required"`
-		DependencyType    string `json:"dependency_type" binding:"required"`
-		Description       string `json:"description"`
-		Enabled           bool   `json:"enabled"`
+		ProcessName      string `json:"process_name" binding:"required"`
+		NodeID           uint   `json:"node_id" binding:"required"`
+		DependentProcess string `json:"dependent_process" binding:"required"`
+		DependentNodeID  uint   `json:"dependent_node_id" binding:"required"`
+		DependencyType   string `json:"dependency_type" binding:"required"`
+		Description      string `json:"description"`
+		Enabled          bool   `json:"enabled"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -466,10 +467,10 @@ func (h *ProcessEnhancedHandler) GetScheduledTasks(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"data":       tasks,
-		"total":      total,
-		"page":       page,
-		"page_size":  pageSize,
+		"data":        tasks,
+		"total":       total,
+		"page":        page,
+		"page_size":   pageSize,
 		"total_pages": (total + int64(pageSize) - 1) / int64(pageSize),
 	})
 }
@@ -557,10 +558,10 @@ func (h *ProcessEnhancedHandler) GetTaskExecutions(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"data":       executions,
-		"total":      total,
-		"page":       page,
-		"page_size":  pageSize,
+		"data":        executions,
+		"total":       total,
+		"page":        page,
+		"page_size":   pageSize,
 		"total_pages": (total + int64(pageSize) - 1) / int64(pageSize),
 	})
 }
@@ -634,10 +635,10 @@ func (h *ProcessEnhancedHandler) GetProcessTemplates(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"data":       templates,
-		"total":      total,
-		"page":       page,
-		"page_size":  pageSize,
+		"data":        templates,
+		"total":       total,
+		"page":        page,
+		"page_size":   pageSize,
 		"total_pages": (total + int64(pageSize) - 1) / int64(pageSize),
 	})
 }
@@ -906,7 +907,7 @@ func (h *ProcessEnhancedHandler) GetProcessMetricsStatistics(c *gin.Context) {
 // CleanupOldData 清理旧数据
 func (h *ProcessEnhancedHandler) CleanupOldData(c *gin.Context) {
 	var req struct {
-		MetricsRetentionDays   int `json:"metrics_retention_days"`
+		MetricsRetentionDays    int `json:"metrics_retention_days"`
 		ExecutionsRetentionDays int `json:"executions_retention_days"`
 	}
 

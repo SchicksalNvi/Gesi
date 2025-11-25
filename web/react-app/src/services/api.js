@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { errorHandler } from './errorHandler';
 
 // Create axios instance with default config
 const api = axios.create({
@@ -16,6 +17,7 @@ api.interceptors.request.use(
     return config;
   },
   (error) => {
+    errorHandler.handleError(error, { type: 'request' });
     return Promise.reject(error);
   }
 );
@@ -24,6 +26,14 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
+    // 记录错误
+    errorHandler.handleError(error, {
+      type: 'response',
+      url: error.config?.url,
+      method: error.config?.method,
+    });
+
+    // 处理 401 未授权
     if (error.response?.status === 401) {
       // 只有当前不在登录页面时才重定向，避免无限循环
       if (!window.location.pathname.includes('/login')) {
