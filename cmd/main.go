@@ -283,14 +283,6 @@ func main() {
 		logger.Fatal("Failed to get working directory", zap.Error(err))
 	}
 
-	// 设置静态文件目录（仅保留 CSS 等静态资源）
-	staticPath := filepath.Join(projectRoot, "web", "static")
-	router.Static("/static", staticPath)
-
-	// 设置React应用静态文件
-	reactBuildPath := filepath.Join(projectRoot, "web", "react-app", "build")
-	router.Static("/react", reactBuildPath)
-
 	// 初始化服务
 	authService := auth.NewAuthService(db)
 
@@ -307,15 +299,20 @@ func main() {
 		hub.HandleWebSocket(c)
 	})
 
-	// React应用路由 - 服务于所有前端路由
+	// 服务 React 构建产物
+	// 静态资源（JS/CSS/图片等）
+	staticPath := filepath.Join(projectRoot, "web", "react-app", "dist", "assets")
+	router.Static("/assets", staticPath)
+
+	// 前端应用路由 - 服务于所有前端路由
 	router.NoRoute(func(c *gin.Context) {
 		// 如果是API请求，返回404
-		if strings.HasPrefix(c.Request.URL.Path, "/api") {
+		if strings.HasPrefix(c.Request.URL.Path, "/api") || strings.HasPrefix(c.Request.URL.Path, "/ws") {
 			c.JSON(http.StatusNotFound, gin.H{"error": "API endpoint not found"})
 			return
 		}
-		// 否则服务React应用
-		indexPath := filepath.Join(projectRoot, "web", "react-app", "build", "index.html")
+		// 否则服务 React 应用的 index.html
+		indexPath := filepath.Join(projectRoot, "web", "react-app", "dist", "index.html")
 		c.File(indexPath)
 	})
 

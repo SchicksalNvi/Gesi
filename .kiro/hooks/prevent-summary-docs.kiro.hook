@@ -1,0 +1,21 @@
+{
+  "enabled": true,
+  "name": "Prevent Unnecessary Summary Docs",
+  "description": "Monitors for creation of summary, guide, or checklist documentation files (like SUMMARY.md, GUIDE.md, CHECKLIST.md) and alerts the agent to avoid creating unnecessary documentation that clutters the project",
+  "version": "1",
+  "when": {
+    "type": "fileCreated",
+    "patterns": [
+      "**/*SUMMARY*.md",
+      "**/*GUIDE*.md",
+      "**/*CHECKLIST*.md",
+      "**/*summary*.md",
+      "**/*guide*.md",
+      "**/*checklist*.md"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "A summary or guide documentation file was just created. Please review if this documentation is truly necessary for the project. Consider: 1) Does this duplicate existing documentation? 2) Will this become outdated quickly? 3) Is this information better suited for code comments or existing docs? If unnecessary, suggest removing it and consolidating information into existing documentation like README.md or tech-specific docs."
+  }
+}

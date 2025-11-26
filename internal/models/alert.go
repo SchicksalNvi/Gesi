@@ -20,10 +20,10 @@ type AlertRule struct {
 	NodeID      *uint          `json:"node_id,omitempty" gorm:"index:idx_node_id" validate:"omitempty,gt=0"`
 	ProcessName *string        `json:"process_name,omitempty" gorm:"size:100;index:idx_process_name" validate:"omitempty,max=100"`
 	Tags        string         `json:"tags" gorm:"size:500" validate:"omitempty,max=500,json"`
-	CreatedBy   uint           `json:"created_by" gorm:"not null;index:idx_created_by" validate:"required,gt=0"`
+	CreatedBy   uint           `json:"created_by" gorm:"not null;index:idx_alert_rule_created_by" validate:"required,gt=0"`
 	CreatedAt   time.Time      `json:"created_at" gorm:"not null;index:idx_alert_rule_created_at"`
 	UpdatedAt   time.Time      `json:"updated_at" gorm:"not null"`
-	DeletedAt   gorm.DeletedAt `json:"deleted_at,omitempty" gorm:"index:idx_alert_rule_deleted_at"`
+	DeletedAt   gorm.DeletedAt `json:"deleted_at,omitempty" gorm:"index"`
 
 	// 关联
 	User   User    `json:"user,omitempty" gorm:"foreignKey:CreatedBy"`
@@ -49,7 +49,7 @@ type Alert struct {
 	Metadata    string         `json:"metadata" gorm:"type:text" validate:"omitempty,json"`
 	CreatedAt   time.Time      `json:"created_at" gorm:"not null;index:idx_alert_created_at"`
 	UpdatedAt   time.Time      `json:"updated_at" gorm:"not null"`
-	DeletedAt   gorm.DeletedAt `json:"deleted_at,omitempty" gorm:"index:idx_alert_deleted_at"`
+	DeletedAt   gorm.DeletedAt `json:"deleted_at,omitempty" gorm:"index"`
 
 	// 关联
 	Rule           AlertRule      `json:"rule,omitempty" gorm:"foreignKey:RuleID"`
@@ -69,7 +69,7 @@ type NotificationChannel struct {
 	CreatedBy   uint           `json:"created_by"`
 	CreatedAt   time.Time      `json:"created_at"`
 	UpdatedAt   time.Time      `json:"updated_at"`
-	DeletedAt   gorm.DeletedAt `json:"deleted_at,omitempty" gorm:"index:idx_notification_channel_deleted_at"`
+	DeletedAt   gorm.DeletedAt `json:"deleted_at,omitempty" gorm:"index"`
 
 	// 关联
 	User          User           `json:"user,omitempty" gorm:"foreignKey:CreatedBy"`

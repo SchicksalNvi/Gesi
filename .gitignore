@@ -54,14 +54,16 @@ dist/
 
 # Node modules (for React frontend)
 node_modules/
-web/react-app/build/
+web/react-app/dist/
 web/react-app/node_modules/
 
 # PID files
 pids/*.pid
 
-# Optimization docs (keep only final report)
-OPTIMIZATION_PROGRESS.md
-OPTIMIZATION_SUMMARY.md
-COMPLETION_SUMMARY.md
+# Development docs
 AGENT.md
+web/react-app/IMPLEMENTATION_GUIDE.md
+web/react-app/COMPLETE_PAGES_GUIDE.md
+web/react-app/PAGES_CHECKLIST.md
+web/react-app/PROJECT_SUMMARY.md
+web/react-app/FINAL_SUMMARY.md

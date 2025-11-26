@@ -1,54 +1,39 @@
 {
-  "name": "go-cesi-frontend",
-  "version": "1.0.0",
-  "private": true,
-  "dependencies": {
-    "@testing-library/jest-dom": "^5.16.4",
-    "@testing-library/react": "^13.3.0",
-    "@testing-library/user-event": "^13.5.0",
-    "axios": "^0.27.2",
-    "bootstrap": "^5.2.0",
-    "bootstrap-icons": "^1.9.1",
-    "lucide-react": "^0.526.0",
-    "moment": "^2.29.4",
-    "react": "^18.2.0",
-    "react-bootstrap": "^2.5.0",
-    "react-dom": "^18.2.0",
-    "react-router-bootstrap": "^0.26.3",
-    "react-router-dom": "^6.3.0",
-    "react-scripts": "5.0.1",
-    "recharts": "^2.5.0",
-
-    "sonner": "^1.4.0",
-    "web-vitals": "^2.1.4"
-  },
+  "name": "go-cesi-react",
+  "version": "2.0.0",
+  "description": "Go-CESI Modern React Frontend",
+  "type": "module",
   "scripts": {
-    "start": "react-scripts start",
-    "start:fast": "GENERATE_SOURCEMAP=false ESLINT_NO_DEV_ERRORS=true SKIP_PREFLIGHT_CHECK=true react-scripts start",
-    "build": "react-scripts build",
-    "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "dev": "vite",
+    "build": "vite build",
+    "build:check": "tsc && vite build",
+    "preview": "vite preview",
+    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "type-check": "tsc --noEmit"
   },
-  "eslintConfig": {
-    "extends": [
-      "react-app",
-      "react-app/jest"
-    ]
+  "dependencies": {
+    "@ant-design/icons": "^5.2.6",
+    "@ant-design/pro-components": "^2.6.43",
+    "antd": "^5.11.5",
+    "axios": "^1.6.2",
+    "dayjs": "^1.11.10",
+    "echarts": "^5.4.3",
+    "echarts-for-react": "^3.0.2",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.20.1",
+    "zustand": "^4.4.7"
   },
-  "browserslist": {
-    "production": [
-      ">0.2%",
-      "not dead",
-      "not op_mini all"
-    ],
-    "development": [
-      "last 1 chrome version",
-      "last 1 firefox version",
-      "last 1 safari version"
-    ]
-  },
-  "proxy": "http://localhost:8081",
   "devDependencies": {
-    "@craco/craco": "^7.1.0"
+    "@types/react": "^18.2.43",
+    "@types/react-dom": "^18.2.17",
+    "@typescript-eslint/eslint-plugin": "^6.14.0",
+    "@typescript-eslint/parser": "^6.14.0",
+    "@vitejs/plugin-react": "^4.2.1",
+    "eslint": "^8.55.0",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "eslint-plugin-react-refresh": "^0.4.5",
+    "typescript": "^5.3.3",
+    "vite": "^5.0.8"
   }
 }

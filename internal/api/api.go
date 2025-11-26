@@ -65,12 +65,24 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB, service *supervisor.SupervisorServi
 		}
 
 		// User management API
+		userHandler := NewUserHandler(db)
 		userGroup := apiGroup.Group("/users")
 		{
-			userGroup.GET("", userAPI.ListUsers)
-			userGroup.POST("", userAPI.CreateUser)
-			userGroup.DELETE("/:username", userAPI.DeleteUser)
-			userGroup.PUT("/:username/password", userAPI.ChangePassword)
+			userGroup.GET("", userHandler.GetUsers)
+			userGroup.POST("", userHandler.CreateUser)
+			userGroup.GET("/:id", userHandler.GetUserByID)
+			userGroup.PUT("/:id", userHandler.UpdateUser)
+			userGroup.DELETE("/:id", userHandler.DeleteUser)
+			userGroup.PATCH("/:id/toggle", userHandler.ToggleUserStatus)
+		}
+
+		// Keep legacy user API for profile management
+		userGroup2 := apiGroup.Group("/users-legacy")
+		{
+			userGroup2.GET("", userAPI.ListUsers)
+			userGroup2.POST("", userAPI.CreateUser)
+			userGroup2.DELETE("/:username", userAPI.DeleteUser)
+			userGroup2.PUT("/:username/password", userAPI.ChangePassword)
 		}
 
 		// Profile management API

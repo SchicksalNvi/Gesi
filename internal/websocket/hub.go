@@ -118,6 +118,15 @@ type broadcastTask struct {
 }
 
 func (t *broadcastTask) Execute(ctx context.Context) error {
+	// 使用 defer recover 防止 panic
+	defer func() {
+		if r := recover(); r != nil {
+			logger.Warn("Recovered from panic in broadcastTask",
+				zap.Any("panic", r),
+				zap.String("task_id", t.taskID))
+		}
+	}()
+	
 	select {
 	case t.client.send <- t.message:
 		return nil
@@ -403,6 +412,17 @@ func (h *Hub) checkHeartbeats() {
 }
 
 func (h *Hub) sendInitialData(client *Client) {
+	// Check if client is still registered
+	h.mu.RLock()
+	_, exists := h.clients[client]
+	h.mu.RUnlock()
+	
+	if !exists {
+		logger.Debug("Client already disconnected, skipping initial data",
+			zap.String("user_id", client.userID))
+		return
+	}
+
 	// Send current nodes data
 	nodes := h.service.GetAllNodes()
 	nodesData := make([]map[string]interface{}, len(nodes))
@@ -423,14 +443,13 @@ func (h *Hub) sendInitialData(client *Client) {
 		return
 	}
 
+	// Try to send with timeout, but don't panic if channel is closed
 	select {
 	case client.send <- data:
-	default:
-		close(client.send)
-		h.mu.Lock()
-		delete(h.clients, client)
-		h.mu.Unlock()
-		logger.Warn("Failed to send initial data to client, channel full",
+		// Successfully sent
+	case <-time.After(1 * time.Second):
+		// Timeout - client may have disconnected
+		logger.Warn("Failed to send initial data to client, timeout",
 			zap.String("user_id", client.userID))
 	}
 }
