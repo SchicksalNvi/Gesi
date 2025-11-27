@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"net/http"
 	"strconv"
 	"time"
@@ -15,12 +16,14 @@ import (
 // AlertHandler 告警处理器
 type AlertHandler struct {
 	alertService *services.AlertService
+	hub          WebSocketHub
 }
 
 // NewAlertHandler 创建告警处理器实例
-func NewAlertHandler(db *gorm.DB) *AlertHandler {
+func NewAlertHandler(db *gorm.DB, hub WebSocketHub) *AlertHandler {
 	return &AlertHandler{
 		alertService: services.NewAlertService(db),
+		hub:          hub,
 	}
 }
 
@@ -338,7 +341,7 @@ func (h *AlertHandler) AcknowledgeAlert(c *gin.Context) {
 		return
 	}
 
-	userID, ok := validateUserAuth(c)
+	userID, ok := validateUserAuthString(c)
 	if !ok {
 		return
 	}
@@ -348,6 +351,9 @@ func (h *AlertHandler) AcknowledgeAlert(c *gin.Context) {
 		handleInternalError(c, err)
 		return
 	}
+
+	// Broadcast alert update event
+	h.broadcastAlertEvent("alert_updated", id)
 
 	handleSuccess(c, "Alert acknowledged", nil)
 }
@@ -359,7 +365,7 @@ func (h *AlertHandler) ResolveAlert(c *gin.Context) {
 		return
 	}
 
-	userID, ok := validateUserAuth(c)
+	userID, ok := validateUserAuthString(c)
 	if !ok {
 		return
 	}
@@ -369,6 +375,9 @@ func (h *AlertHandler) ResolveAlert(c *gin.Context) {
 		handleInternalError(c, err)
 		return
 	}
+
+	// Broadcast alert resolved event
+	h.broadcastAlertEvent("alert_resolved", id)
 
 	handleSuccess(c, "Alert resolved successfully", nil)
 }
@@ -655,4 +664,24 @@ func (h *AlertHandler) TestNotificationChannel(c *gin.Context) {
 		"channel": channel.Name,
 		"type":    channel.Type,
 	})
+}
+
+// broadcastAlertEvent 广播告警事件
+func (h *AlertHandler) broadcastAlertEvent(eventType string, alertID uint) {
+	if h.hub == nil {
+		return
+	}
+
+	event := map[string]interface{}{
+		"type":      eventType,
+		"alert_id":  alertID,
+		"timestamp": time.Now().Format(time.RFC3339),
+	}
+
+	data, err := json.Marshal(event)
+	if err != nil {
+		return
+	}
+
+	h.hub.Broadcast(data)
 }

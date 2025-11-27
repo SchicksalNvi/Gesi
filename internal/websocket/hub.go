@@ -3,7 +3,6 @@ package websocket
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"os"
 	"strings"
@@ -15,7 +14,6 @@ import (
 	"github.com/gorilla/websocket"
 	"go-cesi/internal/logger"
 	"go-cesi/internal/supervisor"
-	"go-cesi/internal/utils"
 	"go.uber.org/zap"
 	"golang.org/x/time/rate"
 )
@@ -89,7 +87,6 @@ type Hub struct {
 	mu            sync.RWMutex
 	ctx           context.Context
 	cancel        context.CancelFunc
-	workerPool    *utils.WorkerPool // 用于并发消息分发的工作池
 }
 
 type Client struct {
@@ -108,47 +105,6 @@ type Client struct {
 type Message struct {
 	Type string      `json:"type"`
 	Data interface{} `json:"data"`
-}
-
-// broadcastTask 广播任务，用于并发消息分发
-type broadcastTask struct {
-	client  *Client
-	message []byte
-	taskID  string
-}
-
-func (t *broadcastTask) Execute(ctx context.Context) error {
-	// 使用 defer recover 防止 panic
-	defer func() {
-		if r := recover(); r != nil {
-			logger.Warn("Recovered from panic in broadcastTask",
-				zap.Any("panic", r),
-				zap.String("task_id", t.taskID))
-		}
-	}()
-	
-	select {
-	case t.client.send <- t.message:
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
-	default:
-		// 发送通道已满，客户端可能阻塞
-		return &BroadcastError{Message: "client send channel full"}
-	}
-}
-
-func (t *broadcastTask) ID() string {
-	return t.taskID
-}
-
-// BroadcastError 广播错误
-type BroadcastError struct {
-	Message string
-}
-
-func (e *BroadcastError) Error() string {
-	return e.Message
 }
 
 type NodeUpdateMessage struct {
@@ -175,15 +131,6 @@ type SystemStatsMessage struct {
 func NewHub(service *supervisor.SupervisorService) *Hub {
 	ctx, cancel := context.WithCancel(context.Background())
 	
-	// 创建工作池用于并发消息分发
-	poolConfig := &utils.WorkerPoolConfig{
-		Workers:      10,  // 10个工作协程用于消息分发
-		QueueSize:    100, // 队列大小
-		ResultBuffer: 100,
-		TaskTimeout:  5 * time.Second,
-	}
-	workerPool := utils.NewWorkerPool(poolConfig)
-	
 	return &Hub{
 		clients:    make(map[*Client]bool),
 		broadcast:  make(chan []byte, 256),
@@ -193,22 +140,12 @@ func NewHub(service *supervisor.SupervisorService) *Hub {
 		config:     GetDefaultWebSocketConfig(),
 		ctx:        ctx,
 		cancel:     cancel,
-		workerPool: workerPool,
 	}
 }
 
 // NewHubWithConfig 使用自定义配置创建Hub
 func NewHubWithConfig(service *supervisor.SupervisorService, config *WebSocketConfig) *Hub {
 	ctx, cancel := context.WithCancel(context.Background())
-	
-	// 创建工作池用于并发消息分发
-	poolConfig := &utils.WorkerPoolConfig{
-		Workers:      10,  // 10个工作协程用于消息分发
-		QueueSize:    100, // 队列大小
-		ResultBuffer: 100,
-		TaskTimeout:  5 * time.Second,
-	}
-	workerPool := utils.NewWorkerPool(poolConfig)
 	
 	return &Hub{
 		clients:    make(map[*Client]bool),
@@ -219,16 +156,12 @@ func NewHubWithConfig(service *supervisor.SupervisorService, config *WebSocketCo
 		config:     config,
 		ctx:        ctx,
 		cancel:     cancel,
-		workerPool: workerPool,
 	}
 }
 
 // Close 关闭Hub
 func (h *Hub) Close() {
 	h.cancel()
-	if h.workerPool != nil {
-		h.workerPool.Stop()
-	}
 }
 
 // GetConnectionCount 获取当前连接数
@@ -283,41 +216,26 @@ func (h *Hub) Run() {
 				zap.Int64("total_connections", atomic.LoadInt64(&h.connectionCount)))
 
 		case message := <-h.broadcast:
-			// 使用工作池并发分发消息
+			// 直接分发消息到所有客户端
 			h.mu.RLock()
-			clientList := make([]*Client, 0, len(h.clients))
 			for client := range h.clients {
-				clientList = append(clientList, client)
+				select {
+				case client.send <- message:
+					// 发送成功
+				default:
+					// 客户端阻塞，异步移除
+					go func(c *Client) {
+						h.mu.Lock()
+						if _, ok := h.clients[c]; ok {
+							close(c.send)
+							delete(h.clients, c)
+							atomic.AddInt64(&h.connectionCount, -1)
+						}
+						h.mu.Unlock()
+					}(client)
+				}
 			}
 			h.mu.RUnlock()
-
-			// 并发分发消息到所有客户端
-			for i, client := range clientList {
-				task := &broadcastTask{
-					client:  client,
-					message: message,
-					taskID:  fmt.Sprintf("broadcast-%d", i),
-				}
-				
-				// 提交任务到工作池
-				if err := h.workerPool.Submit(task); err != nil {
-					// 如果工作池队列满，直接尝试发送
-					select {
-					case client.send <- message:
-					default:
-						// 客户端阻塞，标记为需要移除
-						go func(c *Client) {
-							h.mu.Lock()
-							if _, ok := h.clients[c]; ok {
-								close(c.send)
-								delete(h.clients, c)
-								atomic.AddInt64(&h.connectionCount, -1)
-							}
-							h.mu.Unlock()
-						}(client)
-					}
-				}
-			}
 		}
 	}
 }
@@ -627,4 +545,13 @@ func (h *Hub) HandleWebSocket(c *gin.Context) {
 	// Start goroutines for reading and writing
 	go client.writePump()
 	go client.readPump()
+}
+
+// Broadcast sends a message to all connected clients
+func (h *Hub) Broadcast(data []byte) {
+	select {
+	case h.broadcast <- data:
+	default:
+		logger.Warn("Broadcast channel full, message dropped")
+	}
 }

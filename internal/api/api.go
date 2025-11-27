@@ -10,7 +10,12 @@ import (
 	"gorm.io/gorm"
 )
 
-func SetupRoutes(r *gin.Engine, db *gorm.DB, service *supervisor.SupervisorService) {
+// WebSocketHub interface for broadcasting
+type WebSocketHub interface {
+	Broadcast(message []byte)
+}
+
+func SetupRoutes(r *gin.Engine, db *gorm.DB, service *supervisor.SupervisorService, hub WebSocketHub) {
 	// 添加性能监控中间件
 	r.Use(middleware.PerformanceMiddleware())
 
@@ -143,7 +148,7 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB, service *supervisor.SupervisorServi
 		}
 
 		// Alerts API
-		alertHandler := NewAlertHandler(db)
+		alertHandler := NewAlertHandler(db, hub)
 		alertsGroup := apiGroup.Group("/alerts")
 		{
 			// Alert rules management

@@ -1,6 +1,7 @@
 package models
 
 import (
+	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 	"time"
@@ -22,6 +23,14 @@ type User struct {
 	// 关联关系
 	Roles      []Role       `gorm:"many2many:user_roles;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;" json:"roles,omitempty"`
 	NodeAccess []NodeAccess `gorm:"foreignKey:UserID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;" json:"node_access,omitempty"`
+}
+
+// BeforeCreate generates UUID for new users
+func (u *User) BeforeCreate(tx *gorm.DB) error {
+	if u.ID == "" {
+		u.ID = uuid.New().String()
+	}
+	return nil
 }
 
 func (u *User) SetPassword(password string) error {

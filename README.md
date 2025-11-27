@@ -15,7 +15,7 @@ Centralized Supervisor Interface - 多节点 Supervisor 进程管理系统
 ./deploy.sh
 ```
 
-访问 http://localhost:5000
+访问 http://localhost:8081
 
 默认账号：`admin` / 见 `.env` 中的 `ADMIN_PASSWORD`
 
@@ -43,8 +43,8 @@ internal/
   ├── models/            # 数据模型
   └── supervisor/        # Supervisor 集成
 web/
-  ├── react-app/         # React 前端源码
-  └── static/            # 构建产物
+  └── react-app/         # React 前端源码
+      └── dist/          # 构建产物
 ```
 
 ## 功能

@@ -45,7 +45,7 @@ func (c *Client) readPump() {
 		_, message, err := c.conn.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				logger.Error("WebSocket unexpected close error",
+				logger.Debug("WebSocket unexpected close error",
 					zap.String("user_id", c.userID),
 					zap.Error(err))
 			}

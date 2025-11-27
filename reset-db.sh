@@ -19,4 +19,4 @@ rm -f data/cesi.db*
 echo "✅ Database reset complete!"
 echo ""
 echo "You can now start the application with:"
-echo "  ./start-frontend.sh"
+echo "  ./start.sh"

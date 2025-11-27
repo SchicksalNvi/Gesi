@@ -22,8 +22,21 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectAttemptsRef = useRef(0);
-  const reconnectTimeoutRef = useRef<NodeJS.Timeout>();
+  const reconnectTimeoutRef = useRef<number>();
   const shouldReconnectRef = useRef(true);
+  
+  // Store callbacks in refs to avoid recreating connect function
+  const onMessageRef = useRef(onMessage);
+  const onConnectRef = useRef(onConnect);
+  const onDisconnectRef = useRef(onDisconnect);
+  const onErrorRef = useRef(onError);
+  
+  useEffect(() => {
+    onMessageRef.current = onMessage;
+    onConnectRef.current = onConnect;
+    onDisconnectRef.current = onDisconnect;
+    onErrorRef.current = onError;
+  }, [onMessage, onConnect, onDisconnect, onError]);
 
   const connect = useCallback(() => {
     const token = localStorage.getItem('token');
@@ -40,7 +53,7 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
 
       ws.onopen = () => {
         reconnectAttemptsRef.current = 0;
-        onConnect?.();
+        onConnectRef.current?.();
       };
 
       ws.onmessage = (event) => {
@@ -49,7 +62,7 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
           for (const messageStr of messages) {
             try {
               const data: WebSocketMessage = JSON.parse(messageStr);
-              onMessage?.(data);
+              onMessageRef.current?.(data);
             } catch (parseError) {
               console.error('Error parsing WebSocket message:', parseError);
             }
@@ -60,7 +73,7 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
       };
 
       ws.onclose = () => {
-        onDisconnect?.();
+        onDisconnectRef.current?.();
         if (shouldReconnectRef.current && reconnectAttemptsRef.current < maxReconnectAttempts) {
           reconnectAttemptsRef.current++;
           reconnectTimeoutRef.current = setTimeout(connect, reconnectInterval);
@@ -68,14 +81,14 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
       };
 
       ws.onerror = () => {
-        onError?.(new Event('error'));
+        onErrorRef.current?.(new Event('error'));
       };
 
       wsRef.current = ws;
     } catch (error) {
       console.error('Failed to create WebSocket connection:', error);
     }
-  }, [onMessage, onConnect, onDisconnect, onError, reconnectInterval, maxReconnectAttempts]);
+  }, [reconnectInterval, maxReconnectAttempts]);
 
   const disconnect = useCallback(() => {
     shouldReconnectRef.current = false;
@@ -103,9 +116,17 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
       connect();
     }
     return () => {
-      disconnect();
+      shouldReconnectRef.current = false;
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+      }
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+      }
     };
-  }, [connect, disconnect]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return {
     send,

@@ -17,13 +17,29 @@ func parseIDParam(c *gin.Context, paramName string) (uint, error) {
 	return uint(id), nil
 }
 
-// getUserID 从上下文中获取用户ID
-func getUserID(c *gin.Context) (uint, bool) {
+// getUserID 从上下文中获取用户ID（返回 string）
+func getUserIDString(c *gin.Context) (string, bool) {
 	userID, exists := c.Get("user_id")
+	if !exists {
+		return "", false
+	}
+	userIDStr, ok := userID.(string)
+	if !ok {
+		return "", false
+	}
+	return userIDStr, true
+}
+
+// getUserID 从上下文中获取用户ID（返回 uint，已废弃）
+// 注意：user_id 在 context 中是 string 类型，这个函数会导致 panic
+// 保留仅为向后兼容，新代码应使用 getUserIDString
+func getUserID(c *gin.Context) (uint, bool) {
+	_, exists := getUserIDString(c)
 	if !exists {
 		return 0, false
 	}
-	return userID.(uint), true
+	// user_id 是 hash string，无法转换为 uint
+	return 0, false
 }
 
 // 旧的响应类型（保持向后兼容）
@@ -107,7 +123,17 @@ func parseAndValidateID(c *gin.Context, paramName, resourceType string) (uint, b
 	return id, true
 }
 
-// validateUserAuth 验证用户认证的通用函数
+// validateUserAuth 验证用户认证的通用函数（返回 string）
+func validateUserAuthString(c *gin.Context) (string, bool) {
+	userID, exists := getUserIDString(c)
+	if !exists {
+		handleUnauthorized(c)
+		return "", false
+	}
+	return userID, true
+}
+
+// validateUserAuth 验证用户认证的通用函数（返回 uint，已废弃）
 func validateUserAuth(c *gin.Context) (uint, bool) {
 	userID, exists := getUserID(c)
 	if !exists {

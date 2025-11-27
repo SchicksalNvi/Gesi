@@ -372,7 +372,7 @@ const Settings: React.FC = () => {
                   System
                 </span>
               ),
-              children: user?.role === 'admin' ? (
+              children: user?.is_admin ? (
                 <div style={{ maxWidth: 600 }}>
                   <Alert
                     message="System Configuration"

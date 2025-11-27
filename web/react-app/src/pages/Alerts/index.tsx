@@ -8,7 +8,6 @@ import {
   message,
   Input,
   Select,
-  DatePicker,
   Badge,
 } from 'antd';
 import {
@@ -20,10 +19,10 @@ import {
   InfoCircleOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
+import { useWebSocket } from '@/hooks/useWebSocket';
 import type { ColumnsType } from 'antd/es/table';
 
 const { Search } = Input;
-const { RangePicker } = DatePicker;
 
 interface Alert {
   id: number;
@@ -45,55 +44,39 @@ const Alerts: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [searchText, setSearchText] = useState('');
   const [severityFilter, setSeverityFilter] = useState<string>('all');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('active'); // Default to active only
+
+  // WebSocket for real-time updates
+  useWebSocket((event) => {
+    if (event.type === 'alert_created' || event.type === 'alert_updated' || event.type === 'alert_resolved') {
+      loadAlerts();
+    }
+  });
 
   useEffect(() => {
     loadAlerts();
-  }, []);
+  }, [severityFilter, statusFilter, searchText]);
 
   const loadAlerts = async () => {
     setLoading(true);
     try {
-      // 模拟数据 - 实际应该调用 API
-      const mockAlerts: Alert[] = [
-        {
-          id: 1,
-          node_name: 'prod-server-01',
-          process_name: 'web-app',
-          alert_type: 'process_stopped',
-          severity: 'critical',
-          message: 'Process web-app has stopped unexpectedly',
-          status: 'active',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-        {
-          id: 2,
-          node_name: 'prod-server-02',
-          process_name: 'worker',
-          alert_type: 'high_memory',
-          severity: 'warning',
-          message: 'Memory usage exceeded 80%',
-          status: 'acknowledged',
-          created_at: new Date(Date.now() - 3600000).toISOString(),
-          updated_at: new Date().toISOString(),
-          acknowledged_by: 'admin',
-        },
-        {
-          id: 3,
-          node_name: 'staging-server',
-          process_name: 'api',
-          alert_type: 'process_restart',
-          severity: 'info',
-          message: 'Process restarted successfully',
-          status: 'resolved',
-          created_at: new Date(Date.now() - 7200000).toISOString(),
-          updated_at: new Date(Date.now() - 3600000).toISOString(),
-          resolved_at: new Date(Date.now() - 3600000).toISOString(),
-        },
-      ];
+      const params = new URLSearchParams();
+      if (severityFilter !== 'all') params.append('severity', severityFilter);
+      if (statusFilter !== 'all') params.append('status', statusFilter);
+      if (searchText) params.append('search', searchText);
       
-      setAlerts(mockAlerts);
+      const response = await fetch(`/api/alerts?${params.toString()}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch alerts');
+      }
+      
+      const data = await response.json();
+      setAlerts(data.data || []);
     } catch (error) {
       console.error('Failed to load alerts:', error);
       message.error('Failed to load alerts');
@@ -131,22 +114,55 @@ const Alerts: React.FC = () => {
     }
   };
 
-  const handleAcknowledge = (alertId: number) => {
-    message.success(`Alert ${alertId} acknowledged`);
-    // 实际应该调用 API
-    loadAlerts();
+  const handleAcknowledge = async (alertId: number) => {
+    try {
+      const response = await fetch(`/api/alerts/${alertId}/acknowledge`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to acknowledge alert');
+      }
+      
+      message.success('Alert acknowledged successfully');
+      loadAlerts();
+    } catch (error) {
+      console.error('Failed to acknowledge alert:', error);
+      message.error('Failed to acknowledge alert');
+    }
   };
 
-  const handleResolve = (alertId: number) => {
-    message.success(`Alert ${alertId} resolved`);
-    // 实际应该调用 API
-    loadAlerts();
+  const handleResolve = async (alertId: number) => {
+    try {
+      const response = await fetch(`/api/alerts/${alertId}/resolve`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to resolve alert');
+      }
+      
+      message.success('Alert resolved successfully');
+      loadAlerts();
+    } catch (error) {
+      console.error('Failed to resolve alert:', error);
+      message.error('Failed to resolve alert');
+    }
   };
 
-  const filteredAlerts = alerts.filter(alert => {
+  // Filter alerts
+  const filtered = alerts.filter(alert => {
     const matchesSearch = 
       alert.node_name.toLowerCase().includes(searchText.toLowerCase()) ||
-      alert.process_name.toLowerCase().includes(searchText.toLowerCase()) ||
+      (alert.process_name && alert.process_name.toLowerCase().includes(searchText.toLowerCase())) ||
       alert.message.toLowerCase().includes(searchText.toLowerCase());
     
     const matchesSeverity = severityFilter === 'all' || alert.severity === severityFilter;
@@ -154,6 +170,23 @@ const Alerts: React.FC = () => {
     
     return matchesSearch && matchesSeverity && matchesStatus;
   });
+
+  // Aggregate alerts: for resolved alerts, only show the latest one per node+rule
+  const filteredAlerts = statusFilter === 'resolved' || statusFilter === 'all'
+    ? (() => {
+        const grouped = new Map<string, Alert>();
+        filtered.forEach(alert => {
+          const key = `${alert.node_name}-${alert.alert_type || 'unknown'}`;
+          const existing = grouped.get(key);
+          if (!existing || new Date(alert.created_at) > new Date(existing.created_at)) {
+            grouped.set(key, alert);
+          }
+        });
+        return Array.from(grouped.values()).sort((a, b) => 
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        );
+      })()
+    : filtered;
 
   const columns: ColumnsType<Alert> = [
     {
@@ -166,25 +199,6 @@ const Alerts: React.FC = () => {
           {severity.toUpperCase()}
         </Tag>
       ),
-    },
-    {
-      title: 'Node',
-      dataIndex: 'node_name',
-      key: 'node_name',
-      width: 150,
-    },
-    {
-      title: 'Process',
-      dataIndex: 'process_name',
-      key: 'process_name',
-      width: 150,
-    },
-    {
-      title: 'Type',
-      dataIndex: 'alert_type',
-      key: 'alert_type',
-      width: 150,
-      render: (type: string) => type.replace(/_/g, ' ').toUpperCase(),
     },
     {
       title: 'Message',
@@ -205,8 +219,8 @@ const Alerts: React.FC = () => {
     },
     {
       title: 'Created',
-      dataIndex: 'created_at',
-      key: 'created_at',
+      dataIndex: 'start_time',
+      key: 'start_time',
       width: 180,
       render: (date: string) => new Date(date).toLocaleString(),
     },
@@ -320,14 +334,14 @@ const Alerts: React.FC = () => {
             ]}
           />
           <Select
-            style={{ width: 150 }}
+            style={{ width: 180 }}
             value={statusFilter}
             onChange={setStatusFilter}
             options={[
-              { label: 'All Status', value: 'all' },
-              { label: 'Active', value: 'active' },
+              { label: 'Active Only', value: 'active' },
               { label: 'Acknowledged', value: 'acknowledged' },
               { label: 'Resolved', value: 'resolved' },
+              { label: 'All Status', value: 'all' },
             ]}
           />
         </Space>

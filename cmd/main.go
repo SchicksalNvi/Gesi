@@ -23,6 +23,7 @@ import (
 	"go-cesi/internal/loggers"
 	"go-cesi/internal/middleware"
 	"go-cesi/internal/models"
+	"go-cesi/internal/services"
 	"go-cesi/internal/supervisor"
 	"go-cesi/internal/websocket"
 
@@ -237,6 +238,12 @@ func main() {
 	hub := websocket.NewHub(supervisorService)
 	go hub.Run()
 
+	// 初始化Alert服务和监控
+	alertService := services.NewAlertService(db)
+	alertMonitor := services.NewAlertMonitor(alertService, supervisorService, hub)
+	alertMonitor.Start()
+	logger.Info("Alert Monitor started")
+
 	// 添加配置的节点
 	logger.Info("Loading nodes from config", zap.Int("nodes_count", len(nodeConfig.Nodes)))
 	for _, node := range nodeConfig.Nodes {
@@ -283,19 +290,52 @@ func main() {
 		logger.Fatal("Failed to get working directory", zap.Error(err))
 	}
 
-	// 初始化服务
-	authService := auth.NewAuthService(db)
-
 	// 设置API路由
-	api.SetupRoutes(router, db, supervisorService)
+	api.SetupRoutes(router, db, supervisorService, hub)
+
+	// extractToken extracts JWT token from query parameter or Authorization header
+	extractToken := func(c *gin.Context) string {
+		// Query parameter takes precedence
+		if token := c.Query("token"); token != "" {
+			return token
+		}
+		// Fallback to Authorization header
+		authHeader := c.GetHeader("Authorization")
+		if authHeader == "" {
+			return ""
+		}
+		// Strip "Bearer " prefix if present
+		return strings.TrimPrefix(authHeader, "Bearer ")
+	}
 
 	// 设置WebSocket路由
-	router.GET("/ws", authService.AuthMiddleware(), func(c *gin.Context) {
-		_, exists := c.Get("user_id")
-		if !exists {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+	router.GET("/ws", func(c *gin.Context) {
+		// Extract token from query parameter or header
+		token := extractToken(c)
+		if token == "" {
+			logger.Warn("WebSocket authentication failed: missing token",
+				zap.String("remote_addr", c.ClientIP()))
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication failed: missing token"})
 			return
 		}
+
+		// Validate token
+		claims, err := auth.ParseToken(token)
+		if err != nil {
+			logger.Warn("WebSocket authentication failed: invalid token",
+				zap.String("remote_addr", c.ClientIP()),
+				zap.Error(err))
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication failed: invalid token"})
+			return
+		}
+
+		// Set user context
+		c.Set("user_id", claims.UserID)
+		logger.Debug("WebSocket authentication successful",
+			zap.String("user_id", claims.UserID),
+			zap.String("remote_addr", c.ClientIP()))
+
+		// Upgrade to WebSocket
 		hub.HandleWebSocket(c)
 	})
 
@@ -312,6 +352,10 @@ func main() {
 			return
 		}
 		// 否则服务 React 应用的 index.html
+		// 设置缓存控制头：不缓存 HTML，让浏览器每次都获取最新版本
+		c.Header("Cache-Control", "no-cache, no-store, must-revalidate")
+		c.Header("Pragma", "no-cache")
+		c.Header("Expires", "0")
 		indexPath := filepath.Join(projectRoot, "web", "react-app", "dist", "index.html")
 		c.File(indexPath)
 	})
@@ -397,6 +441,10 @@ func main() {
 	// 关闭WebSocket Hub
 	hub.Close()
 
+	// 停止Alert Monitor
+	alertMonitor.Stop()
+	logger.Info("Alert Monitor stopped")
+
 	// 停止自动刷新
 	supervisorService.StopAutoRefresh(stopRefresh)
 
@@ -454,7 +502,6 @@ func loadConfig() (*Config, error) {
 	viper.SetConfigName("config")
 	viper.SetConfigType("toml")
 	viper.AddConfigPath(projectRoot)
-	viper.AddConfigPath(filepath.Join(projectRoot, "config"))
 	viper.AddConfigPath(".")
 
 	// 设置默认值

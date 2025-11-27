@@ -25,23 +25,26 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 }
 
 function App() {
-  const { isAuthenticated, setUser } = useStore();
+  const { isAuthenticated, setUser, logout } = useStore();
 
-  // Load user info on mount
+  // Validate token on mount
   useEffect(() => {
-    if (isAuthenticated) {
+    const token = localStorage.getItem('token');
+    if (token) {
       loadUserInfo();
     }
-  }, [isAuthenticated]);
+  }, []);
 
   const loadUserInfo = async () => {
     try {
       const response = await authApi.getCurrentUser();
-      if (response.data) {
-        setUser(response.data);
+      if (response.data?.user) {
+        setUser(response.data.user);
       }
     } catch (error) {
       console.error('Failed to load user info:', error);
+      // Token is invalid, logout
+      logout();
     }
   };
 

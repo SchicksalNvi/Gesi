@@ -1,10 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Card, Row, Col, Statistic, Table, Tag, Space, Button } from 'antd';
+import { Card, Row, Col, Statistic, Table, Tag, Button } from 'antd';
 import {
   CheckCircleOutlined,
   CloseCircleOutlined,
   PlayCircleOutlined,
-  StopOutlined,
   BellOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
@@ -12,31 +11,45 @@ import { useNavigate } from 'react-router-dom';
 import { nodesApi } from '@/api/nodes';
 import { useStore } from '@/store';
 import { useWebSocket } from '@/hooks/useWebSocket';
-import { Node, SystemStats } from '@/types';
-import ReactECharts from 'echarts-for-react';
+import { Node } from '@/types';
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const { nodes, setNodes, systemStats, setSystemStats } = useStore();
   const [loading, setLoading] = useState(false);
-  const [cpuData, setCpuData] = useState<number[]>([]);
-  const [memoryData, setMemoryData] = useState<number[]>([]);
-  const [timestamps, setTimestamps] = useState<string[]>([]);
+  const [activeAlerts, setActiveAlerts] = useState(0);
 
   // Load initial data
   useEffect(() => {
     loadNodes();
+    loadAlertStats();
   }, []);
 
   const loadNodes = async () => {
     setLoading(true);
     try {
       const response = await nodesApi.getNodes();
-      setNodes(response.nodes || []);
+      setNodes(response.data?.nodes || []);
     } catch (error) {
       console.error('Failed to load nodes:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadAlertStats = async () => {
+    try {
+      const response = await fetch('/api/alerts/statistics?time_range=24h', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setActiveAlerts(data.active_alerts || 0);
+      }
+    } catch (error) {
+      console.error('Failed to load alert stats:', error);
     }
   };
 
@@ -47,12 +60,6 @@ export default function Dashboard() {
         setNodes(message.data);
       } else if (message.type === 'system_stats') {
         setSystemStats(message.data);
-        
-        // Update chart data
-        const now = new Date().toLocaleTimeString();
-        setTimestamps(prev => [...prev.slice(-19), now]);
-        setCpuData(prev => [...prev.slice(-19), Math.random() * 100]);
-        setMemoryData(prev => [...prev.slice(-19), Math.random() * 100]);
       }
     },
   });
@@ -62,7 +69,6 @@ export default function Dashboard() {
   const onlineNodes = nodes.filter(n => n.is_connected).length;
   const offlineNodes = totalNodes - onlineNodes;
   const totalProcesses = systemStats?.running_processes || 0;
-  const activeAlerts = systemStats?.active_alerts || 0;
 
   // Table columns
   const columns: ColumnsType<Node> = [
@@ -119,60 +125,6 @@ export default function Dashboard() {
     },
   ];
 
-  // CPU Chart Option
-  const cpuChartOption = {
-    title: { text: 'CPU Usage', left: 'center' },
-    tooltip: { trigger: 'axis' },
-    xAxis: {
-      type: 'category',
-      data: timestamps,
-      boundaryGap: false,
-    },
-    yAxis: {
-      type: 'value',
-      max: 100,
-      axisLabel: { formatter: '{value}%' },
-    },
-    series: [
-      {
-        name: 'CPU',
-        type: 'line',
-        data: cpuData,
-        smooth: true,
-        areaStyle: { opacity: 0.3 },
-        itemStyle: { color: '#1890ff' },
-      },
-    ],
-    grid: { left: 50, right: 20, bottom: 30, top: 50 },
-  };
-
-  // Memory Chart Option
-  const memoryChartOption = {
-    title: { text: 'Memory Usage', left: 'center' },
-    tooltip: { trigger: 'axis' },
-    xAxis: {
-      type: 'category',
-      data: timestamps,
-      boundaryGap: false,
-    },
-    yAxis: {
-      type: 'value',
-      max: 100,
-      axisLabel: { formatter: '{value}%' },
-    },
-    series: [
-      {
-        name: 'Memory',
-        type: 'line',
-        data: memoryData,
-        smooth: true,
-        areaStyle: { opacity: 0.3 },
-        itemStyle: { color: '#52c41a' },
-      },
-    ],
-    grid: { left: 50, right: 20, bottom: 30, top: 50 },
-  };
-
   return (
     <div>
       {/* Statistics Cards */}
@@ -215,20 +167,6 @@ export default function Dashboard() {
               prefix={<BellOutlined />}
               valueStyle={{ color: activeAlerts > 0 ? '#cf1322' : '#999' }}
             />
-          </Card>
-        </Col>
-      </Row>
-
-      {/* Charts */}
-      <Row gutter={16} style={{ marginBottom: 24 }}>
-        <Col xs={24} lg={12}>
-          <Card>
-            <ReactECharts option={cpuChartOption} style={{ height: 300 }} />
-          </Card>
-        </Col>
-        <Col xs={24} lg={12}>
-          <Card>
-            <ReactECharts option={memoryChartOption} style={{ height: 300 }} />
           </Card>
         </Col>
       </Row>

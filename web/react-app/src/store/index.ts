@@ -29,7 +29,8 @@ export const useStore = create<AppState>((set) => ({
   // Auth state
   user: null,
   token: localStorage.getItem('token'),
-  isAuthenticated: !!localStorage.getItem('token'),
+  // Don't trust localStorage on init - verify token first
+  isAuthenticated: false,
   setUser: (user) => set({ user, isAuthenticated: !!user }),
   setToken: (token) => {
     if (token) {

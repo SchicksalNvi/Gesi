@@ -11,7 +11,6 @@ build_frontend() {
   cd web/react-app
   npm run build
   cd ../..
-  cp -r web/react-app/dist/* web/static/
 }
 
 main() {

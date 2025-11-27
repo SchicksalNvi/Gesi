@@ -73,9 +73,16 @@ func (s *AlertService) UpdateAlertRule(id uint, updates map[string]interface{}) 
 	return s.db.Model(&models.AlertRule{}).Where("id = ?", id).Updates(updates).Error
 }
 
-// DeleteAlertRule 删除告警规则
+// DeleteAlertRule 删除告警规则（级联删除相关告警）
 func (s *AlertService) DeleteAlertRule(id uint) error {
-	return s.db.Delete(&models.AlertRule{}, id).Error
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		// 先删除相关的告警记录
+		if err := tx.Where("rule_id = ?", id).Delete(&models.Alert{}).Error; err != nil {
+			return err
+		}
+		// 再删除规则
+		return tx.Delete(&models.AlertRule{}, id).Error
+	})
 }
 
 // CreateAlert 创建告警
@@ -88,7 +95,11 @@ func (s *AlertService) GetAlerts(page, pageSize int, filters map[string]interfac
 	var alerts []models.Alert
 	var total int64
 
-	query := s.db.Model(&models.Alert{}).Preload("Rule").Preload("AckedByUser").Preload("ResolvedByUser")
+	query := s.db.Model(&models.Alert{}).
+		Preload("Rule").
+		Preload("AckedByUser").
+		Preload("ResolvedByUser").
+		Joins("JOIN alert_rules ON alerts.rule_id = alert_rules.id AND alert_rules.deleted_at IS NULL")
 
 	// 应用过滤条件
 	for key, value := range filters {
@@ -131,27 +142,28 @@ func (s *AlertService) GetAlertByID(id uint) (*models.Alert, error) {
 }
 
 // AcknowledgeAlert 确认告警
-func (s *AlertService) AcknowledgeAlert(id uint, userID uint) error {
-	var alert models.Alert
-	err := s.db.First(&alert, id).Error
-	if err != nil {
-		return err
-	}
-
-	alert.Acknowledge(userID)
-	return s.db.Save(&alert).Error
+func (s *AlertService) AcknowledgeAlert(id uint, userIDStr string) error {
+	now := time.Now()
+	return s.db.Model(&models.Alert{}).
+		Where("id = ?", id).
+		Updates(map[string]interface{}{
+			"status":     models.AlertStatusAcknowledged,
+			"acked_at":   now,
+			"updated_at": now,
+		}).Error
 }
 
 // ResolveAlert 解决告警
-func (s *AlertService) ResolveAlert(id uint, userID uint) error {
-	var alert models.Alert
-	err := s.db.First(&alert, id).Error
-	if err != nil {
-		return err
-	}
-
-	alert.Resolve(userID)
-	return s.db.Save(&alert).Error
+func (s *AlertService) ResolveAlert(id uint, userIDStr string) error {
+	now := time.Now()
+	return s.db.Model(&models.Alert{}).
+		Where("id = ?", id).
+		Updates(map[string]interface{}{
+			"status":      models.AlertStatusResolved,
+			"resolved_at": now,
+			"end_time":    now,
+			"updated_at":  now,
+		}).Error
 }
 
 // CreateNotificationChannel 创建通知渠道
@@ -320,7 +332,6 @@ func (s *AlertService) checkSingleRule(rule *models.AlertRule) error {
 			// 创建新告警
 			alert := &models.Alert{
 				RuleID:      rule.ID,
-				NodeID:      rule.NodeID,
 				ProcessName: rule.ProcessName,
 				Message:     s.generateAlertMessage(rule, latestMetric.Value),
 				Severity:    rule.Severity,
