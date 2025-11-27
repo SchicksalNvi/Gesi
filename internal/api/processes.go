@@ -1,0 +1,344 @@
+package api
+
+import (
+	"context"
+	"net/http"
+	"sync"
+	"time"
+
+	"go-cesi/internal/supervisor"
+	"go-cesi/internal/validation"
+
+	"github.com/gin-gonic/gin"
+)
+
+type ProcessesAPI struct {
+	service *supervisor.SupervisorService
+}
+
+func NewProcessesAPI(service *supervisor.SupervisorService) *ProcessesAPI {
+	return &ProcessesAPI{service: service}
+}
+
+// AggregatedProcess 聚合的进程信息
+type AggregatedProcess struct {
+	Name             string            `json:"name"`
+	TotalInstances   int               `json:"total_instances"`
+	RunningInstances int               `json:"running_instances"`
+	StoppedInstances int               `json:"stopped_instances"`
+	Instances        []ProcessInstance `json:"instances"`
+}
+
+// ProcessInstance 进程实例信息
+type ProcessInstance struct {
+	NodeName    string  `json:"node_name"`
+	NodeHost    string  `json:"node_host"`
+	NodePort    int     `json:"node_port"`
+	State       int     `json:"state"`
+	StateString string  `json:"state_string"`
+	PID         int     `json:"pid"`
+	Uptime      float64 `json:"uptime"`
+	UptimeHuman string  `json:"uptime_human"`
+	Description string  `json:"description"`
+	Group       string  `json:"group"`
+}
+
+// GetAggregatedProcesses 获取聚合的进程列表
+func (api *ProcessesAPI) GetAggregatedProcesses(c *gin.Context) {
+	nodes := api.service.GetAllNodes()
+	if nodes == nil {
+		c.JSON(http.StatusOK, gin.H{
+			"status":    "success",
+			"processes": []AggregatedProcess{},
+		})
+		return
+	}
+
+	// 按进程名聚合
+	processMap := make(map[string]*AggregatedProcess)
+
+	for _, node := range nodes {
+		if !node.IsConnected {
+			continue
+		}
+
+		// 刷新进程信息
+		if err := node.RefreshProcesses(); err != nil {
+			continue
+		}
+
+		for _, process := range node.Processes {
+			// 获取或创建聚合进程
+			aggProc, exists := processMap[process.Name]
+			if !exists {
+				aggProc = &AggregatedProcess{
+					Name:      process.Name,
+					Instances: make([]ProcessInstance, 0),
+				}
+				processMap[process.Name] = aggProc
+			}
+
+			// 添加实例
+			instance := ProcessInstance{
+				NodeName:    node.Name,
+				NodeHost:    node.Host,
+				NodePort:    node.Port,
+				State:       process.State,
+				StateString: process.StateString,
+				PID:         process.PID,
+				Uptime:      process.Uptime.Seconds(),
+				UptimeHuman: formatDuration(process.Uptime),
+				Description: process.Description,
+				Group:       process.Group,
+			}
+			aggProc.Instances = append(aggProc.Instances, instance)
+
+			// 更新统计
+			aggProc.TotalInstances++
+			if process.State == 20 { // RUNNING
+				aggProc.RunningInstances++
+			} else if process.State == 0 { // STOPPED
+				aggProc.StoppedInstances++
+			}
+		}
+	}
+
+	// 转换为数组
+	processes := make([]AggregatedProcess, 0, len(processMap))
+	for _, proc := range processMap {
+		processes = append(processes, *proc)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"status":    "success",
+		"processes": processes,
+	})
+}
+
+// BatchOperationResult 批量操作结果
+type BatchOperationResult struct {
+	ProcessName    string                      `json:"process_name"`
+	TotalInstances int                         `json:"total_instances"`
+	SuccessCount   int                         `json:"success_count"`
+	FailureCount   int                         `json:"failure_count"`
+	Results        []InstanceOperationResult   `json:"results"`
+}
+
+// InstanceOperationResult 单个实例操作结果
+type InstanceOperationResult struct {
+	NodeName string `json:"node_name"`
+	Success  bool   `json:"success"`
+	Error    string `json:"error,omitempty"`
+}
+
+// BatchStartProcess 批量启动进程
+func (api *ProcessesAPI) BatchStartProcess(c *gin.Context) {
+	processName := c.Param("process_name")
+
+	// 输入验证
+	validator := validation.NewValidator()
+	validator.ValidateProcessName("process_name", processName)
+	validator.ValidateNoSQLInjection("process_name", processName)
+
+	if validator.HasErrors() {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  "error",
+			"message": "输入验证失败",
+			"errors":  validator.Errors(),
+		})
+		return
+	}
+
+	// 清理输入
+	processName = validation.SanitizeInput(processName)
+
+	// 执行批量操作
+	result := api.batchOperation(processName, "start")
+
+	c.JSON(http.StatusOK, gin.H{
+		"status": "success",
+		"result": result,
+	})
+}
+
+// BatchStopProcess 批量停止进程
+func (api *ProcessesAPI) BatchStopProcess(c *gin.Context) {
+	processName := c.Param("process_name")
+
+	// 输入验证
+	validator := validation.NewValidator()
+	validator.ValidateProcessName("process_name", processName)
+	validator.ValidateNoSQLInjection("process_name", processName)
+
+	if validator.HasErrors() {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  "error",
+			"message": "输入验证失败",
+			"errors":  validator.Errors(),
+		})
+		return
+	}
+
+	// 清理输入
+	processName = validation.SanitizeInput(processName)
+
+	// 执行批量操作
+	result := api.batchOperation(processName, "stop")
+
+	c.JSON(http.StatusOK, gin.H{
+		"status": "success",
+		"result": result,
+	})
+}
+
+// BatchRestartProcess 批量重启进程
+func (api *ProcessesAPI) BatchRestartProcess(c *gin.Context) {
+	processName := c.Param("process_name")
+
+	// 输入验证
+	validator := validation.NewValidator()
+	validator.ValidateProcessName("process_name", processName)
+	validator.ValidateNoSQLInjection("process_name", processName)
+
+	if validator.HasErrors() {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  "error",
+			"message": "输入验证失败",
+			"errors":  validator.Errors(),
+		})
+		return
+	}
+
+	// 清理输入
+	processName = validation.SanitizeInput(processName)
+
+	// 执行批量操作
+	result := api.batchOperation(processName, "restart")
+
+	c.JSON(http.StatusOK, gin.H{
+		"status": "success",
+		"result": result,
+	})
+}
+
+// batchOperation 执行批量操作
+func (api *ProcessesAPI) batchOperation(processName, operation string) BatchOperationResult {
+	nodes := api.service.GetAllNodes()
+	
+	result := BatchOperationResult{
+		ProcessName: processName,
+		Results:     make([]InstanceOperationResult, 0),
+	}
+
+	if nodes == nil {
+		return result
+	}
+
+	// 创建超时上下文
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// 并行处理
+	var wg sync.WaitGroup
+	resultChan := make(chan InstanceOperationResult, len(nodes))
+
+	for _, node := range nodes {
+		if !node.IsConnected {
+			continue
+		}
+
+		// 检查进程是否存在
+		if err := node.RefreshProcesses(); err != nil {
+			continue
+		}
+
+		hasProcess := false
+		for _, proc := range node.Processes {
+			if proc.Name == processName {
+				hasProcess = true
+				break
+			}
+		}
+
+		if !hasProcess {
+			continue
+		}
+
+		result.TotalInstances++
+
+		wg.Add(1)
+		go func(n *supervisor.Node) {
+			defer wg.Done()
+
+			opResult := InstanceOperationResult{
+				NodeName: n.Name,
+				Success:  false,
+			}
+
+			// 使用 channel 处理超时
+			done := make(chan error, 1)
+			go func() {
+				var err error
+				switch operation {
+				case "start":
+					err = api.service.StartProcess(n.Name, processName)
+				case "stop":
+					err = api.service.StopProcess(n.Name, processName)
+				case "restart":
+					err = api.service.StopProcess(n.Name, processName)
+					if err == nil {
+						time.Sleep(100 * time.Millisecond)
+						err = api.service.StartProcess(n.Name, processName)
+					}
+				}
+				done <- err
+			}()
+
+			select {
+			case err := <-done:
+				if err != nil {
+					opResult.Error = err.Error()
+				} else {
+					opResult.Success = true
+				}
+			case <-ctx.Done():
+				opResult.Error = "operation timeout"
+			}
+
+			resultChan <- opResult
+		}(node)
+	}
+
+	// 等待所有操作完成
+	wg.Wait()
+	close(resultChan)
+
+	// 收集结果
+	for opResult := range resultChan {
+		result.Results = append(result.Results, opResult)
+		if opResult.Success {
+			result.SuccessCount++
+		} else {
+			result.FailureCount++
+		}
+	}
+
+	return result
+}
+
+// formatDuration 格式化时间间隔
+func formatDuration(d time.Duration) string {
+	if d == 0 {
+		return "0s"
+	}
+	if d < time.Minute {
+		return d.Round(time.Second).String()
+	}
+	if d < time.Hour {
+		return d.Round(time.Minute).String()
+	}
+	if d < 24*time.Hour {
+		return d.Round(time.Hour).String()
+	}
+	return d.Round(24 * time.Hour).String()
+}

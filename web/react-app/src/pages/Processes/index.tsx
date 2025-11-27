@@ -1,0 +1,304 @@
+import { useEffect, useState } from 'react';
+import {
+  Card,
+  Input,
+  Spin,
+  Empty,
+  Space,
+  Button,
+  message,
+  Collapse,
+  Tag,
+  Row,
+  Col,
+  Statistic,
+  Popconfirm,
+  Modal,
+} from 'antd';
+import {
+  ReloadOutlined,
+  SearchOutlined,
+  PlayCircleOutlined,
+  StopOutlined,
+  InfoCircleOutlined,
+  DownOutlined,
+} from '@ant-design/icons';
+import { processesApi } from '@/api/processes';
+import { AggregatedProcess, BatchOperationResult } from '@/types';
+import ProcessInstanceList from './ProcessInstanceList';
+import { useWebSocket } from '@/hooks/useWebSocket';
+
+const { Search } = Input;
+
+const ProcessesPage: React.FC = () => {
+  const [processes, setProcesses] = useState<AggregatedProcess[]>([]);
+  const [filteredProcesses, setFilteredProcesses] = useState<AggregatedProcess[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchText, setSearchText] = useState('');
+  const [actionLoading, setActionLoading] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    loadProcesses();
+  }, []);
+
+  useEffect(() => {
+    filterProcesses();
+  }, [searchText, processes]);
+
+  // WebSocket 实时更新
+  useWebSocket({
+    onMessage: (message) => {
+      // 监听进程状态变化事件
+      if (
+        message.type === 'process_status_change' ||
+        message.type === 'node_status_change' ||
+        message.type === 'nodes_update'
+      ) {
+        // 进程状态变化时重新加载数据
+        loadProcesses();
+      }
+    },
+  });
+
+  const loadProcesses = async () => {
+    setLoading(true);
+    try {
+      const response = await processesApi.getAggregated();
+      setProcesses(response.processes || []);
+    } catch (error) {
+      console.error('Failed to load processes:', error);
+      message.error('Failed to load processes');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filterProcesses = () => {
+    if (!searchText.trim()) {
+      setFilteredProcesses(processes);
+      return;
+    }
+
+    const filtered = processes.filter((proc) =>
+      proc.name.toLowerCase().includes(searchText.toLowerCase())
+    );
+    setFilteredProcesses(filtered);
+  };
+
+  const handleSearch = (value: string) => {
+    setSearchText(value);
+  };
+
+  const handleBatchOperation = async (
+    processName: string,
+    operation: 'start' | 'stop' | 'restart'
+  ) => {
+    const actionKey = `${processName}-${operation}`;
+    setActionLoading((prev) => ({ ...prev, [actionKey]: true }));
+
+    try {
+      let response;
+      switch (operation) {
+        case 'start':
+          response = await processesApi.batchStart(processName);
+          break;
+        case 'stop':
+          response = await processesApi.batchStop(processName);
+          break;
+        case 'restart':
+          response = await processesApi.batchRestart(processName);
+          break;
+      }
+
+      const result: BatchOperationResult = response.result;
+
+      // 显示操作结果
+      if (result.failure_count === 0) {
+        message.success(
+          `Successfully ${operation}ed ${result.success_count} instance(s) of ${processName}`
+        );
+      } else {
+        Modal.warning({
+          title: `Batch ${operation} completed with errors`,
+          content: (
+            <div>
+              <p>
+                Success: {result.success_count} / {result.total_instances}
+              </p>
+              <p>Failed: {result.failure_count}</p>
+              {result.results
+                .filter((r) => !r.success)
+                .map((r, idx) => (
+                  <div key={idx}>
+                    <strong>{r.node_name}:</strong> {r.error}
+                  </div>
+                ))}
+            </div>
+          ),
+        });
+      }
+
+      // 重新加载进程列表
+      await loadProcesses();
+    } catch (error) {
+      console.error(`Failed to ${operation} process:`, error);
+      message.error(`Failed to ${operation} process`);
+    } finally {
+      setActionLoading((prev) => ({ ...prev, [actionKey]: false }));
+    }
+  };
+
+  if (loading) {
+    return (
+      <div style={{ textAlign: 'center', padding: '50px' }}>
+        <Spin size="large" />
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h1 style={{ margin: 0 }}>Processes</h1>
+        <Button
+          type="primary"
+          icon={<ReloadOutlined />}
+          onClick={loadProcesses}
+          loading={loading}
+        >
+          Refresh
+        </Button>
+      </div>
+
+      <Card style={{ marginBottom: 16 }}>
+        <Search
+          placeholder="Search processes by name..."
+          allowClear
+          enterButton={<SearchOutlined />}
+          size="large"
+          onSearch={handleSearch}
+          onChange={(e) => handleSearch(e.target.value)}
+          value={searchText}
+        />
+      </Card>
+
+      {filteredProcesses.length === 0 ? (
+        <Card>
+          <Empty
+            description={
+              searchText
+                ? `No processes found matching "${searchText}"`
+                : 'No processes available'
+            }
+          />
+        </Card>
+      ) : (
+        <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+          {filteredProcesses.map((proc) => (
+            <Card
+              key={proc.name}
+              title={
+                <Space>
+                  <strong>{proc.name}</strong>
+                  <Tag color="blue">{proc.total_instances} instances</Tag>
+                </Space>
+              }
+              extra={
+                <Space>
+                  <Button
+                    type="primary"
+                    size="small"
+                    icon={<PlayCircleOutlined />}
+                    onClick={() => handleBatchOperation(proc.name, 'start')}
+                    loading={actionLoading[`${proc.name}-start`]}
+                    disabled={proc.running_instances === proc.total_instances}
+                  >
+                    Start All
+                  </Button>
+                  <Popconfirm
+                    title="Stop all instances?"
+                    description={`This will stop all ${proc.total_instances} instance(s) of ${proc.name}`}
+                    onConfirm={() => handleBatchOperation(proc.name, 'stop')}
+                    okText="Yes"
+                    cancelText="No"
+                  >
+                    <Button
+                      size="small"
+                      icon={<StopOutlined />}
+                      loading={actionLoading[`${proc.name}-stop`]}
+                      disabled={proc.running_instances === 0}
+                      danger
+                    >
+                      Stop All
+                    </Button>
+                  </Popconfirm>
+                  <Button
+                    size="small"
+                    icon={<ReloadOutlined />}
+                    onClick={() => handleBatchOperation(proc.name, 'restart')}
+                    loading={actionLoading[`${proc.name}-restart`]}
+                  >
+                    Restart All
+                  </Button>
+                </Space>
+              }
+            >
+              <Row gutter={16} style={{ marginBottom: 16 }}>
+                <Col xs={24} sm={8}>
+                  <Statistic
+                    title="Total Instances"
+                    value={proc.total_instances}
+                    prefix={<InfoCircleOutlined />}
+                  />
+                </Col>
+                <Col xs={24} sm={8}>
+                  <Statistic
+                    title="Running"
+                    value={proc.running_instances}
+                    prefix={<PlayCircleOutlined />}
+                    valueStyle={{ color: '#52c41a' }}
+                  />
+                </Col>
+                <Col xs={24} sm={8}>
+                  <Statistic
+                    title="Stopped"
+                    value={proc.stopped_instances}
+                    prefix={<StopOutlined />}
+                    valueStyle={{ color: '#ff4d4f' }}
+                  />
+                </Col>
+              </Row>
+
+              <div style={{ marginBottom: 16 }}>
+                <strong>Nodes:</strong>{' '}
+                {proc.instances.map((inst, idx) => (
+                  <Tag key={idx} color="default">
+                    {inst.node_name}
+                  </Tag>
+                ))}
+              </div>
+
+              <Collapse
+                items={[
+                  {
+                    key: '1',
+                    label: 'Instance Details',
+                    children: (
+                      <ProcessInstanceList
+                        instances={proc.instances}
+                        processName={proc.name}
+                        onRefresh={loadProcesses}
+                      />
+                    ),
+                  },
+                ]}
+              />
+            </Card>
+          ))}
+        </Space>
+      )}
+    </div>
+  );
+};
+
+export default ProcessesPage;

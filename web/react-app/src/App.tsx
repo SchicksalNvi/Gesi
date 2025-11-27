@@ -7,6 +7,9 @@ import Login from '@/pages/Login';
 import Dashboard from '@/pages/Dashboard';
 import NodeList from '@/pages/Nodes';
 import NodeDetail from '@/pages/Nodes/NodeDetail';
+import ProcessesPage from '@/pages/Processes';
+import EnvironmentList from '@/pages/Environments';
+import EnvironmentDetail from '@/pages/Environments/EnvironmentDetail';
 import UserList from '@/pages/Users';
 import AlertList from '@/pages/Alerts';
 import AlertRules from '@/pages/Alerts/AlertRules';
@@ -64,6 +67,9 @@ function App() {
         <Route path="dashboard" element={<Dashboard />} />
         <Route path="nodes" element={<NodeList />} />
         <Route path="nodes/:nodeName" element={<NodeDetail />} />
+        <Route path="processes" element={<ProcessesPage />} />
+        <Route path="environments" element={<EnvironmentList />} />
+        <Route path="environments/:environmentName" element={<EnvironmentDetail />} />
         <Route path="users" element={<UserList />} />
         <Route path="alerts" element={<AlertList />} />
         <Route path="alerts/rules" element={<AlertRules />} />

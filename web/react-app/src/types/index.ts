@@ -18,6 +18,29 @@ export interface Node {
   last_ping?: string;
 }
 
+// Environment Types
+export interface NodeSummary {
+  name: string;
+  host: string;
+  port: number;
+  is_connected: boolean;
+  last_ping: string;
+}
+
+export interface NodeDetail extends NodeSummary {
+  processes: number;
+}
+
+export interface Environment {
+  name: string;
+  members: NodeSummary[];
+}
+
+export interface EnvironmentDetail {
+  name: string;
+  members: NodeDetail[];
+}
+
 // Process Types
 export interface Process {
   name: string;
@@ -186,4 +209,40 @@ export interface ScheduledTask {
   next_run?: string;
   created_at: string;
   updated_at: string;
+}
+
+// Process Aggregation Types
+export interface AggregatedProcess {
+  name: string;
+  total_instances: number;
+  running_instances: number;
+  stopped_instances: number;
+  instances: ProcessInstance[];
+}
+
+export interface ProcessInstance {
+  node_name: string;
+  node_host: string;
+  node_port: number;
+  state: number;
+  state_string: string;
+  pid: number;
+  uptime: number;
+  uptime_human: string;
+  description: string;
+  group: string;
+}
+
+export interface BatchOperationResult {
+  process_name: string;
+  total_instances: number;
+  success_count: number;
+  failure_count: number;
+  results: InstanceOperationResult[];
+}
+
+export interface InstanceOperationResult {
+  node_name: string;
+  success: boolean;
+  error?: string;
 }

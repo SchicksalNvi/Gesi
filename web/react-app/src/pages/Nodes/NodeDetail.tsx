@@ -56,7 +56,8 @@ const NodeDetail: React.FC = () => {
     try {
       // 加载节点信息
       const nodesResponse = await nodesApi.getNodes();
-      const foundNode = nodesResponse.data?.nodes?.find((n: Node) => n.name === nodeName);
+      // 后端直接返回 { status, nodes }，不是嵌套在 data 里
+      const foundNode = (nodesResponse as any).nodes?.find((n: Node) => n.name === nodeName);
       
       if (foundNode) {
         setNode(foundNode);
@@ -64,7 +65,8 @@ const NodeDetail: React.FC = () => {
         // 加载进程列表
         if (foundNode.is_connected) {
           const processResponse = await nodesApi.getNodeProcesses(nodeName);
-          setProcesses(processResponse.data?.processes || []);
+          // 后端直接返回 { status, processes }
+          setProcesses((processResponse as any).processes || []);
         }
       } else {
         message.error('Node not found');
@@ -120,9 +122,10 @@ const NodeDetail: React.FC = () => {
     
     try {
       const response = await nodesApi.getProcessLogs(nodeName, process.name);
+      // 后端直接返回 { status, stdout, stderr }
       setProcessLogs({
-        stdout: response.data?.stdout || 'No stdout logs',
-        stderr: response.data?.stderr || 'No stderr logs',
+        stdout: (response as any).stdout || 'No stdout logs',
+        stderr: (response as any).stderr || 'No stderr logs',
       });
     } catch (error) {
       console.error('Failed to load logs:', error);

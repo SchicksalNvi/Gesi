@@ -24,6 +24,7 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB, service *supervisor.SupervisorServi
 	userAPI := NewUserAPI(db)
 	environmentsAPI := NewEnvironmentsAPI(service)
 	groupsAPI := NewGroupsAPI(service)
+	processesAPI := NewProcessesAPI(service)
 	activityLogService := services.NewActivityLogService(db)
 	activityLogsAPI := NewActivityLogsAPI(activityLogService)
 	healthAPI := NewHealthAPI(db, service)
@@ -112,6 +113,15 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB, service *supervisor.SupervisorServi
 			groupsGroup.POST("/:group_name/start", groupsAPI.StartGroupProcesses)
 			groupsGroup.POST("/:group_name/stop", groupsAPI.StopGroupProcesses)
 			groupsGroup.POST("/:group_name/restart", groupsAPI.RestartGroupProcesses)
+		}
+
+		// Processes Aggregation API
+		processesGroup := apiGroup.Group("/processes")
+		{
+			processesGroup.GET("/aggregated", processesAPI.GetAggregatedProcesses)
+			processesGroup.POST("/:process_name/start", processesAPI.BatchStartProcess)
+			processesGroup.POST("/:process_name/stop", processesAPI.BatchStopProcess)
+			processesGroup.POST("/:process_name/restart", processesAPI.BatchRestartProcess)
 		}
 
 		// Activity Logs API

@@ -4,6 +4,7 @@ import { Layout, Menu, Avatar, Dropdown, Space, Badge } from 'antd';
 import {
   DashboardOutlined,
   ClusterOutlined,
+  AppstoreOutlined,
   UserOutlined,
   BellOutlined,
   FileTextOutlined,
@@ -32,10 +33,22 @@ export default function MainLayout() {
       onClick: () => navigate('/dashboard'),
     },
     {
+      key: '/environments',
+      icon: <AppstoreOutlined />,
+      label: 'Environments',
+      onClick: () => navigate('/environments'),
+    },
+    {
       key: '/nodes',
       icon: <ClusterOutlined />,
       label: 'Nodes',
       onClick: () => navigate('/nodes'),
+    },
+    {
+      key: '/processes',
+      icon: <AppstoreOutlined />,
+      label: 'Processes',
+      onClick: () => navigate('/processes'),
     },
     {
       key: '/alerts',
