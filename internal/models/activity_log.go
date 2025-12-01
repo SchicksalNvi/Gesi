@@ -8,14 +8,14 @@ import (
 
 type ActivityLog struct {
 	ID        uint           `json:"id" gorm:"primarykey"`
-	CreatedAt time.Time      `json:"created_at"`
+	CreatedAt time.Time      `json:"created_at" gorm:"index"`
 	UpdatedAt time.Time      `json:"updated_at"`
 	DeletedAt gorm.DeletedAt `json:"-" gorm:"index"`
 
 	// 日志基本信息
 	Level    string `json:"level" gorm:"size:20;not null"`     // INFO, WARNING, ERROR
 	Message  string `json:"message" gorm:"type:text;not null"` // 日志消息
-	Action   string `json:"action" gorm:"size:50"`             // 操作类型：start, stop, restart, login, logout等
+	Action   string `json:"action" gorm:"size:50;index"`       // 操作类型：start, stop, restart, login, logout等
 	Resource string `json:"resource" gorm:"size:100"`          // 资源类型：process, node, user等
 	Target   string `json:"target" gorm:"size:200"`            // 目标对象：进程名、节点名、用户名等
 

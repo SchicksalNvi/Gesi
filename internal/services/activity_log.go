@@ -259,3 +259,88 @@ func (s *ActivityLogService) LogUserAction(c *gin.Context, action, targetUsernam
 	message := fmt.Sprintf("User %s %s", targetUsername, action)
 	s.LogWithContext(c, "INFO", action, "user", targetUsername, message, nil)
 }
+
+// ExportLogs 导出日志为 CSV 格式
+func (s *ActivityLogService) ExportLogs(filters map[string]interface{}) ([]byte, error) {
+	var logs []*models.ActivityLog
+	
+	query := s.db.Model(&models.ActivityLog{})
+	
+	// 应用过滤器
+	for key, value := range filters {
+		if value != nil && value != "" {
+			switch key {
+			case "level":
+				query = query.Where("level = ?", value)
+			case "action":
+				query = query.Where("action = ?", value)
+			case "resource":
+				if str, ok := value.(string); ok {
+					query = query.Where("resource LIKE ?", "%"+str+"%")
+				}
+			case "username":
+				if str, ok := value.(string); ok {
+					query = query.Where("username LIKE ?", "%"+str+"%")
+				}
+			case "start_time":
+				if str, ok := value.(string); ok && str != "" {
+					query = query.Where("created_at >= ?", str)
+				}
+			case "end_time":
+				if str, ok := value.(string); ok && str != "" {
+					query = query.Where("created_at <= ?", str)
+				}
+			}
+		}
+	}
+	
+	// 查询所有符合条件的日志
+	if err := query.Order("created_at DESC").Find(&logs).Error; err != nil {
+		return nil, err
+	}
+	
+	// 生成 CSV 内容
+	csv := "ID,Created At,Level,Username,Action,Resource,Target,Message,IP Address,Status,Duration\n"
+	
+	for _, log := range logs {
+		username := log.Username
+		if username == "" {
+			username = "system"
+		}
+		
+		csv += fmt.Sprintf("%d,%s,%s,%s,%s,%s,%s,\"%s\",%s,%s,%d\n",
+			log.ID,
+			log.CreatedAt.Format("2006-01-02 15:04:05"),
+			log.Level,
+			username,
+			log.Action,
+			log.Resource,
+			log.Target,
+			log.Message,
+			log.IPAddress,
+			log.Status,
+			log.Duration,
+		)
+	}
+	
+	return []byte(csv), nil
+}
+
+// LogSystemEvent 记录系统事件（无用户操作）
+func (s *ActivityLogService) LogSystemEvent(level, action, resource, target, message string, extraInfo interface{}) error {
+	log := &models.ActivityLog{
+		Level:     level,
+		Message:   message,
+		Action:    action,
+		Resource:  resource,
+		Target:    target,
+		UserID:    "",
+		Username:  "system",
+		IPAddress: "",
+		UserAgent: "",
+		CreatedAt: time.Now(),
+		Status:    models.StatusSuccess,
+	}
+	
+	return s.db.Create(log).Error
+}

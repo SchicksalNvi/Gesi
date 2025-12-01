@@ -9,147 +9,130 @@ import {
   Tag,
   DatePicker,
   message,
-  Tabs,
+  Alert,
 } from 'antd';
 import {
   SearchOutlined,
   ReloadOutlined,
   DownloadOutlined,
-  FilterOutlined,
 } from '@ant-design/icons';
-import type { ColumnsType } from 'antd/es/table';
-import dayjs from 'dayjs';
+import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
+import dayjs, { Dayjs } from 'dayjs';
+import { activityLogsAPI } from '../../api/activityLogs';
+import type { ActivityLog, ActivityLogsFilters, PaginationInfo } from '../../types';
 
 const { RangePicker } = DatePicker;
-const { TextArea } = Input;
-
-interface LogEntry {
-  id: number;
-  timestamp: string;
-  level: 'debug' | 'info' | 'warning' | 'error';
-  source: string;
-  message: string;
-  node_name?: string;
-  process_name?: string;
-  user?: string;
-}
-
-interface ActivityLog {
-  id: number;
-  timestamp: string;
-  user: string;
-  action: string;
-  resource_type: string;
-  resource_name: string;
-  details: string;
-  ip_address: string;
-}
 
 const Logs: React.FC = () => {
-  const [systemLogs, setSystemLogs] = useState<LogEntry[]>([]);
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [searchText, setSearchText] = useState('');
-  const [levelFilter, setLevelFilter] = useState<string>('all');
-  const [sourceFilter, setSourceFilter] = useState<string>('all');
+  const [levelFilter, setLevelFilter] = useState<string>('');
+  const [actionFilter, setActionFilter] = useState<string>('');
+  const [resourceFilter, setResourceFilter] = useState<string>('');
+  const [usernameFilter, setUsernameFilter] = useState<string>('');
+  const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
+  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [pagination, setPagination] = useState<PaginationInfo>({
+    page: 1,
+    page_size: 20,
+    total: 0,
+    total_pages: 0,
+    has_next: false,
+    has_prev: false,
+  });
 
   useEffect(() => {
     loadLogs();
   }, []);
 
-  const loadLogs = async () => {
+  // 自动刷新功能
+  useEffect(() => {
+    if (!autoRefresh || pagination.page !== 1) {
+      return;
+    }
+
+    const intervalId = setInterval(() => {
+      loadLogs();
+    }, 30000); // 30 秒刷新一次
+
+    return () => clearInterval(intervalId);
+  }, [autoRefresh, pagination.page]);
+
+  const buildFilters = (): ActivityLogsFilters => {
+    const filters: ActivityLogsFilters = {
+      page: pagination.page,
+      page_size: pagination.page_size,
+    };
+
+    if (levelFilter) filters.level = levelFilter;
+    if (actionFilter) filters.action = actionFilter;
+    if (resourceFilter) filters.resource = resourceFilter;
+    if (usernameFilter) filters.username = usernameFilter;
+    
+    if (dateRange && dateRange[0] && dateRange[1]) {
+      filters.start_time = dateRange[0].toISOString();
+      filters.end_time = dateRange[1].toISOString();
+    }
+
+    return filters;
+  };
+
+  const loadLogs = async (customFilters?: Partial<ActivityLogsFilters>) => {
     setLoading(true);
+    setError(null);
+    
     try {
-      // 模拟系统日志数据
-      const mockSystemLogs: LogEntry[] = [
-        {
-          id: 1,
-          timestamp: new Date().toISOString(),
-          level: 'info',
-          source: 'system',
-          message: 'System started successfully',
-        },
-        {
-          id: 2,
-          timestamp: new Date(Date.now() - 60000).toISOString(),
-          level: 'warning',
-          source: 'node',
-          message: 'Node connection timeout, retrying...',
-          node_name: 'prod-server-01',
-        },
-        {
-          id: 3,
-          timestamp: new Date(Date.now() - 120000).toISOString(),
-          level: 'error',
-          source: 'process',
-          message: 'Process crashed with exit code 1',
-          node_name: 'prod-server-02',
-          process_name: 'web-app',
-        },
-        {
-          id: 4,
-          timestamp: new Date(Date.now() - 180000).toISOString(),
-          level: 'info',
-          source: 'auth',
-          message: 'User logged in successfully',
-          user: 'admin',
-        },
-      ];
-
-      // 模拟活动日志数据
-      const mockActivityLogs: ActivityLog[] = [
-        {
-          id: 1,
-          timestamp: new Date().toISOString(),
-          user: 'admin',
-          action: 'start_process',
-          resource_type: 'process',
-          resource_name: 'web-app',
-          details: 'Started process on prod-server-01',
-          ip_address: '192.168.1.100',
-        },
-        {
-          id: 2,
-          timestamp: new Date(Date.now() - 60000).toISOString(),
-          user: 'john_doe',
-          action: 'stop_process',
-          resource_type: 'process',
-          resource_name: 'worker',
-          details: 'Stopped process on prod-server-02',
-          ip_address: '192.168.1.101',
-        },
-        {
-          id: 3,
-          timestamp: new Date(Date.now() - 120000).toISOString(),
-          user: 'admin',
-          action: 'create_user',
-          resource_type: 'user',
-          resource_name: 'jane_smith',
-          details: 'Created new user account',
-          ip_address: '192.168.1.100',
-        },
-      ];
-
-      setSystemLogs(mockSystemLogs);
-      setActivityLogs(mockActivityLogs);
-    } catch (error) {
-      console.error('Failed to load logs:', error);
-      message.error('Failed to load logs');
+      const filters = customFilters ? { ...buildFilters(), ...customFilters } : buildFilters();
+      const response = await activityLogsAPI.getActivityLogs(filters);
+      
+      setActivityLogs(response.data.logs);
+      setPagination(response.data.pagination);
+    } catch (err) {
+      console.error('Failed to load logs:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load activity logs';
+      setError(errorMessage);
+      message.error(errorMessage);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleExport = () => {
-    message.success('Logs exported successfully');
+  const handleSearch = () => {
+    setPagination(prev => ({ ...prev, page: 1 }));
+    loadLogs({ page: 1 });
+  };
+
+  const handleExport = async () => {
+    try {
+      message.loading({ content: 'Exporting logs...', key: 'export' });
+      const filters = buildFilters();
+      const blob = await activityLogsAPI.exportLogs(filters);
+      
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `activity-logs-${dayjs().format('YYYY-MM-DD-HHmmss')}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+      message.success({ content: 'Logs exported successfully', key: 'export' });
+    } catch (err) {
+      console.error('Failed to export logs:', err);
+      message.error({ content: 'Failed to export logs', key: 'export' });
+    }
   };
 
   const getLevelColor = (level: string) => {
-    switch (level) {
-      case 'error': return 'red';
-      case 'warning': return 'orange';
-      case 'info': return 'blue';
-      case 'debug': return 'default';
+    const upperLevel = level.toUpperCase();
+    switch (upperLevel) {
+      case 'ERROR': return 'red';
+      case 'WARNING': return 'orange';
+      case 'INFO': return 'blue';
+      case 'DEBUG': return 'default';
       default: return 'default';
     }
   };
@@ -163,14 +146,26 @@ const Logs: React.FC = () => {
     return 'default';
   };
 
-  const systemLogColumns: ColumnsType<LogEntry> = [
+  const handleTableChange = (newPagination: TablePaginationConfig) => {
+    const newPage = newPagination.current || 1;
+    const newPageSize = newPagination.pageSize || 20;
+    
+    setPagination(prev => ({
+      ...prev,
+      page: newPage,
+      page_size: newPageSize,
+    }));
+    
+    loadLogs({ page: newPage, page_size: newPageSize });
+  };
+
+  const activityLogColumns: ColumnsType<ActivityLog> = [
     {
       title: 'Timestamp',
-      dataIndex: 'timestamp',
-      key: 'timestamp',
+      dataIndex: 'created_at',
+      key: 'created_at',
       width: 180,
-      render: (timestamp: string) => new Date(timestamp).toLocaleString(),
-      sorter: (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+      render: (timestamp: string) => dayjs(timestamp).format('YYYY-MM-DD HH:mm:ss'),
     },
     {
       title: 'Level',
@@ -184,47 +179,11 @@ const Logs: React.FC = () => {
       ),
     },
     {
-      title: 'Source',
-      dataIndex: 'source',
-      key: 'source',
-      width: 120,
-    },
-    {
-      title: 'Node',
-      dataIndex: 'node_name',
-      key: 'node_name',
-      width: 150,
-      render: (nodeName?: string) => nodeName || '-',
-    },
-    {
-      title: 'Process',
-      dataIndex: 'process_name',
-      key: 'process_name',
-      width: 150,
-      render: (processName?: string) => processName || '-',
-    },
-    {
-      title: 'Message',
-      dataIndex: 'message',
-      key: 'message',
-      ellipsis: true,
-    },
-  ];
-
-  const activityLogColumns: ColumnsType<ActivityLog> = [
-    {
-      title: 'Timestamp',
-      dataIndex: 'timestamp',
-      key: 'timestamp',
-      width: 180,
-      render: (timestamp: string) => new Date(timestamp).toLocaleString(),
-      sorter: (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
-    },
-    {
       title: 'User',
-      dataIndex: 'user',
-      key: 'user',
+      dataIndex: 'username',
+      key: 'username',
       width: 120,
+      render: (username: string) => username || 'system',
     },
     {
       title: 'Action',
@@ -238,21 +197,22 @@ const Logs: React.FC = () => {
       ),
     },
     {
-      title: 'Resource Type',
-      dataIndex: 'resource_type',
-      key: 'resource_type',
+      title: 'Resource',
+      dataIndex: 'resource',
+      key: 'resource',
       width: 120,
     },
     {
-      title: 'Resource Name',
-      dataIndex: 'resource_name',
-      key: 'resource_name',
+      title: 'Target',
+      dataIndex: 'target',
+      key: 'target',
       width: 150,
+      ellipsis: true,
     },
     {
-      title: 'Details',
-      dataIndex: 'details',
-      key: 'details',
+      title: 'Message',
+      dataIndex: 'message',
+      key: 'message',
       ellipsis: true,
     },
     {
@@ -263,47 +223,55 @@ const Logs: React.FC = () => {
     },
   ];
 
-  const filteredSystemLogs = systemLogs.filter(log => {
-    const matchesSearch = 
-      log.message.toLowerCase().includes(searchText.toLowerCase()) ||
-      log.source.toLowerCase().includes(searchText.toLowerCase()) ||
-      log.node_name?.toLowerCase().includes(searchText.toLowerCase()) ||
-      log.process_name?.toLowerCase().includes(searchText.toLowerCase());
-    
-    const matchesLevel = levelFilter === 'all' || log.level === levelFilter;
-    const matchesSource = sourceFilter === 'all' || log.source === sourceFilter;
-    
-    return matchesSearch && matchesLevel && matchesSource;
-  });
-
-  const filteredActivityLogs = activityLogs.filter(log =>
-    log.user.toLowerCase().includes(searchText.toLowerCase()) ||
-    log.action.toLowerCase().includes(searchText.toLowerCase()) ||
-    log.resource_name.toLowerCase().includes(searchText.toLowerCase()) ||
-    log.details.toLowerCase().includes(searchText.toLowerCase())
-  );
+  // Client-side search filter for display purposes
+  const displayedLogs = searchText
+    ? activityLogs.filter(log =>
+        log.message.toLowerCase().includes(searchText.toLowerCase()) ||
+        log.username?.toLowerCase().includes(searchText.toLowerCase()) ||
+        log.action.toLowerCase().includes(searchText.toLowerCase()) ||
+        log.target?.toLowerCase().includes(searchText.toLowerCase())
+      )
+    : activityLogs;
 
   return (
     <div>
       <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h1 style={{ margin: 0 }}>Logs</h1>
+        <h1 style={{ margin: 0 }}>Activity Logs</h1>
         <Space>
+          <Button
+            type={autoRefresh ? 'default' : 'dashed'}
+            onClick={() => setAutoRefresh(!autoRefresh)}
+          >
+            Auto Refresh: {autoRefresh ? 'ON' : 'OFF'}
+          </Button>
           <Button
             icon={<DownloadOutlined />}
             onClick={handleExport}
+            disabled={loading}
           >
             Export
           </Button>
           <Button
             type="primary"
             icon={<ReloadOutlined />}
-            onClick={loadLogs}
+            onClick={() => loadLogs()}
             loading={loading}
           >
             Refresh
           </Button>
         </Space>
       </div>
+
+      {error && (
+        <Alert
+          message="Error"
+          description={error}
+          type="error"
+          closable
+          onClose={() => setError(null)}
+          style={{ marginBottom: 16 }}
+        />
+      )}
 
       {/* 筛选器 */}
       <Card style={{ marginBottom: 16 }}>
@@ -318,81 +286,89 @@ const Logs: React.FC = () => {
           />
           <Select
             style={{ width: 150 }}
-            value={levelFilter}
+            placeholder="Level"
+            value={levelFilter || undefined}
             onChange={setLevelFilter}
+            allowClear
             options={[
-              { label: 'All Levels', value: 'all' },
-              { label: 'Debug', value: 'debug' },
-              { label: 'Info', value: 'info' },
-              { label: 'Warning', value: 'warning' },
-              { label: 'Error', value: 'error' },
+              { label: 'INFO', value: 'INFO' },
+              { label: 'WARNING', value: 'WARNING' },
+              { label: 'ERROR', value: 'ERROR' },
+              { label: 'DEBUG', value: 'DEBUG' },
             ]}
           />
           <Select
             style={{ width: 150 }}
-            value={sourceFilter}
-            onChange={setSourceFilter}
+            placeholder="Action"
+            value={actionFilter || undefined}
+            onChange={setActionFilter}
+            allowClear
             options={[
-              { label: 'All Sources', value: 'all' },
-              { label: 'System', value: 'system' },
-              { label: 'Node', value: 'node' },
-              { label: 'Process', value: 'process' },
-              { label: 'Auth', value: 'auth' },
+              { label: 'Start Process', value: 'start_process' },
+              { label: 'Stop Process', value: 'stop_process' },
+              { label: 'Restart Process', value: 'restart_process' },
+              { label: 'Login', value: 'login' },
+              { label: 'Logout', value: 'logout' },
             ]}
+          />
+          <Select
+            style={{ width: 150 }}
+            placeholder="Resource"
+            value={resourceFilter || undefined}
+            onChange={setResourceFilter}
+            allowClear
+            options={[
+              { label: 'Process', value: 'process' },
+              { label: 'Node', value: 'node' },
+              { label: 'User', value: 'user' },
+              { label: 'Auth', value: 'auth' },
+              { label: 'System', value: 'system' },
+            ]}
+          />
+          <Input
+            placeholder="Username"
+            style={{ width: 150 }}
+            value={usernameFilter}
+            onChange={(e) => setUsernameFilter(e.target.value)}
+            allowClear
           />
           <RangePicker
             showTime
             format="YYYY-MM-DD HH:mm"
             placeholder={['Start Time', 'End Time']}
+            value={dateRange}
+            onChange={setDateRange}
           />
+          <Button
+            type="primary"
+            icon={<SearchOutlined />}
+            onClick={handleSearch}
+            loading={loading}
+          >
+            Search
+          </Button>
         </Space>
       </Card>
 
       {/* 日志表格 */}
       <Card>
-        <Tabs
-          items={[
-            {
-              key: 'system',
-              label: `System Logs (${filteredSystemLogs.length})`,
-              children: (
-                <Table
-                  columns={systemLogColumns}
-                  dataSource={filteredSystemLogs}
-                  rowKey="id"
-                  loading={loading}
-                  pagination={{
-                    pageSize: 20,
-                    showSizeChanger: true,
-                    showQuickJumper: true,
-                    showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} logs`,
-                  }}
-                  scroll={{ x: 1000 }}
-                  size="small"
-                />
-              ),
-            },
-            {
-              key: 'activity',
-              label: `Activity Logs (${filteredActivityLogs.length})`,
-              children: (
-                <Table
-                  columns={activityLogColumns}
-                  dataSource={filteredActivityLogs}
-                  rowKey="id"
-                  loading={loading}
-                  pagination={{
-                    pageSize: 20,
-                    showSizeChanger: true,
-                    showQuickJumper: true,
-                    showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} logs`,
-                  }}
-                  scroll={{ x: 1000 }}
-                  size="small"
-                />
-              ),
-            },
-          ]}
+        <Table
+          columns={activityLogColumns}
+          dataSource={displayedLogs}
+          rowKey="id"
+          loading={loading}
+          pagination={{
+            current: pagination.page,
+            pageSize: pagination.page_size,
+            total: pagination.total,
+            showSizeChanger: true,
+            showQuickJumper: true,
+            showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} logs`,
+            pageSizeOptions: ['10', '20', '50', '100'],
+          }}
+          onChange={handleTableChange}
+          scroll={{ x: 1200 }}
+          size="small"
         />
       </Card>
     </div>

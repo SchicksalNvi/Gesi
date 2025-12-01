@@ -230,9 +230,17 @@ func main() {
 
 	// 初始化活动日志服务
 	loggers.InitActivityLogService(db)
+	activityLogService := services.NewActivityLogService(db)
 
 	// 初始化Supervisor服务
 	supervisorService := supervisor.NewSupervisorService()
+	
+	// 设置活动日志记录器到 supervisor
+	supervisorService.SetActivityLogger(activityLogService)
+	
+	// 启动状态监控（每 10 秒检查一次）
+	supervisorService.StartMonitoring(10 * time.Second)
+	logger.Info("Supervisor state monitoring started")
 
 	// 初始化WebSocket Hub
 	hub := websocket.NewHub(supervisorService)

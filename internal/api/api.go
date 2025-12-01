@@ -24,8 +24,8 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB, service *supervisor.SupervisorServi
 	userAPI := NewUserAPI(db)
 	environmentsAPI := NewEnvironmentsAPI(service)
 	groupsAPI := NewGroupsAPI(service)
-	processesAPI := NewProcessesAPI(service)
 	activityLogService := services.NewActivityLogService(db)
+	processesAPI := NewProcessesAPI(service, activityLogService)
 	activityLogsAPI := NewActivityLogsAPI(activityLogService)
 	healthAPI := NewHealthAPI(db, service)
 	logManagementAPI := NewLogManagementAPI()
@@ -130,6 +130,7 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB, service *supervisor.SupervisorServi
 			activityLogsGroup.GET("", activityLogsAPI.GetActivityLogs)
 			activityLogsGroup.GET("/recent", activityLogsAPI.GetRecentLogs)
 			activityLogsGroup.GET("/statistics", activityLogsAPI.GetLogStatistics)
+			activityLogsGroup.GET("/export", activityLogsAPI.ExportLogs)
 			activityLogsGroup.DELETE("/clean", activityLogsAPI.CleanOldLogs)
 		}
 

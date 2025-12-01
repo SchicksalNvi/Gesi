@@ -226,3 +226,30 @@ func (a *ActivityLogsAPI) CleanOldLogs(c *gin.Context) {
 		"message": "Old logs cleaned successfully",
 	})
 }
+
+// ExportLogs 导出日志为 CSV
+func (a *ActivityLogsAPI) ExportLogs(c *gin.Context) {
+	// 获取过滤参数
+	filters := map[string]interface{}{
+		"level":      c.Query("level"),
+		"action":     c.Query("action"),
+		"resource":   c.Query("resource"),
+		"username":   c.Query("username"),
+		"start_time": c.Query("start_time"),
+		"end_time":   c.Query("end_time"),
+	}
+
+	csvData, err := a.service.ExportLogs(filters)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "error",
+			"message": "Failed to export logs: " + err.Error(),
+		})
+		return
+	}
+
+	// 设置响应头
+	c.Header("Content-Type", "text/csv")
+	c.Header("Content-Disposition", "attachment; filename=activity-logs.csv")
+	c.Data(http.StatusOK, "text/csv", csvData)
+}

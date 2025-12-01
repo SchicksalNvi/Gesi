@@ -2,10 +2,12 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"sync"
 	"time"
 
+	"go-cesi/internal/services"
 	"go-cesi/internal/supervisor"
 	"go-cesi/internal/validation"
 
@@ -13,11 +15,15 @@ import (
 )
 
 type ProcessesAPI struct {
-	service *supervisor.SupervisorService
+	service            *supervisor.SupervisorService
+	activityLogService *services.ActivityLogService
 }
 
-func NewProcessesAPI(service *supervisor.SupervisorService) *ProcessesAPI {
-	return &ProcessesAPI{service: service}
+func NewProcessesAPI(service *supervisor.SupervisorService, activityLogService *services.ActivityLogService) *ProcessesAPI {
+	return &ProcessesAPI{
+		service:            service,
+		activityLogService: activityLogService,
+	}
 }
 
 // AggregatedProcess 聚合的进程信息
@@ -155,6 +161,13 @@ func (api *ProcessesAPI) BatchStartProcess(c *gin.Context) {
 	// 执行批量操作
 	result := api.batchOperation(processName, "start")
 
+	// 记录日志
+	if api.activityLogService != nil {
+		message := fmt.Sprintf("Batch started process %s on %d instances (%d succeeded, %d failed)",
+			processName, result.TotalInstances, result.SuccessCount, result.FailureCount)
+		api.activityLogService.LogWithContext(c, "INFO", "start_process", "process", processName, message, nil)
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"status": "success",
 		"result": result,
@@ -185,6 +198,13 @@ func (api *ProcessesAPI) BatchStopProcess(c *gin.Context) {
 	// 执行批量操作
 	result := api.batchOperation(processName, "stop")
 
+	// 记录日志
+	if api.activityLogService != nil {
+		message := fmt.Sprintf("Batch stopped process %s on %d instances (%d succeeded, %d failed)",
+			processName, result.TotalInstances, result.SuccessCount, result.FailureCount)
+		api.activityLogService.LogWithContext(c, "INFO", "stop_process", "process", processName, message, nil)
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"status": "success",
 		"result": result,
@@ -214,6 +234,13 @@ func (api *ProcessesAPI) BatchRestartProcess(c *gin.Context) {
 
 	// 执行批量操作
 	result := api.batchOperation(processName, "restart")
+
+	// 记录日志
+	if api.activityLogService != nil {
+		message := fmt.Sprintf("Batch restarted process %s on %d instances (%d succeeded, %d failed)",
+			processName, result.TotalInstances, result.SuccessCount, result.FailureCount)
+		api.activityLogService.LogWithContext(c, "INFO", "restart_process", "process", processName, message, nil)
+	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"status": "success",

@@ -2,6 +2,7 @@ package supervisor
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 	"go-cesi/internal/errors"
@@ -9,18 +10,183 @@ import (
 	"go.uber.org/zap"
 )
 
+// ActivityLogger 活动日志记录器接口
+type ActivityLogger interface {
+	LogSystemEvent(level, action, resource, target, message string, extraInfo interface{}) error
+}
+
 type SupervisorService struct {
-	nodes map[string]*Node
-	mu    sync.RWMutex
-	stopChan chan struct{}
-	wg    sync.WaitGroup
-	shutdown bool
+	nodes              map[string]*Node
+	mu                 sync.RWMutex
+	stopChan           chan struct{}
+	wg                 sync.WaitGroup
+	shutdown           bool
+	activityLogger     ActivityLogger
+	processStates      map[string]map[string]int // nodeName -> processName -> state
+	nodeStates         map[string]bool            // nodeName -> isConnected
+	statesMu           sync.RWMutex
 }
 
 func NewSupervisorService() *SupervisorService {
 	return &SupervisorService{
-		nodes: make(map[string]*Node),
-		stopChan: make(chan struct{}),
+		nodes:         make(map[string]*Node),
+		stopChan:      make(chan struct{}),
+		processStates: make(map[string]map[string]int),
+		nodeStates:    make(map[string]bool),
+	}
+}
+
+// SetActivityLogger 设置活动日志记录器
+func (s *SupervisorService) SetActivityLogger(logger ActivityLogger) {
+	s.activityLogger = logger
+}
+
+// StartMonitoring 启动状态监控
+func (s *SupervisorService) StartMonitoring(interval time.Duration) {
+	s.wg.Add(1)
+	go func() {
+		defer s.wg.Done()
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-s.stopChan:
+				return
+			case <-ticker.C:
+				s.monitorStates()
+			}
+		}
+	}()
+}
+
+// monitorStates 监控节点和进程状态变化
+func (s *SupervisorService) monitorStates() {
+	s.mu.RLock()
+	nodes := make([]*Node, 0, len(s.nodes))
+	for _, node := range s.nodes {
+		nodes = append(nodes, node)
+	}
+	s.mu.RUnlock()
+
+	for _, node := range nodes {
+		// 检查节点连接状态
+		s.checkNodeConnectionState(node)
+
+		// 检查进程状态
+		if node.IsConnected {
+			s.checkProcessStates(node)
+		}
+	}
+}
+
+// checkNodeConnectionState 检查节点连接状态变化
+func (s *SupervisorService) checkNodeConnectionState(node *Node) {
+	s.statesMu.RLock()
+	previousState, exists := s.nodeStates[node.Name]
+	s.statesMu.RUnlock()
+
+	currentState := s.checkNodeStatus(node)
+
+	// 状态发生变化
+	if !exists || previousState != currentState {
+		s.statesMu.Lock()
+		s.nodeStates[node.Name] = currentState
+		s.statesMu.Unlock()
+
+		// 记录日志
+		if s.activityLogger != nil {
+			if currentState {
+				// 节点恢复连接
+				message := fmt.Sprintf("Node %s reconnected at %s:%d", node.Name, node.Host, node.Port)
+				s.activityLogger.LogSystemEvent("INFO", "node_connected", "node", node.Name, message, nil)
+			} else if exists {
+				// 节点断开连接（仅在之前存在状态时记录）
+				message := fmt.Sprintf("Node %s disconnected at %s:%d", node.Name, node.Host, node.Port)
+				s.activityLogger.LogSystemEvent("WARNING", "node_disconnected", "node", node.Name, message, nil)
+			}
+		}
+	}
+}
+
+// checkProcessStates 检查进程状态变化
+func (s *SupervisorService) checkProcessStates(node *Node) {
+	if err := node.RefreshProcesses(); err != nil {
+		return
+	}
+
+	s.statesMu.Lock()
+	defer s.statesMu.Unlock()
+
+	// 初始化节点的进程状态映射
+	if s.processStates[node.Name] == nil {
+		s.processStates[node.Name] = make(map[string]int)
+	}
+
+	for _, process := range node.Processes {
+		processKey := process.Name
+		previousState, exists := s.processStates[node.Name][processKey]
+		currentState := process.State
+
+		// 状态发生变化
+		if !exists {
+			// 首次发现进程，记录当前状态
+			s.processStates[node.Name][processKey] = currentState
+		} else if previousState != currentState {
+			// 状态变化，记录日志
+			s.processStates[node.Name][processKey] = currentState
+
+			if s.activityLogger != nil {
+				target := fmt.Sprintf("%s:%s", node.Name, process.Name)
+				
+				// 根据状态变化记录不同的日志
+				if currentState == 20 && previousState != 20 {
+					// 进程启动
+					message := fmt.Sprintf("Process %s started on node %s (state: %s -> %s)", 
+						process.Name, node.Name, getStateName(previousState), process.StateString)
+					s.activityLogger.LogSystemEvent("INFO", "process_started", "process", target, message, nil)
+				} else if currentState == 0 && previousState == 20 {
+					// 进程停止
+					message := fmt.Sprintf("Process %s stopped on node %s (state: %s -> %s)", 
+						process.Name, node.Name, getStateName(previousState), process.StateString)
+					s.activityLogger.LogSystemEvent("WARNING", "process_stopped", "process", target, message, nil)
+				} else if currentState == 100 || currentState == 200 {
+					// 进程异常退出
+					message := fmt.Sprintf("Process %s exited abnormally on node %s (state: %s -> %s, exit: %d)", 
+						process.Name, node.Name, getStateName(previousState), process.StateString, process.ExitStatus)
+					s.activityLogger.LogSystemEvent("ERROR", "process_failed", "process", target, message, nil)
+				} else {
+					// 其他状态变化
+					message := fmt.Sprintf("Process %s state changed on node %s (state: %s -> %s)", 
+						process.Name, node.Name, getStateName(previousState), process.StateString)
+					s.activityLogger.LogSystemEvent("INFO", "process_state_changed", "process", target, message, nil)
+				}
+			}
+		}
+	}
+}
+
+// getStateName 获取状态名称
+func getStateName(state int) string {
+	switch state {
+	case 0:
+		return "STOPPED"
+	case 10:
+		return "STARTING"
+	case 20:
+		return "RUNNING"
+	case 30:
+		return "BACKOFF"
+	case 40:
+		return "STOPPING"
+	case 100:
+		return "EXITED"
+	case 200:
+		return "FATAL"
+	case 1000:
+		return "UNKNOWN"
+	default:
+		return fmt.Sprintf("STATE_%d", state)
 	}
 }
 
