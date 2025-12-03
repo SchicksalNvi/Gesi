@@ -9,6 +9,7 @@ import (
 // Validator 配置验证器接口
 type Validator interface {
 	Validate(cfg *Config) error
+	ValidateNode(node NodeConfig) error
 }
 
 // validator 配置验证器实现
@@ -55,14 +56,8 @@ func (v *validator) Validate(cfg *Config) error {
 
 	// 验证节点配置
 	for i, node := range cfg.Nodes {
-		if node.Name == "" {
-			errors = append(errors, fmt.Sprintf("node[%d].name is required", i))
-		}
-		if node.Environment == "" {
-			errors = append(errors, fmt.Sprintf("node[%d].environment is required", i))
-		}
-		if node.Address == "" {
-			errors = append(errors, fmt.Sprintf("node[%d].address is required", i))
+		if err := v.ValidateNode(node); err != nil {
+			errors = append(errors, fmt.Sprintf("node[%d]: %s", i, err.Error()))
 		}
 	}
 
@@ -89,6 +84,33 @@ func (v *validator) validateRequiredEnvVars() error {
 
 	if len(missing) > 0 {
 		return fmt.Errorf("missing required environment variables: %s", strings.Join(missing, ", "))
+	}
+
+	return nil
+}
+
+// ValidateNode 验证单个节点配置（源无关）
+func (v *validator) ValidateNode(node NodeConfig) error {
+	var errors []string
+
+	// 验证必填字段
+	if node.Name == "" {
+		errors = append(errors, "name is required")
+	}
+	if node.Environment == "" {
+		errors = append(errors, "environment is required")
+	}
+	if node.Host == "" {
+		errors = append(errors, "host is required")
+	}
+
+	// 验证端口范围
+	if node.Port <= 0 || node.Port > 65535 {
+		errors = append(errors, "port must be between 1 and 65535")
+	}
+
+	if len(errors) > 0 {
+		return fmt.Errorf("%s", strings.Join(errors, ", "))
 	}
 
 	return nil

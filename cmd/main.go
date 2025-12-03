@@ -158,7 +158,23 @@ func main() {
 	}
 
 	// 加载应用配置
-	appConfig, err := config.Load("config.toml")
+	// 优先使用 config/ 目录，如果不存在则回退到根目录
+	mainConfigPath := "config/config.toml"
+	nodeListPath := "config/nodelist.toml"
+	
+	// 检查 config/ 目录是否存在
+	if _, err := os.Stat("config"); os.IsNotExist(err) {
+		// 回退到根目录的 config.toml（向后兼容）
+		mainConfigPath = "config.toml"
+		nodeListPath = ""
+		logger.Info("Using legacy config.toml format (config/ directory not found)")
+	} else {
+		logger.Info("Using config/ directory structure")
+	}
+	
+	// 使用 ConfigLoader 加载配置
+	loader := config.NewConfigLoader(mainConfigPath, nodeListPath)
+	appConfig, err := loader.Load()
 	if err != nil {
 		logger.Fatal("Failed to load application config", zap.Error(err))
 	}
@@ -501,46 +517,82 @@ func updateAdminUser(db *gorm.DB, config *Config) error {
 }
 
 func loadConfig() (*Config, error) {
-	// 获取当前工作目录作为项目根目录
-	projectRoot, err := os.Getwd()
+	// 优先使用 config/ 目录，如果不存在则回退到根目录
+	mainConfigPath := "config/config.toml"
+	nodeListPath := "config/nodelist.toml"
+	
+	// 检查 config/ 目录是否存在
+	if _, err := os.Stat("config"); os.IsNotExist(err) {
+		// 回退到根目录的 config.toml（向后兼容）
+		mainConfigPath = "config.toml"
+		nodeListPath = ""
+		logger.Info("Using legacy config.toml format")
+		
+		// 检查是否有节点配置，如果有则提供迁移建议
+		viper.SetConfigFile(mainConfigPath)
+		if err := viper.ReadInConfig(); err == nil {
+			if viper.IsSet("nodes") && len(viper.Get("nodes").([]interface{})) > 0 {
+				logger.Info("=== Configuration Migration Suggestion ===")
+				logger.Info("Your config.toml contains node configurations.")
+				logger.Info("Consider migrating to the new config/ directory structure for better maintainability:")
+				logger.Info("  1. Create a 'config/' directory")
+				logger.Info("  2. Move system configuration to 'config/config.toml'")
+				logger.Info("  3. Move node configurations to 'config/nodelist.toml'")
+				logger.Info("  4. See config/config.example.toml and config/nodelist.example.toml for reference")
+				logger.Info("==========================================")
+			}
+		}
+	}
+	
+	// 使用 ConfigLoader 加载配置
+	loader := config.NewConfigLoader(mainConfigPath, nodeListPath)
+	appCfg, err := loader.Load()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get working directory: %v", err)
+		return nil, fmt.Errorf("failed to load config: %v", err)
 	}
 
-	viper.SetConfigName("config")
-	viper.SetConfigType("toml")
-	viper.AddConfigPath(projectRoot)
-	viper.AddConfigPath(".")
-
-	// 设置默认值
-	viper.SetDefault("server.port", 8081)
-	viper.SetDefault("admin.username", "admin")
-	viper.SetDefault("admin.email", "admin@example.com")
-
-	// 启用环境变量替换
-	viper.AutomaticEnv()
-	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
-
-	// 读取配置文件
-	if err := viper.ReadInConfig(); err != nil {
-		return nil, fmt.Errorf("failed to read config file: %v", err)
+	// 转换为 main.go 的 Config 结构
+	var cfg Config
+	cfg.Server.Port = 8081 // 默认端口
+	
+	// 从 viper 读取服务器端口（如果存在）
+	viper.SetConfigFile(mainConfigPath)
+	if err := viper.ReadInConfig(); err == nil {
+		cfg.Server.Port = viper.GetInt("server.port")
+		if cfg.Server.Port == 0 {
+			cfg.Server.Port = 8081
+		}
+	}
+	
+	cfg.Admin.Username = appCfg.AdminUsername
+	cfg.Admin.Password = appCfg.AdminPassword
+	cfg.Admin.Email = appCfg.Admin.Email
+	if cfg.Admin.Email == "" {
+		cfg.Admin.Email = "admin@example.com"
+	}
+	
+	// 转换节点配置
+	cfg.Nodes = make([]struct {
+		Name        string `mapstructure:"name"`
+		Environment string `mapstructure:"environment"`
+		Host        string `mapstructure:"host"`
+		Port        int    `mapstructure:"port"`
+		Username    string `mapstructure:"username"`
+		Password    string `mapstructure:"password"`
+	}, len(appCfg.Nodes))
+	
+	for i, node := range appCfg.Nodes {
+		cfg.Nodes[i].Name = node.Name
+		cfg.Nodes[i].Environment = node.Environment
+		cfg.Nodes[i].Host = node.Host
+		cfg.Nodes[i].Port = node.Port
+		cfg.Nodes[i].Username = node.Username
+		cfg.Nodes[i].Password = node.Password
 	}
 
-	logger.Info("Config file loaded",
-		zap.String("config_file", viper.ConfigFileUsed()),
-		zap.Any("nodes_config", viper.Get("nodes")))
+	logger.Info("Config loaded",
+		zap.String("config_file", mainConfigPath),
+		zap.Int("nodes_count", len(cfg.Nodes)))
 
-	// 解析配置
-	var config Config
-	if err := viper.Unmarshal(&config); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal config: %v", err)
-	}
-
-	// 从环境变量获取敏感信息
-	config.Admin.Password = os.Getenv("ADMIN_PASSWORD")
-	for i := range config.Nodes {
-		config.Nodes[i].Password = os.Getenv("NODE_PASSWORD")
-	}
-
-	return &config, nil
+	return &cfg, nil
 }

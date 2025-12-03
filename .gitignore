@@ -29,6 +29,11 @@ data/*.db-wal
 .env
 .env.local
 
+# Configuration files (exclude actual configs, include examples)
+config/config.toml
+config/nodelist.toml
+!config/*.example.toml
+
 # Temporary files
 *.tmp
 *.swp

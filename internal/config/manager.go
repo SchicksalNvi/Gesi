@@ -17,24 +17,30 @@ type ConfigManager interface {
 	Load(path string) (*Config, error)
 	Validate(cfg *Config) error
 	Watch(callback func(*Config)) error
+	WatchNodeList(nodeListPath string, callback func([]NodeConfig)) error
 	Get() *Config
 	Stop()
 }
 
 // configManager 配置管理器实现
 type configManager struct {
-	config   *Config
-	mu       sync.RWMutex
-	watcher  *fsnotify.Watcher
-	stopChan chan struct{}
-	callback func(*Config)
-	stopped  bool
+	config           *Config
+	mu               sync.RWMutex
+	watcher          *fsnotify.Watcher
+	nodeListWatcher  *fsnotify.Watcher
+	stopChan         chan struct{}
+	nodeListStopChan chan struct{}
+	callback         func(*Config)
+	nodeListCallback func([]NodeConfig)
+	nodeListPath     string
+	stopped          bool
 }
 
 // NewConfigManager 创建配置管理器
 func NewConfigManager() ConfigManager {
 	return &configManager{
-		stopChan: make(chan struct{}),
+		stopChan:         make(chan struct{}),
+		nodeListStopChan: make(chan struct{}),
 	}
 }
 
@@ -169,8 +175,12 @@ func (m *configManager) Stop() {
 	
 	m.stopped = true
 	close(m.stopChan)
+	close(m.nodeListStopChan)
 	if m.watcher != nil {
 		m.watcher.Close()
+	}
+	if m.nodeListWatcher != nil {
+		m.nodeListWatcher.Close()
 	}
 }
 
@@ -193,5 +203,92 @@ func (m *configManager) logDefaultValues(cfg *Config) {
 	}
 	if cfg.Performance.EndpointCleanupThreshold == 2*time.Hour {
 		logger.Info("Using default value for endpoint_cleanup_threshold", zap.Duration("value", cfg.Performance.EndpointCleanupThreshold))
+	}
+}
+
+// WatchNodeList 监听节点列表文件变化
+func (m *configManager) WatchNodeList(nodeListPath string, callback func([]NodeConfig)) error {
+	m.nodeListPath = nodeListPath
+	m.nodeListCallback = callback
+
+	// 检查文件是否存在
+	if _, err := os.Stat(nodeListPath); os.IsNotExist(err) {
+		logger.Info("Node list file does not exist, skipping watch", zap.String("file", nodeListPath))
+		return nil
+	}
+
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		return fmt.Errorf("failed to create node list watcher: %w", err)
+	}
+	m.nodeListWatcher = watcher
+
+	if err := watcher.Add(nodeListPath); err != nil {
+		return fmt.Errorf("failed to watch node list file: %w", err)
+	}
+
+	go m.watchNodeListLoop()
+
+	logger.Info("Node list file watcher started", zap.String("file", nodeListPath))
+	return nil
+}
+
+// watchNodeListLoop 监听节点列表文件循环
+func (m *configManager) watchNodeListLoop() {
+	for {
+		select {
+		case event, ok := <-m.nodeListWatcher.Events:
+			if !ok {
+				return
+			}
+			if event.Op&fsnotify.Write == fsnotify.Write {
+				logger.Info("Node list file changed, reloading", zap.String("file", event.Name))
+				m.reloadNodeList()
+			}
+		case err, ok := <-m.nodeListWatcher.Errors:
+			if !ok {
+				return
+			}
+			logger.Error("Node list watcher error", zap.Error(err))
+		case <-m.nodeListStopChan:
+			return
+		}
+	}
+}
+
+// reloadNodeList 重新加载节点列表
+func (m *configManager) reloadNodeList() {
+	// 使用 ConfigLoader 加载节点列表
+	loader := NewConfigLoader("", m.nodeListPath)
+	newNodes, err := loader.LoadNodeList()
+	if err != nil {
+		logger.Error("Failed to reload node list", zap.Error(err))
+		return
+	}
+
+	// 验证新节点配置
+	validator := NewValidator()
+	for i, node := range newNodes {
+		if err := validator.ValidateNode(node); err != nil {
+			logger.Error("Node list validation failed, keeping old config",
+				zap.Int("node_index", i),
+				zap.String("node_name", node.Name),
+				zap.Error(err))
+			return
+		}
+	}
+
+	// 原子更新配置中的节点列表
+	m.mu.Lock()
+	if m.config != nil {
+		m.config.Nodes = newNodes
+	}
+	m.mu.Unlock()
+
+	logger.Info("Node list reloaded successfully", zap.Int("node_count", len(newNodes)))
+
+	// 调用回调函数
+	if m.nodeListCallback != nil {
+		m.nodeListCallback(newNodes)
 	}
 }

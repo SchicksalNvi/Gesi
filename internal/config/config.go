@@ -8,15 +8,24 @@ import (
 )
 
 type Config struct {
-	Database         string
-	ActivityLog      string
-	AdminUsername    string
-	AdminPassword    string
-	NodeNames        []string
-	NodeEnvironments []string
-	Nodes            []NodeConfig
-	DeveloperTools   DeveloperToolsConfig
-	Performance      PerformanceConfig    `toml:"performance" json:"performance"`
+	Database         string                   `mapstructure:"database"`
+	ActivityLog      string                   `mapstructure:"activity_log"`
+	Admin            AdminConfig              `mapstructure:"admin"`
+	// 保留向后兼容的字段
+	AdminUsername    string                   `mapstructure:"admin_username"`
+	AdminPassword    string                   `mapstructure:"admin_password"`
+	NodeNames        []string                 `mapstructure:"node_names"`
+	NodeEnvironments []string                 `mapstructure:"node_environments"`
+	Nodes            []NodeConfig             `mapstructure:"nodes"`
+	DeveloperTools   DeveloperToolsConfig     `mapstructure:"developer_tools"`
+	Performance      PerformanceConfig        `mapstructure:"performance"`
+}
+
+// AdminConfig 管理员配置
+type AdminConfig struct {
+	Username string `mapstructure:"username"`
+	Password string `mapstructure:"password"`
+	Email    string `mapstructure:"email"`
 }
 
 // DeveloperToolsConfig 开发者工具配置
@@ -47,9 +56,12 @@ type PerformanceConfig struct {
 }
 
 type NodeConfig struct {
-	Name        string
-	Environment string
-	Address     string
+	Name        string `mapstructure:"name" toml:"name"`
+	Environment string `mapstructure:"environment" toml:"environment"`
+	Host        string `mapstructure:"host" toml:"host"`
+	Port        int    `mapstructure:"port" toml:"port"`
+	Username    string `mapstructure:"username" toml:"username"`
+	Password    string `mapstructure:"password" toml:"password"`
 }
 
 func Load(configPath string) (*Config, error) {
@@ -62,6 +74,15 @@ func Load(configPath string) (*Config, error) {
 	var cfg Config
 	if err := viper.Unmarshal(&cfg); err != nil {
 		return nil, err
+	}
+
+	// 处理新旧配置格式的兼容性
+	// 如果使用新格式（Admin 结构体），将其复制到旧字段
+	if cfg.Admin.Username != "" {
+		cfg.AdminUsername = cfg.Admin.Username
+	}
+	if cfg.Admin.Password != "" {
+		cfg.AdminPassword = cfg.Admin.Password
 	}
 
 	// Set defaults
