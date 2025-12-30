@@ -27,11 +27,18 @@ interface AppState {
 
 export const useStore = create<AppState>((set) => ({
   // Auth state
-  user: null,
+  user: JSON.parse(localStorage.getItem('user') || 'null'),
   token: localStorage.getItem('token'),
   // Don't trust localStorage on init - verify token first
   isAuthenticated: false,
-  setUser: (user) => set({ user, isAuthenticated: !!user }),
+  setUser: (user) => {
+    if (user) {
+      localStorage.setItem('user', JSON.stringify(user));
+    } else {
+      localStorage.removeItem('user');
+    }
+    set({ user, isAuthenticated: !!user });
+  },
   setToken: (token) => {
     if (token) {
       localStorage.setItem('token', token);

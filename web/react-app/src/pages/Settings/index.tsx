@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Card,
   Tabs,
@@ -23,26 +23,56 @@ import {
   DatabaseOutlined,
 } from '@ant-design/icons';
 import { useStore } from '@/store';
+import { authApi } from '@/api/auth';
 
 const Settings: React.FC = () => {
-  const { user } = useStore();
+  const { user, setUser } = useStore();
   const [loading, setLoading] = useState(false);
   const [profileForm] = Form.useForm();
   const [passwordForm] = Form.useForm();
   const [notificationForm] = Form.useForm();
   const [systemForm] = Form.useForm();
 
+  // 初始化表单数据
+  useEffect(() => {
+    if (user) {
+      profileForm.setFieldsValue({
+        username: user.username,
+        email: user.email,
+        full_name: user.full_name || '',
+        timezone: 'UTC', // 可以从用户设置中获取
+      });
+    }
+  }, [user, profileForm]);
+
   const handleProfileUpdate = async () => {
     try {
       const values = await profileForm.validateFields();
       setLoading(true);
       
-      // 实际应该调用 API
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // 调用真实的API更新用户资料
+      const response = await authApi.updateProfile({
+        email: values.email,
+        full_name: values.full_name,
+      });
+      
+      // 更新本地状态
+      if (response.data?.data && user) {
+        const updatedUser = { 
+          ...user, 
+          email: response.data.data.email,
+          full_name: response.data.data.full_name,
+          updated_at: response.data.data.updated_at,
+        };
+        setUser(updatedUser);
+        // 同时更新localStorage
+        localStorage.setItem('user', JSON.stringify(updatedUser));
+      }
       
       message.success('Profile updated successfully');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to update profile:', error);
+      message.error(error.response?.data?.message || 'Failed to update profile');
     } finally {
       setLoading(false);
     }

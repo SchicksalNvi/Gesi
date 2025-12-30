@@ -15,27 +15,19 @@ export default function Login() {
     try {
       const response = await authApi.login(values);
       
-      if (response.status === 'success' && response.data) {
-        const { token, username, is_admin } = response.data;
+      if (response.data?.status === 'success' && response.data?.data) {
+        const { token, user } = response.data.data;
         
         // 设置 token
         setToken(token);
         
-        // 构造 user 对象
-        const user = {
-          id: '',
-          username: username,
-          email: '',
-          is_admin: is_admin,
-          created_at: '',
-          updated_at: '',
-        };
+        // 设置用户信息
         setUser(user);
         
         message.success('Login successful!');
         navigate('/dashboard');
       } else {
-        message.error(response.message || 'Login failed');
+        message.error(response.data?.message || 'Login failed');
       }
     } catch (error: any) {
       message.error(error.response?.data?.message || 'Login failed');

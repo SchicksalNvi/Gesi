@@ -90,12 +90,6 @@ export default function MainLayout() {
   // User dropdown menu
   const userMenuItems: MenuProps['items'] = [
     {
-      key: 'profile',
-      icon: <UserOutlined />,
-      label: 'Profile',
-      onClick: () => navigate('/profile'),
-    },
-    {
       key: 'settings',
       icon: <SettingOutlined />,
       label: 'Settings',
