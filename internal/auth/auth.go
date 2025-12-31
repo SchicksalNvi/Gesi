@@ -69,9 +69,17 @@ func (s *AuthService) Login(c *gin.Context) {
 		"status":  "success",
 		"message": "Login successful",
 		"data": gin.H{
-			"token":    token,
-			"username": user.Username,
-			"is_admin": user.IsAdmin,
+			"token": token,
+			"user": gin.H{
+				"id":         user.ID,
+				"username":   user.Username,
+				"email":      user.Email,
+				"full_name":  user.FullName,
+				"is_admin":   user.IsAdmin,
+				"is_active":  user.IsActive,
+				"created_at": user.CreatedAt,
+				"updated_at": user.UpdatedAt,
+			},
 		},
 	})
 }

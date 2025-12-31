@@ -28,6 +28,8 @@ data/*.db-wal
 # Environment
 .env
 .env.local
+config/.env
+config/.env.local
 
 # Configuration files (exclude actual configs, include examples)
 config/config.toml

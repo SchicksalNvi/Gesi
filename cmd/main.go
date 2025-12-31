@@ -134,11 +134,43 @@ func validateEnvironmentVariables() error {
 	return nil
 }
 
+// determineConfigPaths 确定配置文件路径
+func determineConfigPaths() (mainPath, nodeListPath string) {
+	// 优先使用 config/ 目录，如果不存在则回退到根目录
+	mainPath = "config/config.toml"
+	nodeListPath = "config/nodelist.toml"
+	
+	// 检查 config/ 目录是否存在
+	if _, err := os.Stat("config"); os.IsNotExist(err) {
+		// 回退到根目录的 config.toml（向后兼容）
+		mainPath = "config.toml"
+		nodeListPath = ""
+		logger.Info("Using legacy config.toml format (config/ directory not found)")
+	} else {
+		logger.Info("Using config/ directory structure")
+	}
+	
+	return mainPath, nodeListPath
+}
+
 func main() {
-	// 加载.env文件
-	if err := godotenv.Load(); err != nil {
+	// 加载.env文件 - 优先从 config 目录，回退到根目录
+	envPaths := []string{"config/.env", ".env"}
+	var envLoaded bool
+	var lastErr error
+	
+	for _, envPath := range envPaths {
+		if err := godotenv.Load(envPath); err == nil {
+			envLoaded = true
+			break
+		} else {
+			lastErr = err
+		}
+	}
+	
+	if !envLoaded {
 		// .env文件不存在或加载失败时，继续执行（可能使用系统环境变量）
-		fmt.Printf("Warning: .env file not found or failed to load: %v\n", err)
+		fmt.Printf("Warning: .env file not found or failed to load: %v\n", lastErr)
 	}
 
 	// 初始化动态日志系统
@@ -158,23 +190,11 @@ func main() {
 	}
 
 	// 加载应用配置
-	// 优先使用 config/ 目录，如果不存在则回退到根目录
-	mainConfigPath := "config/config.toml"
-	nodeListPath := "config/nodelist.toml"
-	
-	// 检查 config/ 目录是否存在
-	if _, err := os.Stat("config"); os.IsNotExist(err) {
-		// 回退到根目录的 config.toml（向后兼容）
-		mainConfigPath = "config.toml"
-		nodeListPath = ""
-		logger.Info("Using legacy config.toml format (config/ directory not found)")
-	} else {
-		logger.Info("Using config/ directory structure")
-	}
+	mainConfigPath, nodeListPath := determineConfigPaths()
 	
 	// 使用 ConfigLoader 加载配置
 	loader := config.NewConfigLoader(mainConfigPath, nodeListPath)
-	appConfig, err := loader.Load()
+	appConfig, err := loader.LoadWithDefaults()
 	if err != nil {
 		logger.Fatal("Failed to load application config", zap.Error(err))
 	}
@@ -517,18 +537,10 @@ func updateAdminUser(db *gorm.DB, config *Config) error {
 }
 
 func loadConfig() (*Config, error) {
-	// 优先使用 config/ 目录，如果不存在则回退到根目录
-	mainConfigPath := "config/config.toml"
-	nodeListPath := "config/nodelist.toml"
+	mainConfigPath, nodeListPath := determineConfigPaths()
 	
-	// 检查 config/ 目录是否存在
-	if _, err := os.Stat("config"); os.IsNotExist(err) {
-		// 回退到根目录的 config.toml（向后兼容）
-		mainConfigPath = "config.toml"
-		nodeListPath = ""
-		logger.Info("Using legacy config.toml format")
-		
-		// 检查是否有节点配置，如果有则提供迁移建议
+	// 检查是否有节点配置，如果有则提供迁移建议
+	if nodeListPath == "" {
 		viper.SetConfigFile(mainConfigPath)
 		if err := viper.ReadInConfig(); err == nil {
 			if viper.IsSet("nodes") && len(viper.Get("nodes").([]interface{})) > 0 {
@@ -546,7 +558,7 @@ func loadConfig() (*Config, error) {
 	
 	// 使用 ConfigLoader 加载配置
 	loader := config.NewConfigLoader(mainConfigPath, nodeListPath)
-	appCfg, err := loader.Load()
+	appCfg, err := loader.LoadWithDefaults()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load config: %v", err)
 	}

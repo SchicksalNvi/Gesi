@@ -4,33 +4,70 @@ Centralized Supervisor Interface - 多节点 Supervisor 进程管理系统
 
 ## 快速开始
 
+### 一键部署（推荐）
+
 ```bash
-# 构建
-./build.sh
+# 完整部署：环境检查 + 编译 + 配置 + 启动
+./deploy.sh deploy
 
-# 启动
-./start.sh
+# 部署并重置数据库
+./deploy.sh deploy --reset-db
 
-# 或一步到位
-./deploy.sh
+# 仅编译后端（跳过前端）
+./deploy.sh deploy --skip-frontend
+```
+
+### 分步操作
+
+```bash
+# 检查环境
+./deploy.sh check-env
+
+# 编译
+./deploy.sh build              # 编译前后端
+./deploy.sh build-backend      # 仅编译后端
+./deploy.sh build-frontend     # 仅编译前端
+
+# 启动/停止
+./deploy.sh start              # 启动应用
+./deploy.sh stop               # 停止应用
+./deploy.sh restart            # 重启应用
+
+# 配置和数据库
+./deploy.sh init-config        # 初始化配置
+./deploy.sh reset-db           # 重置数据库
 ```
 
 访问 http://localhost:8081
 
 默认账号：`admin` / 见 `.env` 中的 `ADMIN_PASSWORD`
 
-## 构建选项
-
-```bash
-./build.sh backend   # 只构建后端
-./build.sh frontend  # 只构建前端
-./build.sh all       # 全部构建（默认）
-```
-
 ## 配置
 
-- `config.toml` - 节点配置
-- `.env` - 敏感信息（JWT_SECRET, 密码等）
+### 新配置结构（推荐）
+
+```
+config/
+├── config.toml          # 系统配置
+├── nodelist.toml        # 节点配置
+├── .env                 # 环境变量
+└── .env.example         # 环境变量示例
+```
+
+### 传统配置（向后兼容）
+
+```
+config.toml              # 包含所有配置
+.env                     # 环境变量（根目录）
+```
+
+### 环境变量
+
+推荐将环境变量文件放在 `config/.env`，应用会自动检测：
+1. 优先加载 `config/.env`
+2. 回退到根目录 `.env`（向后兼容）
+
+部署脚本会自动检测配置格式并提供迁移建议。
 
 ## 架构
 

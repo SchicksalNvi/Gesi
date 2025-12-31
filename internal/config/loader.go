@@ -50,20 +50,60 @@ func (l *ConfigLoader) Load() (*Config, error) {
 	return cfg, nil
 }
 
-// LoadMainConfig 加载系统配置
-func (l *ConfigLoader) LoadMainConfig() (*Config, error) {
-	// 使用原有的 Load 函数加载主配置
+// LoadWithDefaults 加载完整配置并应用默认值（用于初始化）
+func (l *ConfigLoader) LoadWithDefaults() (*Config, error) {
+	// 使用原有的 Load 函数加载主配置（包含默认值）
 	cfg, err := Load(l.mainConfigPath)
 	if err != nil {
-		// 包装错误以包含文件路径
-		return nil, fmt.Errorf("%s: %w", l.mainConfigPath, err)
+		return nil, fmt.Errorf("failed to load main config: %w", err)
 	}
+
+	// 加载节点列表
+	nodeListNodes, err := l.LoadNodeList()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load node list: %w", err)
+	}
+
+	// 合并节点配置
+	cfg.Nodes = l.MergeNodes(cfg.Nodes, nodeListNodes)
+
+	// 展开环境变量
+	l.expandEnvVars(cfg)
 
 	return cfg, nil
 }
 
+// LoadMainConfig 加载系统配置
+func (l *ConfigLoader) LoadMainConfig() (*Config, error) {
+	// 直接解析配置文件，不应用默认值（热重载时需要）
+	data, err := os.ReadFile(l.mainConfigPath)
+	if err != nil {
+		return nil, fmt.Errorf("%s: failed to read file: %w", l.mainConfigPath, err)
+	}
+
+	var cfg Config
+	if err := toml.Unmarshal(data, &cfg); err != nil {
+		return nil, fmt.Errorf("%s: parse error: %w", l.mainConfigPath, err)
+	}
+
+	// 处理新旧配置格式的兼容性
+	if cfg.Admin.Username != "" {
+		cfg.AdminUsername = cfg.Admin.Username
+	}
+	if cfg.Admin.Password != "" {
+		cfg.AdminPassword = cfg.Admin.Password
+	}
+
+	return &cfg, nil
+}
+
 // LoadNodeList 加载节点列表（如果文件不存在返回空切片）
 func (l *ConfigLoader) LoadNodeList() ([]NodeConfig, error) {
+	// 如果路径为空，返回空切片
+	if l.nodeListPath == "" {
+		return []NodeConfig{}, nil
+	}
+
 	// 检查文件是否存在
 	if _, err := os.Stat(l.nodeListPath); os.IsNotExist(err) {
 		// 文件不存在，返回空切片（不是错误）

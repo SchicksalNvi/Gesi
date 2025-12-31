@@ -291,8 +291,12 @@ func (u *UserAPI) GetProfile(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"status": "success",
 		"data": gin.H{
-			"username": user.Username,
-			"is_admin": user.IsAdmin,
+			"id":         user.ID,
+			"username":   user.Username,
+			"email":      user.Email,
+			"full_name":  user.FullName,
+			"is_admin":   user.IsAdmin,
+			"is_active":  user.IsActive,
 			"created_at": user.CreatedAt,
 			"updated_at": user.UpdatedAt,
 		},
@@ -348,5 +352,15 @@ func (u *UserAPI) UpdateProfile(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"status":  "success",
 		"message": "个人资料更新成功",
+		"data": gin.H{
+			"id":         user.ID,
+			"username":   user.Username,
+			"email":      user.Email,
+			"full_name":  user.FullName,
+			"is_admin":   user.IsAdmin,
+			"is_active":  user.IsActive,
+			"created_at": user.CreatedAt,
+			"updated_at": user.UpdatedAt,
+		},
 	})
 }

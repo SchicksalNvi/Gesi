@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
-	"github.com/spf13/viper"
 	"go-cesi/internal/logger"
 	"go.uber.org/zap"
 )
@@ -15,6 +14,7 @@ import (
 // ConfigManager 配置管理器接口
 type ConfigManager interface {
 	Load(path string) (*Config, error)
+	LoadWithNodeList(mainPath, nodeListPath string) (*Config, error)
 	Validate(cfg *Config) error
 	Watch(callback func(*Config)) error
 	WatchNodeList(nodeListPath string, callback func([]NodeConfig)) error
@@ -32,6 +32,7 @@ type configManager struct {
 	nodeListStopChan chan struct{}
 	callback         func(*Config)
 	nodeListCallback func([]NodeConfig)
+	mainConfigPath   string  // 添加主配置路径
 	nodeListPath     string
 	stopped          bool
 }
@@ -46,7 +47,9 @@ func NewConfigManager() ConfigManager {
 
 // Load 加载配置
 func (m *configManager) Load(path string) (*Config, error) {
-	cfg, err := Load(path)
+	// 使用 ConfigLoader 加载配置（包含默认值）
+	loader := NewConfigLoader(path, "")
+	cfg, err := loader.LoadWithDefaults()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load config: %w", err)
 	}
@@ -58,6 +61,7 @@ func (m *configManager) Load(path string) (*Config, error) {
 
 	m.mu.Lock()
 	m.config = cfg
+	m.mainConfigPath = path  // 保存主配置路径
 	m.mu.Unlock()
 
 	// 记录使用的默认值
@@ -82,8 +86,11 @@ func (m *configManager) Watch(callback func(*Config)) error {
 	}
 	m.watcher = watcher
 
-	// 监听配置文件
-	configFile := viper.ConfigFileUsed()
+	// 使用保存的主配置路径
+	m.mu.RLock()
+	configFile := m.mainConfigPath
+	m.mu.RUnlock()
+	
 	if configFile == "" {
 		return fmt.Errorf("no config file loaded")
 	}
@@ -123,37 +130,41 @@ func (m *configManager) watchLoop() {
 
 // reloadConfig 重新加载配置
 func (m *configManager) reloadConfig() {
-	// 重新读取配置
-	if err := viper.ReadInConfig(); err != nil {
-		logger.Error("Failed to reload config", zap.Error(err))
+	// 使用保存的配置路径
+	m.mu.RLock()
+	mainPath := m.mainConfigPath
+	nodeListPath := m.nodeListPath
+	m.mu.RUnlock()
+	
+	if mainPath == "" {
+		logger.Error("No config file path saved, cannot reload")
 		return
 	}
 
-	var newConfig Config
-	if err := viper.Unmarshal(&newConfig); err != nil {
-		logger.Error("Failed to unmarshal config", zap.Error(err))
+	// 使用 ConfigLoader 重新加载配置
+	loader := NewConfigLoader(mainPath, nodeListPath)
+	newConfig, err := loader.Load()
+	if err != nil {
+		logger.Error("Failed to reload config using ConfigLoader", zap.Error(err))
 		return
 	}
-
-	// 从环境变量获取敏感信息
-	newConfig.AdminPassword = os.Getenv("ADMIN_PASSWORD")
 
 	// 验证新配置
-	if err := m.Validate(&newConfig); err != nil {
+	if err := m.Validate(newConfig); err != nil {
 		logger.Error("New config validation failed, keeping old config", zap.Error(err))
 		return
 	}
 
 	// 更新配置
 	m.mu.Lock()
-	m.config = &newConfig
+	m.config = newConfig
 	m.mu.Unlock()
 
 	logger.Info("Config reloaded successfully")
 
 	// 调用回调函数
 	if m.callback != nil {
-		m.callback(&newConfig)
+		m.callback(newConfig)
 	}
 }
 
@@ -211,6 +222,12 @@ func (m *configManager) WatchNodeList(nodeListPath string, callback func([]NodeC
 	m.nodeListPath = nodeListPath
 	m.nodeListCallback = callback
 
+	// 如果路径为空，跳过监听
+	if nodeListPath == "" {
+		logger.Info("Node list path is empty, skipping watch")
+		return nil
+	}
+
 	// 检查文件是否存在
 	if _, err := os.Stat(nodeListPath); os.IsNotExist(err) {
 		logger.Info("Node list file does not exist, skipping watch", zap.String("file", nodeListPath))
@@ -258,17 +275,35 @@ func (m *configManager) watchNodeListLoop() {
 
 // reloadNodeList 重新加载节点列表
 func (m *configManager) reloadNodeList() {
-	// 使用 ConfigLoader 加载节点列表
-	loader := NewConfigLoader("", m.nodeListPath)
-	newNodes, err := loader.LoadNodeList()
+	// 获取当前配置路径
+	m.mu.RLock()
+	mainPath := m.mainConfigPath
+	nodeListPath := m.nodeListPath
+	m.mu.RUnlock()
+
+	// 使用 ConfigLoader 重新加载完整配置（包括节点合并）
+	loader := NewConfigLoader(mainPath, nodeListPath)
+	
+	// 加载主配置中的节点
+	mainConfig, err := loader.LoadMainConfig()
+	if err != nil {
+		logger.Error("Failed to reload main config during node list reload", zap.Error(err))
+		return
+	}
+	
+	// 加载节点列表
+	nodeListNodes, err := loader.LoadNodeList()
 	if err != nil {
 		logger.Error("Failed to reload node list", zap.Error(err))
 		return
 	}
 
+	// 合并节点配置
+	mergedNodes := loader.MergeNodes(mainConfig.Nodes, nodeListNodes)
+
 	// 验证新节点配置
 	validator := NewValidator()
-	for i, node := range newNodes {
+	for i, node := range mergedNodes {
 		if err := validator.ValidateNode(node); err != nil {
 			logger.Error("Node list validation failed, keeping old config",
 				zap.Int("node_index", i),
@@ -281,14 +316,39 @@ func (m *configManager) reloadNodeList() {
 	// 原子更新配置中的节点列表
 	m.mu.Lock()
 	if m.config != nil {
-		m.config.Nodes = newNodes
+		m.config.Nodes = mergedNodes
 	}
 	m.mu.Unlock()
 
-	logger.Info("Node list reloaded successfully", zap.Int("node_count", len(newNodes)))
+	logger.Info("Node list reloaded successfully", zap.Int("node_count", len(mergedNodes)))
 
 	// 调用回调函数
 	if m.nodeListCallback != nil {
-		m.nodeListCallback(newNodes)
+		m.nodeListCallback(mergedNodes)
 	}
+}
+// LoadWithNodeList 使用 ConfigLoader 加载配置（支持节点列表分离）
+func (m *configManager) LoadWithNodeList(mainPath, nodeListPath string) (*Config, error) {
+	// 使用 ConfigLoader 加载配置（包含默认值）
+	loader := NewConfigLoader(mainPath, nodeListPath)
+	cfg, err := loader.LoadWithDefaults()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load config: %w", err)
+	}
+
+	// 验证配置
+	if err := m.Validate(cfg); err != nil {
+		return nil, fmt.Errorf("config validation failed: %w", err)
+	}
+
+	m.mu.Lock()
+	m.config = cfg
+	m.mainConfigPath = mainPath    // 保存主配置路径
+	m.nodeListPath = nodeListPath  // 保存节点列表路径用于热重载
+	m.mu.Unlock()
+
+	// 记录使用的默认值
+	m.logDefaultValues(cfg)
+
+	return cfg, nil
 }
