@@ -147,8 +147,14 @@ func (s *AuthService) GetCurrentUser(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"status": "success",
 		"data": gin.H{
-			"username": user.Username,
-			"is_admin": user.IsAdmin,
+			"user": gin.H{
+				"id":        user.ID,
+				"username":  user.Username,
+				"email":     user.Email,
+				"full_name": user.FullName,
+				"is_active": user.IsActive,
+				"is_admin":  user.IsAdmin,
+			},
 		},
 	})
 }

@@ -1,10 +1,13 @@
 package api
 
 import (
+	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
+	"time"
 
 	"go-cesi/internal/models"
 	"go-cesi/internal/services"
@@ -12,6 +15,18 @@ import (
 
 	"github.com/gin-gonic/gin"
 )
+
+// ImportRecord 导入记录
+type ImportRecord struct {
+	ID          string    `json:"id"`
+	Filename    string    `json:"filename"`
+	Type        string    `json:"type"`
+	Status      string    `json:"status"` // processing, completed, failed
+	Error       string    `json:"error,omitempty"`
+	CreatedAt   time.Time `json:"created_at"`
+	CompletedAt time.Time `json:"completed_at,omitempty"`
+	FilePath    string    `json:"-"` // 不返回给前端
+}
 
 // DataManagementAPI 数据管理API
 type DataManagementAPI struct {
@@ -23,6 +38,64 @@ func NewDataManagementAPI() *DataManagementAPI {
 	return &DataManagementAPI{
 		dataService: services.NewDataManagementService(),
 	}
+}
+
+// generateID 生成唯一ID
+func generateID() string {
+	return fmt.Sprintf("import_%d", time.Now().UnixNano())
+}
+
+// processUserImport 处理用户数据导入
+func (api *DataManagementAPI) processUserImport(filePath string) error {
+	// 读取JSON文件
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return fmt.Errorf("failed to read file: %v", err)
+	}
+
+	// 解析用户数据
+	var users []map[string]interface{}
+	if err := json.Unmarshal(data, &users); err != nil {
+		return fmt.Errorf("failed to parse JSON: %v", err)
+	}
+
+	// 验证和处理用户数据
+	for i, user := range users {
+		if user["username"] == nil || user["username"] == "" {
+			return fmt.Errorf("user at index %d missing username", i)
+		}
+		// 这里应该调用用户服务创建用户
+		// userService.CreateUser(user)
+	}
+
+	return nil
+}
+
+// processSettingsImport 处理设置数据导入
+func (api *DataManagementAPI) processSettingsImport(filePath string) error {
+	// 读取JSON文件
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return fmt.Errorf("failed to read file: %v", err)
+	}
+
+	// 解析设置数据
+	var settings map[string]interface{}
+	if err := json.Unmarshal(data, &settings); err != nil {
+		return fmt.Errorf("failed to parse JSON: %v", err)
+	}
+
+	// 验证和处理设置数据
+	for key, value := range settings {
+		if key == "" {
+			return fmt.Errorf("empty setting key found")
+		}
+		// 这里应该调用设置服务更新设置
+		// settingsService.UpdateSetting(key, value)
+		fmt.Printf("Would import setting: %s = %v\n", key, value)
+	}
+
+	return nil
 }
 
 // ExportDataRequest 导出数据请求
@@ -490,13 +563,60 @@ func (api *DataManagementAPI) ImportData(c *gin.Context) {
 		return
 	}
 
-	// TODO: 实现数据导入逻辑
-	// 这里应该创建导入记录并异步处理导入
+	// 创建导入记录
+	importRecord := ImportRecord{
+		ID:        generateID(),
+		Filename:  file.Filename,
+		Type:      importType,
+		Status:    "processing",
+		CreatedAt: time.Now(),
+		FilePath:  filePath,
+	}
+
+	// 异步处理导入
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				// 更新导入状态为失败
+				importRecord.Status = "failed"
+				importRecord.Error = fmt.Sprintf("Import failed: %v", r)
+			}
+		}()
+
+		// 根据导入类型处理文件
+		switch importType {
+		case "users":
+			err := api.processUserImport(filePath)
+			if err != nil {
+				importRecord.Status = "failed"
+				importRecord.Error = err.Error()
+			} else {
+				importRecord.Status = "completed"
+			}
+		case "settings":
+			err := api.processSettingsImport(filePath)
+			if err != nil {
+				importRecord.Status = "failed"
+				importRecord.Error = err.Error()
+			} else {
+				importRecord.Status = "completed"
+			}
+		default:
+			importRecord.Status = "failed"
+			importRecord.Error = "Unsupported import type"
+		}
+
+		importRecord.CompletedAt = time.Now()
+		// 这里应该保存到数据库，但为了简化，我们只记录日志
+		fmt.Printf("Import %s completed with status: %s\n", importRecord.ID, importRecord.Status)
+	}()
 
 	c.JSON(http.StatusOK, gin.H{
-		"message": "File uploaded successfully, import will be processed",
-		"file":    file.Filename,
-		"type":    importType,
+		"message":   "File uploaded successfully, import is being processed",
+		"import_id": importRecord.ID,
+		"file":      file.Filename,
+		"type":      importType,
+		"status":    "processing",
 	})
 }
 

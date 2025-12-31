@@ -30,19 +30,49 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 function App() {
   const { isAuthenticated, setUser, logout } = useStore();
 
-  // Validate token on mount
+  // Listen for logout events from API interceptor
+  useEffect(() => {
+    const handleLogout = () => {
+      console.log('Auth logout event received');
+      logout();
+    };
+
+    window.addEventListener('auth:logout', handleLogout);
+    return () => window.removeEventListener('auth:logout', handleLogout);
+  }, [logout]);
+
+  // Validate token on mount only if we have both token and user
   useEffect(() => {
     const token = localStorage.getItem('token');
-    if (token) {
+    const user = localStorage.getItem('user');
+    
+    console.log('App useEffect - token exists:', !!token, 'user exists:', !!user);
+    
+    if (token && user) {
+      // We have stored credentials, verify they're still valid
+      console.log('Validating stored credentials...');
       loadUserInfo();
+    } else if (token || user) {
+      // Partial credentials, clean up
+      console.log('Partial credentials found, cleaning up...');
+      logout();
+    } else {
+      console.log('No stored credentials found');
     }
   }, []);
 
   const loadUserInfo = async () => {
     try {
+      console.log('Loading user info...');
       const response = await authApi.getCurrentUser();
-      if (response.data?.user) {
+      console.log('User info response:', response);
+      if (response.status === 'success' && response.data?.user) {
+        console.log('Setting user:', response.data.user);
         setUser(response.data.user);
+      } else {
+        // Invalid response, logout
+        console.log('Invalid response, logging out');
+        logout();
       }
     } catch (error) {
       console.error('Failed to load user info:', error);

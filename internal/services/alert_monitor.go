@@ -237,6 +237,26 @@ func (m *AlertMonitor) handleProcessStatusChange(nodeName, processName string, s
 
 // CreateNodeOfflineAlert 创建节点离线告警
 func (s *AlertService) CreateNodeOfflineAlert(nodeName string) error {
+	// 首先检查是否已存在活跃的告警
+	var existingAlert models.Alert
+	err := s.db.Where("rule_id = ? AND node_name = ? AND status IN (?, ?)",
+		1, nodeName, models.AlertStatusActive, models.AlertStatusAcknowledged).
+		First(&existingAlert).Error
+	
+	if err == nil {
+		// 告警已存在，更新最后触发时间
+		now := time.Now()
+		s.db.Model(&existingAlert).Updates(map[string]interface{}{
+			"updated_at": now,
+			"start_time": now, // 更新为最新的触发时间
+		})
+		logger.Debug("Node offline alert already exists, updated timestamp",
+			zap.String("node_name", nodeName),
+			zap.Uint("alert_id", existingAlert.ID))
+		return nil
+	}
+	
+	// 创建新告警
 	alert := &models.Alert{
 		RuleID:    1, // Node Offline Rule
 		NodeName:  nodeName,
@@ -246,10 +266,11 @@ func (s *AlertService) CreateNodeOfflineAlert(nodeName string) error {
 		StartTime: time.Now(),
 	}
 	
-	// 依赖唯一索引防止重复，忽略冲突错误
 	if err := s.db.Create(alert).Error; err != nil {
-		// 唯一索引冲突 = 告警已存在，正常
+		// 如果仍然有唯一索引冲突，说明并发创建，忽略错误
 		if isDuplicateError(err) {
+			logger.Debug("Concurrent alert creation detected, ignoring",
+				zap.String("node_name", nodeName))
 			return nil
 		}
 		return err
@@ -312,6 +333,27 @@ func (s *AlertService) ResolveNodeOfflineAlert(nodeName string) error {
 
 // CreateProcessStoppedAlert 创建进程停止告警
 func (s *AlertService) CreateProcessStoppedAlert(nodeName, processName string) error {
+	// 首先检查是否已存在活跃的告警
+	var existingAlert models.Alert
+	err := s.db.Where("rule_id = ? AND node_name = ? AND process_name = ? AND status IN (?, ?)",
+		2, nodeName, processName, models.AlertStatusActive, models.AlertStatusAcknowledged).
+		First(&existingAlert).Error
+	
+	if err == nil {
+		// 告警已存在，更新最后触发时间
+		now := time.Now()
+		s.db.Model(&existingAlert).Updates(map[string]interface{}{
+			"updated_at": now,
+			"start_time": now, // 更新为最新的触发时间
+		})
+		logger.Debug("Process stopped alert already exists, updated timestamp",
+			zap.String("node_name", nodeName),
+			zap.String("process_name", processName),
+			zap.Uint("alert_id", existingAlert.ID))
+		return nil
+	}
+	
+	// 创建新告警
 	alert := &models.Alert{
 		RuleID:      2, // Process Stopped Rule
 		NodeName:    nodeName,
@@ -323,7 +365,11 @@ func (s *AlertService) CreateProcessStoppedAlert(nodeName, processName string) e
 	}
 	
 	if err := s.db.Create(alert).Error; err != nil {
+		// 如果仍然有唯一索引冲突，说明并发创建，忽略错误
 		if isDuplicateError(err) {
+			logger.Debug("Concurrent alert creation detected, ignoring",
+				zap.String("node_name", nodeName),
+				zap.String("process_name", processName))
 			return nil
 		}
 		return err

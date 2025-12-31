@@ -136,7 +136,9 @@ export default function MainLayout() {
             color: '#fff',
             fontSize: collapsed ? 16 : 20,
             fontWeight: 'bold',
+            cursor: 'pointer', // Indicates clickable element for navigation
           }}
+          onClick={() => navigate('/dashboard')} // Navigate to dashboard on logo click
         >
           {collapsed ? 'GC' : 'Go-CESI'}
         </div>

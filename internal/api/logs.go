@@ -38,7 +38,7 @@ func (a *LogsAPI) GetLogs(c *gin.Context) {
 
 	// Get user from database
 	var user models.User
-	if err := a.db.First(&user, userID).Error; err != nil {
+	if err := a.db.Where("id = ?", userID).First(&user).Error; err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"status":  "error",
 			"message": "User not found",

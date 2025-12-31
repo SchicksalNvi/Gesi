@@ -24,9 +24,10 @@ import {
 } from '@ant-design/icons';
 import { useStore } from '@/store';
 import { authApi } from '@/api/auth';
+import { settingsApi, UserPreferences, SystemSettings } from '@/api/settings';
 
 const Settings: React.FC = () => {
-  const { user, setUser } = useStore();
+  const { user, setUser, userPreferences, setUserPreferences } = useStore();
   const [loading, setLoading] = useState(false);
   const [profileForm] = Form.useForm();
   const [passwordForm] = Form.useForm();
@@ -36,14 +37,98 @@ const Settings: React.FC = () => {
   // 初始化表单数据
   useEffect(() => {
     if (user) {
-      profileForm.setFieldsValue({
+      const formValues = {
         username: user.username,
         email: user.email,
         full_name: user.full_name || '',
-        timezone: 'UTC', // 可以从用户设置中获取
-      });
+      };
+      profileForm.setFieldsValue(formValues);
     }
   }, [user, profileForm]);
+
+  // 当用户偏好设置加载后，更新profile表单的timezone字段
+  useEffect(() => {
+    if (userPreferences) {
+      const timezoneValue = userPreferences.timezone || 'UTC';
+      profileForm.setFieldsValue({
+        timezone: timezoneValue,
+      });
+      
+      // 同时设置通知表单的值
+      notificationForm.setFieldsValue({
+        email_notifications: userPreferences.email_notifications ?? true,
+        process_alerts: userPreferences.process_alerts ?? true,
+        system_alerts: userPreferences.system_alerts ?? true,
+        node_status_changes: userPreferences.node_status_changes ?? false,
+        weekly_report: userPreferences.weekly_report ?? false,
+      });
+    }
+  }, [userPreferences, profileForm, notificationForm]);
+
+  // 加载用户偏好设置
+  useEffect(() => {
+    const loadUserPreferences = async () => {
+      try {
+        const response = await settingsApi.getUserPreferences();
+        
+        // API直接返回UserPreferences对象
+        const preferences: UserPreferences = response;
+        
+        setUserPreferences(preferences);
+      } catch (error) {
+        console.error('Failed to load user preferences:', error);
+        // 使用默认值
+        const defaultPreferences = {
+          email_notifications: true,
+          process_alerts: true,
+          system_alerts: true,
+          node_status_changes: false,
+          weekly_report: false,
+          timezone: 'UTC',
+          theme: 'light',
+          language: 'en',
+        };
+        setUserPreferences(defaultPreferences);
+      }
+    };
+
+    if (user) {
+      loadUserPreferences();
+    }
+  }, [user, setUserPreferences]);
+
+  // 加载系统设置（仅管理员）
+  useEffect(() => {
+    const loadSystemSettings = async () => {
+      if (!user?.is_admin) return;
+      
+      try {
+        const response = await settingsApi.getSystemSettings();
+        const settings = response.settings || {};
+        systemForm.setFieldsValue({
+          refresh_interval: parseInt(settings.refresh_interval) || 30,
+          log_retention_days: parseInt(settings.log_retention_days) || 30,
+          max_concurrent_connections: parseInt(settings.max_concurrent_connections) || 100,
+          enable_websocket: settings.enable_websocket === 'true',
+          enable_activity_logging: settings.enable_activity_logging === 'true',
+        });
+      } catch (error) {
+        console.error('Failed to load system settings:', error);
+        // 使用默认值
+        systemForm.setFieldsValue({
+          refresh_interval: 30,
+          log_retention_days: 30,
+          max_concurrent_connections: 100,
+          enable_websocket: true,
+          enable_activity_logging: true,
+        });
+      }
+    };
+
+    if (user?.is_admin) {
+      loadSystemSettings();
+    }
+  }, [user, systemForm]);
 
   const handleProfileUpdate = async () => {
     try {
@@ -65,8 +150,21 @@ const Settings: React.FC = () => {
           updated_at: response.data.data.updated_at,
         };
         setUser(updatedUser);
-        // 同时更新localStorage
-        localStorage.setItem('user', JSON.stringify(updatedUser));
+      }
+
+      // 如果timezone有变化，也更新用户偏好设置
+      if (values.timezone && userPreferences && values.timezone !== userPreferences.timezone) {
+        try {
+          const updatedPreferences = {
+            ...userPreferences,
+            timezone: values.timezone,
+          };
+          await settingsApi.updateUserPreferences(updatedPreferences);
+          setUserPreferences(updatedPreferences);
+        } catch (error) {
+          console.error('Failed to update timezone preference:', error);
+          // 不阻止整个更新流程，只是记录错误
+        }
       }
       
       message.success('Profile updated successfully');
@@ -83,13 +181,22 @@ const Settings: React.FC = () => {
       const values = await passwordForm.validateFields();
       setLoading(true);
       
-      // 实际应该调用 API
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      if (!user?.username) {
+        message.error('User information not available');
+        return;
+      }
+      
+      // 调用真实的密码修改API
+      await settingsApi.changePassword(user.username, {
+        old_password: values.current_password,
+        new_password: values.new_password,
+      });
       
       message.success('Password changed successfully');
       passwordForm.resetFields();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to change password:', error);
+      message.error(error.response?.data?.message || 'Failed to change password');
     } finally {
       setLoading(false);
     }
@@ -100,12 +207,25 @@ const Settings: React.FC = () => {
       const values = await notificationForm.validateFields();
       setLoading(true);
       
-      // 实际应该调用 API
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // 调用真实的用户偏好设置API
+      const preferences: UserPreferences = {
+        email_notifications: values.email_notifications,
+        process_alerts: values.process_alerts,
+        system_alerts: values.system_alerts,
+        node_status_changes: values.node_status_changes,
+        weekly_report: values.weekly_report,
+      };
+      
+      await settingsApi.updateUserPreferences(preferences);
+      
+      // 更新本地状态
+      const { setUserPreferences } = useStore.getState();
+      setUserPreferences(preferences);
       
       message.success('Notification settings updated');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to update notification settings:', error);
+      message.error(error.response?.data?.message || 'Failed to update notification settings');
     } finally {
       setLoading(false);
     }
@@ -116,12 +236,21 @@ const Settings: React.FC = () => {
       const values = await systemForm.validateFields();
       setLoading(true);
       
-      // 实际应该调用 API
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // 调用真实的系统设置API
+      const systemSettings: Partial<SystemSettings> = {
+        refresh_interval: values.refresh_interval,
+        log_retention_days: values.log_retention_days,
+        max_concurrent_connections: values.max_concurrent_connections,
+        enable_websocket: values.enable_websocket,
+        enable_activity_logging: values.enable_activity_logging,
+      };
+      
+      await settingsApi.updateSystemSettings(systemSettings);
       
       message.success('System settings updated');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to update system settings:', error);
+      message.error(error.response?.data?.message || 'Failed to update system settings');
     } finally {
       setLoading(false);
     }

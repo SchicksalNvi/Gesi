@@ -21,7 +21,7 @@ func NewUserAPI(db *gorm.DB) *UserAPI {
 func (u *UserAPI) checkAdmin(c *gin.Context) bool {
 	var currentUser models.User
 	userID := c.GetString("user_id")
-	if err := u.db.First(&currentUser, userID).Error; err != nil {
+	if err := u.db.Where("id = ?", userID).First(&currentUser).Error; err != nil {
 		return false
 	}
 	return currentUser.IsAdmin
@@ -170,7 +170,7 @@ func (u *UserAPI) ChangePassword(c *gin.Context) {
 	// 获取当前用户
 	var currentUser models.User
 	currentUserID := c.GetString("user_id")
-	if err := u.db.First(&currentUser, currentUserID).Error; err != nil {
+	if err := u.db.Where("id = ?", currentUserID).First(&currentUser).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
 			"status":  "error",
 			"message": "当前用户不存在",
@@ -280,7 +280,7 @@ func (u *UserAPI) DeleteUser(c *gin.Context) {
 func (u *UserAPI) GetProfile(c *gin.Context) {
 	currentUserID := c.GetString("user_id")
 	var user models.User
-	if err := u.db.First(&user, currentUserID).Error; err != nil {
+	if err := u.db.Where("id = ?", currentUserID).First(&user).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
 			"status":  "error",
 			"message": "用户不存在",
@@ -321,7 +321,7 @@ func (u *UserAPI) UpdateProfile(c *gin.Context) {
 
 	currentUserID := c.GetString("user_id")
 	var user models.User
-	if err := u.db.First(&user, currentUserID).Error; err != nil {
+	if err := u.db.Where("id = ?", currentUserID).First(&user).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
 			"status":  "error",
 			"message": "用户不存在",
