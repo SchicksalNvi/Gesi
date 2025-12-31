@@ -15,8 +15,8 @@ export default function Login() {
     try {
       const response = await authApi.login(values);
       
-      if (response.data?.status === 'success' && response.data?.data) {
-        const { token, user } = response.data.data;
+      if (response.status === 'success' && response.data) {
+        const { token, user } = response.data;
         
         // 设置 token
         setToken(token);
@@ -27,7 +27,7 @@ export default function Login() {
         message.success('Login successful!');
         navigate('/dashboard');
       } else {
-        message.error(response.data?.message || 'Login failed');
+        message.error(response.message || 'Login failed');
       }
     } catch (error: any) {
       message.error(error.response?.data?.message || 'Login failed');

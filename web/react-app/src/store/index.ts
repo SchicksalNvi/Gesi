@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { User, Node, SystemStats } from '@/types';
+import { UserPreferences } from '@/api/settings';
 
 interface AppState {
   // Auth state
@@ -9,6 +10,10 @@ interface AppState {
   setUser: (user: User | null) => void;
   setToken: (token: string | null) => void;
   logout: () => void;
+
+  // User preferences state
+  userPreferences: UserPreferences | null;
+  setUserPreferences: (preferences: UserPreferences | null) => void;
 
   // Nodes state
   nodes: Node[];
@@ -25,19 +30,19 @@ interface AppState {
   toggleSidebar: () => void;
 }
 
-export const useStore = create<AppState>((set) => ({
-  // Auth state
+export const useStore = create<AppState>((set, get) => ({
+  // Auth state - Initialize based on localStorage
   user: JSON.parse(localStorage.getItem('user') || 'null'),
   token: localStorage.getItem('token'),
-  // Don't trust localStorage on init - verify token first
-  isAuthenticated: false,
+  // Initialize as authenticated if both user and token exist
+  isAuthenticated: !!(localStorage.getItem('token') && localStorage.getItem('user')),
   setUser: (user) => {
     if (user) {
       localStorage.setItem('user', JSON.stringify(user));
     } else {
       localStorage.removeItem('user');
     }
-    set({ user, isAuthenticated: !!user });
+    set({ user, isAuthenticated: !!user && !!get().token });
   },
   setToken: (token) => {
     if (token) {
@@ -45,12 +50,24 @@ export const useStore = create<AppState>((set) => ({
     } else {
       localStorage.removeItem('token');
     }
-    set({ token, isAuthenticated: !!token });
+    set({ token, isAuthenticated: !!token && !!get().user });
   },
   logout: () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
-    set({ user: null, token: null, isAuthenticated: false });
+    localStorage.removeItem('userPreferences');
+    set({ user: null, token: null, isAuthenticated: false, userPreferences: null });
+  },
+
+  // User preferences state
+  userPreferences: JSON.parse(localStorage.getItem('userPreferences') || 'null'),
+  setUserPreferences: (preferences) => {
+    if (preferences) {
+      localStorage.setItem('userPreferences', JSON.stringify(preferences));
+    } else {
+      localStorage.removeItem('userPreferences');
+    }
+    set({ userPreferences: preferences });
   },
 
   // Nodes state

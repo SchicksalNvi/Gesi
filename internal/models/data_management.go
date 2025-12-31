@@ -1,9 +1,18 @@
 package models
 
 import (
+	"crypto/rand"
+	"fmt"
 	"gorm.io/gorm"
 	"time"
 )
+
+// generateID 生成唯一ID
+func generateID() string {
+	b := make([]byte, 16)
+	rand.Read(b)
+	return fmt.Sprintf("%x", b)
+}
 
 // BackupRecord 备份记录模型
 type BackupRecord struct {
@@ -85,24 +94,41 @@ type SystemSettings struct {
 
 // UserPreferences 用户个人偏好设置模型
 type UserPreferences struct {
-	ID              string         `gorm:"primaryKey" json:"id"`
-	UserID          string         `gorm:"size:50;not null;uniqueIndex" json:"user_id"`
-	Theme           string         `gorm:"size:20;default:'light'" json:"theme"` // light, dark, auto
-	Language        string         `gorm:"size:10;default:'en'" json:"language"` // en, zh, zh-CN
-	Timezone        string         `gorm:"size:50;default:'UTC'" json:"timezone"`
-	DateFormat      string         `gorm:"size:20;default:'YYYY-MM-DD'" json:"date_format"`
-	TimeFormat      string         `gorm:"size:20;default:'HH:mm:ss'" json:"time_format"`
-	PageSize        int            `gorm:"default:20" json:"page_size"`
-	AutoRefresh     bool           `gorm:"default:true" json:"auto_refresh"`
-	RefreshInterval int            `gorm:"default:30" json:"refresh_interval"` // 秒
-	Notifications   string         `gorm:"type:text" json:"notifications"`     // JSON格式的通知设置
-	DashboardLayout string         `gorm:"type:text" json:"dashboard_layout"`  // JSON格式的仪表板布局
-	CreatedAt       time.Time      `json:"created_at"`
-	UpdatedAt       time.Time      `json:"updated_at"`
-	DeletedAt       gorm.DeletedAt `gorm:"index:idx_user_preferences_deleted_at" json:"-"`
+	ID                   string         `gorm:"primaryKey" json:"id"`
+	UserID               string         `gorm:"size:50;not null;uniqueIndex" json:"user_id"`
+	Theme                string         `gorm:"size:20;default:'light'" json:"theme"` // light, dark, auto
+	Language             string         `gorm:"size:10;default:'en'" json:"language"` // en, zh, zh-CN
+	Timezone             string         `gorm:"size:50;default:'UTC'" json:"timezone"`
+	DateFormat           string         `gorm:"size:20;default:'YYYY-MM-DD'" json:"date_format"`
+	TimeFormat           string         `gorm:"size:20;default:'HH:mm:ss'" json:"time_format"`
+	PageSize             int            `gorm:"default:20" json:"page_size"`
+	AutoRefresh          bool           `gorm:"default:true" json:"auto_refresh"`
+	RefreshInterval      int            `gorm:"default:30" json:"refresh_interval"` // 秒
+	
+	// 通知设置
+	EmailNotifications   bool           `gorm:"default:true" json:"email_notifications"`
+	ProcessAlerts        bool           `gorm:"default:true" json:"process_alerts"`
+	SystemAlerts         bool           `gorm:"default:true" json:"system_alerts"`
+	NodeStatusChanges    bool           `gorm:"default:false" json:"node_status_changes"`
+	WeeklyReport         bool           `gorm:"default:false" json:"weekly_report"`
+	
+	// 其他设置
+	Notifications       string         `gorm:"type:text" json:"notifications"`     // JSON格式的额外通知设置
+	DashboardLayout     string         `gorm:"type:text" json:"dashboard_layout"`  // JSON格式的仪表板布局
+	CreatedAt           time.Time      `json:"created_at"`
+	UpdatedAt           time.Time      `json:"updated_at"`
+	DeletedAt           gorm.DeletedAt `gorm:"index:idx_user_preferences_deleted_at" json:"-"`
 
 	// 关联关系
 	User User `gorm:"foreignKey:UserID;references:ID" json:"user,omitempty"`
+}
+
+// BeforeCreate 在创建记录前生成 ID
+func (up *UserPreferences) BeforeCreate(tx *gorm.DB) error {
+	if up.ID == "" {
+		up.ID = generateID()
+	}
+	return nil
 }
 
 // WebhookConfig Webhook配置模型

@@ -31,10 +31,13 @@ class ApiClient {
       (response) => response,
       (error) => {
         if (error.response?.status === 401) {
-          // Token expired or invalid
+          // Token expired or invalid - use store logout instead of direct redirect
           localStorage.removeItem('token');
           localStorage.removeItem('user');
-          window.location.href = '/login';
+          localStorage.removeItem('userPreferences');
+          
+          // Trigger a custom event that App.tsx can listen to
+          window.dispatchEvent(new CustomEvent('auth:logout'));
         }
         return Promise.reject(error);
       }
