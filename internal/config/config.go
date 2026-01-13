@@ -53,6 +53,10 @@ type PerformanceConfig struct {
 	MetricsCleanupEnabled      bool          `toml:"metrics_cleanup_enabled" json:"metrics_cleanup_enabled"`
 	MetricsResetInterval       time.Duration `toml:"metrics_reset_interval" json:"metrics_reset_interval"`
 	EndpointCleanupThreshold   time.Duration `toml:"endpoint_cleanup_threshold" json:"endpoint_cleanup_threshold"`
+	
+	// Scalability settings - simple and direct
+	MaxConcurrentConnections   int           `toml:"max_concurrent_connections" json:"max_concurrent_connections"`
+	MaxWebSocketConnections    int           `toml:"max_websocket_connections" json:"max_websocket_connections"`
 }
 
 type NodeConfig struct {
@@ -119,6 +123,13 @@ func Load(configPath string) (*Config, error) {
 	}
 	if cfg.Performance.EndpointCleanupThreshold == 0 {
 		cfg.Performance.EndpointCleanupThreshold = 2 * time.Hour // 2小时未访问则清理
+	}
+	// Set scalability defaults - simple and practical
+	if cfg.Performance.MaxConcurrentConnections == 0 {
+		cfg.Performance.MaxConcurrentConnections = 100 // Support 100 concurrent connections
+	}
+	if cfg.Performance.MaxWebSocketConnections == 0 {
+		cfg.Performance.MaxWebSocketConnections = 500 // Support 500 WebSocket connections
 	}
 	// 默认启用内存监控和指标清理
 	if !cfg.Performance.MemoryMonitoringEnabled && !cfg.Performance.MetricsCleanupEnabled {

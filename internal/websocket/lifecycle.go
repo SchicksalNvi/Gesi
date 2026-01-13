@@ -153,12 +153,12 @@ func (hl *HubLifecycle) waitForMessageCompletion(ctx context.Context) error {
 func (hl *HubLifecycle) closeAllConnections() {
 	logger.Info("Closing all WebSocket connections")
 
-	hl.hub.mu.RLock()
+	hl.hub.clientsMu.RLock()
 	clients := make([]*Client, 0, len(hl.hub.clients))
 	for client := range hl.hub.clients {
 		clients = append(clients, client)
 	}
-	hl.hub.mu.RUnlock()
+	hl.hub.clientsMu.RUnlock()
 
 	// 发送关闭消息并关闭连接
 	shutdownMsg := []byte(`{"type":"server_shutdown","message":"Server is shutting down"}`)

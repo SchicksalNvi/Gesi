@@ -47,7 +47,6 @@ export interface Process {
   group: string;
   state: number;
   state_string: string;
-  description: string;
   start_time: string;
   stop_time: string;
   pid: number;
@@ -181,6 +180,15 @@ export interface WebSocketMessage {
   timestamp?: number;
 }
 
+// Log Stream WebSocket Message
+export interface LogStreamMessage {
+  node_name: string;
+  process_name: string;
+  log_type: string;
+  entries: LogEntry[];
+  timestamp: string;
+}
+
 // Chart Data Types
 export interface ChartDataPoint {
   timestamp: string;
@@ -219,14 +227,22 @@ export interface Configuration {
 
 // Log Entry Types
 export interface LogEntry {
-  id: number;
-  node_id?: number;
-  process_name?: string;
-  level: 'debug' | 'info' | 'warning' | 'error' | 'critical';
+  timestamp: string;
+  level: string;
   message: string;
   source: string;
-  timestamp: string;
-  metadata?: string;
+  process_name: string;
+  node_name: string;
+}
+
+// Log Stream Types
+export interface LogStream {
+  process_name: string;
+  node_name: string;
+  log_type: string;
+  entries: LogEntry[];
+  last_offset: number;
+  overflow: boolean;
 }
 
 // Process Group Types
@@ -274,7 +290,6 @@ export interface ProcessInstance {
   pid: number;
   uptime: number;
   uptime_human: string;
-  description: string;
   group: string;
 }
 

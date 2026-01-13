@@ -3,6 +3,7 @@ package websocket
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 	"strings"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
+	"go-cesi/internal/config"
 	"go-cesi/internal/logger"
 	"go-cesi/internal/supervisor"
 	"go.uber.org/zap"
@@ -46,7 +48,7 @@ func GetDefaultWebSocketConfig() *WebSocketConfig {
 	}
 
 	return &WebSocketConfig{
-		MaxConnections:     100,              // 最大100个连接
+		MaxConnections:     500,              // Support up to 500 connections by default
 		RateLimit:         10.0,             // 每秒10条消息
 		RateBurst:         20,               // 突发20条消息
 		HeartbeatInterval: 30 * time.Second, // 30秒心跳
@@ -76,17 +78,36 @@ var upgrader = websocket.Upgrader{
 	WriteBufferSize: 1024,
 }
 
+// GetWebSocketConfigFromPerformance creates WebSocket config from performance config
+func GetWebSocketConfigFromPerformance(perfConfig *config.PerformanceConfig) *WebSocketConfig {
+	wsConfig := GetDefaultWebSocketConfig()
+	
+	// Override with performance config values if set
+	if perfConfig.MaxWebSocketConnections > 0 {
+		wsConfig.MaxConnections = perfConfig.MaxWebSocketConnections
+	}
+	
+	return wsConfig
+}
+
 type Hub struct {
 	clients       map[*Client]bool
+	clientsMu     sync.RWMutex
+	
 	broadcast     chan []byte
 	register      chan *Client
 	unregister    chan *Client
+	cleanup       chan *Client  // New: separate cleanup channel
+	
 	service       *supervisor.SupervisorService
 	config        *WebSocketConfig
-	connectionCount int64 // 原子操作的连接计数
-	mu            sync.RWMutex
+	
+	connectionCount int64 // atomic
+	
 	ctx           context.Context
 	cancel        context.CancelFunc
+	wg            sync.WaitGroup  // New: for graceful shutdown
+	closeOnce     sync.Once       // Ensure Close is called only once
 }
 
 type Client struct {
@@ -94,7 +115,7 @@ type Client struct {
 	conn       *websocket.Conn
 	send       chan []byte
 	userID     string
-	subscribed map[string]bool // subscribed nodes
+	subscribed sync.Map        // map[string]bool - thread-safe
 	limiter    *rate.Limiter   // 速率限制器
 	lastPong   time.Time       // 最后一次pong时间
 	mu         sync.RWMutex
@@ -120,6 +141,24 @@ type ProcessStatusMessage struct {
 	Timestamp   time.Time `json:"timestamp"`
 }
 
+type LogStreamMessage struct {
+	NodeName    string                   `json:"node_name"`
+	ProcessName string                   `json:"process_name"`
+	LogType     string                   `json:"log_type"`
+	Entries     []supervisor.LogEntry    `json:"entries"`
+	Timestamp   time.Time                `json:"timestamp"`
+}
+
+// LogEntry represents a single log entry
+type LogEntry struct {
+	Timestamp   time.Time `json:"timestamp"`
+	Level       string    `json:"level"`
+	Message     string    `json:"message"`
+	Source      string    `json:"source"`
+	ProcessName string    `json:"process_name"`
+	NodeName    string    `json:"node_name"`
+}
+
 type SystemStatsMessage struct {
 	TotalNodes       int       `json:"total_nodes"`
 	ConnectedNodes   int       `json:"connected_nodes"`
@@ -131,37 +170,63 @@ type SystemStatsMessage struct {
 func NewHub(service *supervisor.SupervisorService) *Hub {
 	ctx, cancel := context.WithCancel(context.Background())
 	
-	return &Hub{
+	hub := &Hub{
 		clients:    make(map[*Client]bool),
 		broadcast:  make(chan []byte, 256),
 		register:   make(chan *Client),
 		unregister: make(chan *Client),
+		cleanup:    make(chan *Client, 100), // Buffered cleanup channel
 		service:    service,
 		config:     GetDefaultWebSocketConfig(),
 		ctx:        ctx,
 		cancel:     cancel,
 	}
+	
+	// Pre-add WaitGroup count for background goroutines
+	hub.wg.Add(4) // Updated for log streaming goroutine
+	return hub
 }
 
 // NewHubWithConfig 使用自定义配置创建Hub
 func NewHubWithConfig(service *supervisor.SupervisorService, config *WebSocketConfig) *Hub {
 	ctx, cancel := context.WithCancel(context.Background())
 	
-	return &Hub{
+	hub := &Hub{
 		clients:    make(map[*Client]bool),
 		broadcast:  make(chan []byte, 256),
 		register:   make(chan *Client),
 		unregister: make(chan *Client),
+		cleanup:    make(chan *Client, 100), // Buffered cleanup channel
 		service:    service,
 		config:     config,
 		ctx:        ctx,
 		cancel:     cancel,
 	}
+	
+	// Pre-add WaitGroup count for background goroutines
+	hub.wg.Add(4) // Updated for log streaming goroutine
+	return hub
 }
 
 // Close 关闭Hub
 func (h *Hub) Close() {
-	h.cancel()
+	// 使用 sync.Once 确保只关闭一次
+	h.closeOnce.Do(func() {
+		h.cancel()
+		// Wait for all goroutines to finish with timeout
+		done := make(chan struct{})
+		go func() {
+			h.wg.Wait()
+			close(done)
+		}()
+		
+		select {
+		case <-done:
+			logger.Info("Hub closed gracefully")
+		case <-time.After(10 * time.Second):
+			logger.Warn("Hub close timeout, some goroutines may still be running")
+		}
+	})
 }
 
 // GetConnectionCount 获取当前连接数
@@ -170,10 +235,11 @@ func (h *Hub) GetConnectionCount() int64 {
 }
 
 func (h *Hub) Run() {
-	// Start periodic updates
+	// Start background goroutines
 	go h.startPeriodicUpdates()
-	// Start heartbeat checker
 	go h.startHeartbeatChecker()
+	go h.startCleanupWorker() // New: separate cleanup worker
+	go h.startLogStreaming()  // New: log streaming worker
 
 	for {
 		select {
@@ -192,9 +258,9 @@ func (h *Hub) Run() {
 				continue
 			}
 
-			h.mu.Lock()
+			h.clientsMu.Lock()
 			h.clients[client] = true
-			h.mu.Unlock()
+			h.clientsMu.Unlock()
 			atomic.AddInt64(&h.connectionCount, 1)
 			logger.Info("WebSocket client connected",
 				zap.String("user_id", client.userID),
@@ -204,43 +270,72 @@ func (h *Hub) Run() {
 			go h.sendInitialData(client)
 
 		case client := <-h.unregister:
-			h.mu.Lock()
+			h.clientsMu.Lock()
 			if _, ok := h.clients[client]; ok {
 				delete(h.clients, client)
 				close(client.send)
 				atomic.AddInt64(&h.connectionCount, -1)
 			}
-			h.mu.Unlock()
+			h.clientsMu.Unlock()
 			logger.Info("WebSocket client disconnected",
 				zap.String("user_id", client.userID),
 				zap.Int64("total_connections", atomic.LoadInt64(&h.connectionCount)))
 
 		case message := <-h.broadcast:
-			// 直接分发消息到所有客户端
-			h.mu.RLock()
+			// Use collect-then-modify pattern to avoid race conditions
+			h.clientsMu.RLock()
+			clientsToRemove := make([]*Client, 0)
+			
 			for client := range h.clients {
 				select {
 				case client.send <- message:
 					// 发送成功
 				default:
-					// 客户端阻塞，异步移除
-					go func(c *Client) {
-						h.mu.Lock()
-						if _, ok := h.clients[c]; ok {
-							close(c.send)
-							delete(h.clients, c)
-							atomic.AddInt64(&h.connectionCount, -1)
-						}
-						h.mu.Unlock()
-					}(client)
+					// 客户端阻塞，收集待移除的客户端
+					clientsToRemove = append(clientsToRemove, client)
 				}
 			}
-			h.mu.RUnlock()
+			h.clientsMu.RUnlock()
+			
+			// 安全地移除阻塞的客户端
+			for _, client := range clientsToRemove {
+				select {
+				case h.cleanup <- client:
+				default:
+					// Cleanup channel full, force close
+					logger.Warn("Cleanup channel full, force closing client",
+						zap.String("user_id", client.userID))
+					client.conn.Close()
+				}
+			}
+		}
+	}
+}
+
+// startCleanupWorker 启动清理工作协程
+func (h *Hub) startCleanupWorker() {
+	defer h.wg.Done()
+	
+	for {
+		select {
+		case <-h.ctx.Done():
+			return
+		case client := <-h.cleanup:
+			h.clientsMu.Lock()
+			if _, ok := h.clients[client]; ok {
+				close(client.send)
+				delete(h.clients, client)
+				atomic.AddInt64(&h.connectionCount, -1)
+				logger.Debug("Client cleaned up",
+					zap.String("user_id", client.userID))
+			}
+			h.clientsMu.Unlock()
 		}
 	}
 }
 
 func (h *Hub) startPeriodicUpdates() {
+	defer h.wg.Done()
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 
@@ -256,7 +351,151 @@ func (h *Hub) startPeriodicUpdates() {
 }
 
 // startHeartbeatChecker 启动心跳检测
+// startLogStreaming 启动日志流处理
+func (h *Hub) startLogStreaming() {
+	defer h.wg.Done()
+	ticker := time.NewTicker(2 * time.Second) // 每2秒检查一次日志更新
+	defer ticker.Stop()
+
+	// 跟踪每个进程的日志偏移量
+	logOffsets := make(map[string]int) // key: "nodeName:processName"
+
+	for {
+		select {
+		case <-h.ctx.Done():
+			return
+		case <-ticker.C:
+			h.pollAndStreamLogs(logOffsets)
+		}
+	}
+}
+
+// pollAndStreamLogs 轮询并流式传输日志
+func (h *Hub) pollAndStreamLogs(logOffsets map[string]int) {
+	// 收集所有订阅的日志流
+	subscribedLogs := h.getSubscribedLogStreams()
+	
+	for logKey := range subscribedLogs {
+		parts := strings.Split(logKey, ":")
+		if len(parts) != 2 {
+			continue
+		}
+		
+		nodeName, processName := parts[0], parts[1]
+		
+		// 获取节点
+		node, err := h.service.GetNode(nodeName)
+		if err != nil {
+			continue
+		}
+		
+		// 获取当前偏移量
+		currentOffset := logOffsets[logKey]
+		
+		// 获取新的日志条目
+		logStream, err := node.GetProcessLogStream(processName, currentOffset, 20)
+		if err != nil {
+			logger.Debug("Failed to get log stream",
+				zap.String("node", nodeName),
+				zap.String("process", processName),
+				zap.Error(err))
+			continue
+		}
+		
+		// 如果有新的日志条目，发送给订阅的客户端
+		if len(logStream.Entries) > 0 {
+			h.SendLogStreamToSubscribedClients(nodeName, processName, logStream)
+			// 更新偏移量
+			logOffsets[logKey] = logStream.LastOffset
+		}
+	}
+}
+
+// getSubscribedLogStreams 获取所有订阅的日志流
+func (h *Hub) getSubscribedLogStreams() map[string]bool {
+	subscribedLogs := make(map[string]bool)
+	
+	h.clientsMu.RLock()
+	for client := range h.clients {
+		client.subscribed.Range(func(key, value interface{}) bool {
+			if keyStr, ok := key.(string); ok && strings.HasPrefix(keyStr, "logs:") {
+				logKey := strings.TrimPrefix(keyStr, "logs:")
+				subscribedLogs[logKey] = true
+			}
+			return true
+		})
+	}
+	h.clientsMu.RUnlock()
+	
+	return subscribedLogs
+}
+
+// SendLogStreamToSubscribedClients sends log stream messages to clients subscribed to specific process logs
+func (h *Hub) SendLogStreamToSubscribedClients(nodeName, processName string, logStream *supervisor.LogStream) {
+	logKey := fmt.Sprintf("%s:%s", nodeName, processName)
+	subscriptionKey := "logs:" + logKey
+	
+	message := Message{
+		Type: "log_stream",
+		Data: LogStreamMessage{
+			NodeName:    nodeName,
+			ProcessName: processName,
+			LogType:     logStream.LogType,
+			Entries:     logStream.Entries,
+			Timestamp:   time.Now(),
+		},
+	}
+
+	data, err := json.Marshal(message)
+	if err != nil {
+		logger.Error("Error marshaling log stream message",
+			zap.String("node_name", nodeName),
+			zap.String("process_name", processName),
+			zap.Error(err))
+		return
+	}
+
+	// Use collect-then-modify pattern to avoid race conditions
+	h.clientsMu.RLock()
+	clientsToRemove := make([]*Client, 0)
+	sentCount := 0
+	
+	for client := range h.clients {
+		if _, subscribed := client.subscribed.Load(subscriptionKey); subscribed {
+			select {
+			case client.send <- data:
+				sentCount++
+			default:
+				// Client's send channel is full, collect for removal
+				clientsToRemove = append(clientsToRemove, client)
+			}
+		}
+	}
+	h.clientsMu.RUnlock()
+	
+	if sentCount > 0 {
+		logger.Debug("Sent log stream to clients",
+			zap.String("node", nodeName),
+			zap.String("process", processName),
+			zap.Int("entries", len(logStream.Entries)),
+			zap.Int("clients", sentCount))
+	}
+	
+	// Remove clients with full channels via cleanup worker
+	for _, client := range clientsToRemove {
+		select {
+		case h.cleanup <- client:
+		default:
+			// Cleanup channel full, force close
+			logger.Warn("Cleanup channel full, force closing client",
+				zap.String("user_id", client.userID))
+			client.conn.Close()
+		}
+	}
+}
+
 func (h *Hub) startHeartbeatChecker() {
+	defer h.wg.Done()
 	ticker := time.NewTicker(h.config.HeartbeatInterval)
 	defer ticker.Stop()
 
@@ -272,7 +511,7 @@ func (h *Hub) startHeartbeatChecker() {
 
 // checkHeartbeats 检查所有客户端的心跳状态
 func (h *Hub) checkHeartbeats() {
-	h.mu.RLock()
+	h.clientsMu.RLock()
 	deadClients := make([]*Client, 0)
 	now := time.Now()
 	heartbeatTimeout := h.config.HeartbeatInterval * 3 // 更严格的超时时间
@@ -287,7 +526,7 @@ func (h *Hub) checkHeartbeats() {
 		}
 		client.mu.RUnlock()
 	}
-	h.mu.RUnlock()
+	h.clientsMu.RUnlock()
 
 	// 安全地断开超时的客户端
 	for _, client := range deadClients {
@@ -331,9 +570,9 @@ func (h *Hub) checkHeartbeats() {
 
 func (h *Hub) sendInitialData(client *Client) {
 	// Check if client is still registered
-	h.mu.RLock()
+	h.clientsMu.RLock()
 	_, exists := h.clients[client]
-	h.mu.RUnlock()
+	h.clientsMu.RUnlock()
 	
 	if !exists {
 		logger.Debug("Client already disconnected, skipping initial data",
@@ -524,7 +763,6 @@ func (h *Hub) HandleWebSocket(c *gin.Context) {
 		conn:           conn,
 		send:           make(chan []byte, 256),
 		userID:         userID,
-		subscribed:     make(map[string]bool),
 		limiter:        limiter,
 		lastPong:       time.Now(),
 		violationCount: 0,

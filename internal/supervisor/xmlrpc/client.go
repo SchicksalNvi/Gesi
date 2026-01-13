@@ -2,8 +2,8 @@ package xmlrpc
 
 import (
 	"bytes"
-	"encoding/xml"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -49,10 +49,10 @@ func NewClient(host string, port int, username, password string) (*Client, error
 func (c *Client) Call(method string, args []interface{}) (interface{}, error) {
 	// 构建XML-RPC请求
 	request := fmt.Sprintf(`<?xml version="1.0"?>
-	<methodCall>
-		<methodName>%s</methodName>
-		<params>%s</params>
-	</methodCall>`, method, c.encodeParams(args))
+<methodCall>
+	<methodName>%s</methodName>
+	<params>%s</params>
+</methodCall>`, method, c.encodeParams(args))
 
 	// 发送请求
 	resp, err := c.client.Post(c.url, "text/xml", bytes.NewBufferString(request))
@@ -61,37 +61,18 @@ func (c *Client) Call(method string, args []interface{}) (interface{}, error) {
 	}
 	defer resp.Body.Close()
 
-	// 解析响应
-	var result struct {
-		Params []struct {
-			Value interface{} `xml:"value"`
-		} `xml:"params>param"`
-		Fault *struct {
-			Value struct {
-				Struct struct {
-					FaultCode   int    `xml:"member>value>int"`
-					FaultString string `xml:"member>value>string"`
-				} `xml:"struct"`
-			} `xml:"value"`
-		} `xml:"fault"`
+	// 读取响应内容
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response: %v", err)
 	}
 
-	if err := xml.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, fmt.Errorf("failed to decode response: %v", err)
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("HTTP error: %d", resp.StatusCode)
 	}
 
-	// 检查错误
-	if result.Fault != nil {
-		return nil, fmt.Errorf("XML-RPC fault: [%d] %s",
-			result.Fault.Value.Struct.FaultCode,
-			result.Fault.Value.Struct.FaultString)
-	}
-
-	// 返回结果
-	if len(result.Params) > 0 {
-		return result.Params[0].Value, nil
-	}
-	return nil, nil
+	// 简单粗暴的解析：直接返回XML字符串，让上层处理
+	return string(body), nil
 }
 
 func (c *Client) encodeParams(args []interface{}) string {

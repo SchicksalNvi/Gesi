@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"strconv"
 
 	"go-cesi/internal/supervisor"
 	"go-cesi/internal/validation"
@@ -59,11 +60,38 @@ func (api *NodesAPI) GetNode(c *gin.Context) {
 
 func (api *NodesAPI) GetNodeProcesses(c *gin.Context) {
 	nodeName := c.Param("node_name")
-	processes, err := api.service.GetNodeProcesses(nodeName)
+	
+	// 输入验证
+	validator := validation.NewValidator()
+	validator.ValidateNodeName("node_name", nodeName)
+	validator.ValidateNoSQLInjection("node_name", nodeName)
+
+	if validator.HasErrors() {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  "error",
+			"message": "输入验证失败",
+			"errors":  validator.Errors(),
+		})
+		return
+	}
+
+	// 清理输入
+	nodeName = validation.SanitizeInput(nodeName)
+	
+	node, err := api.service.GetNode(nodeName)
 	if err != nil {
 		handleAppError(c, err)
 		return
 	}
+	
+	if err := node.RefreshProcesses(); err != nil {
+		handleAppError(c, err)
+		return
+	}
+	
+	// 使用SerializeProcesses方法返回格式化的数据
+	processes := node.SerializeProcesses()
+	
 	c.JSON(http.StatusOK, gin.H{
 		"status":    "success",
 		"processes": processes,
@@ -134,6 +162,65 @@ func (api *NodesAPI) GetProcessLogs(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, logs)
+}
+
+// GetProcessLogStream 获取结构化的日志流
+func (api *NodesAPI) GetProcessLogStream(c *gin.Context) {
+	nodeName := c.Param("node_name")
+	processName := c.Param("process_name")
+	
+	// 获取查询参数
+	offset := 0
+	maxLines := 100
+	
+	if offsetStr := c.Query("offset"); offsetStr != "" {
+		if o, err := strconv.Atoi(offsetStr); err == nil {
+			offset = o
+		}
+	}
+	
+	if maxLinesStr := c.Query("max_lines"); maxLinesStr != "" {
+		if m, err := strconv.Atoi(maxLinesStr); err == nil && m > 0 && m <= 1000 {
+			maxLines = m
+		}
+	}
+	
+	// 输入验证
+	validator := validation.NewValidator()
+	validator.ValidateNodeName("node_name", nodeName)
+	validator.ValidateProcessName("process_name", processName)
+	validator.ValidateNoSQLInjection("node_name", nodeName)
+	validator.ValidateNoSQLInjection("process_name", processName)
+
+	if validator.HasErrors() {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  "error",
+			"message": "输入验证失败",
+			"errors":  validator.Errors(),
+		})
+		return
+	}
+
+	// 清理输入
+	nodeName = validation.SanitizeInput(nodeName)
+	processName = validation.SanitizeInput(processName)
+	
+	node, err := api.service.GetNode(nodeName)
+	if err != nil {
+		handleAppError(c, err)
+		return
+	}
+	
+	logStream, err := node.GetProcessLogStream(processName, offset, maxLines)
+	if err != nil {
+		handleAppError(c, err)
+		return
+	}
+	
+	c.JSON(http.StatusOK, gin.H{
+		"status": "success",
+		"data":   logStream,
+	})
 }
 
 // StartAllProcesses starts all processes on a specific node

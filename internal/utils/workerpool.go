@@ -149,6 +149,14 @@ func (wp *WorkerPool) worker(id int, timeout time.Duration) {
 
 // Submit 提交任务
 func (wp *WorkerPool) Submit(task Task) error {
+	// 检查工作池是否已停止
+	select {
+	case <-wp.ctx.Done():
+		return context.Canceled
+	default:
+	}
+	
+	// 尝试提交任务，使用非阻塞发送避免 panic
 	select {
 	case <-wp.ctx.Done():
 		return context.Canceled

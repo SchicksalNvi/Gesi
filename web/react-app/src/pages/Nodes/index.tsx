@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Card, Row, Col, Tag, Button, Space, Spin, Empty } from 'antd';
+import { Card, Row, Col, Tag, Button, Space, Spin, Empty, message } from 'antd';
 import {
   CheckCircleOutlined,
   CloseCircleOutlined,
@@ -10,12 +10,46 @@ import { useNavigate } from 'react-router-dom';
 import { nodesApi } from '@/api/nodes';
 import { useStore } from '@/store';
 import { useWebSocket } from '@/hooks/useWebSocket';
+import { useLocalStorage } from '@/hooks/useLocalStorage';
+import { useNodeFiltering } from '@/hooks/useNodeFiltering';
+import { useIsMobile } from '@/hooks/useResponsive';
+import { 
+  NodesToolbar, 
+  NodesListView, 
+  PaginatedCardView,
+  ErrorBoundary,
+  ViewMode,
+  NodeFilters,
+  BulkAction
+} from '@/components';
+import { usePerformanceMonitor, useListPerformance } from '@/hooks/usePerformanceMonitor';
 import { Node } from '@/types';
 
-export default function NodeList() {
+function NodeList() {
   const navigate = useNavigate();
   const { nodes, setNodes } = useStore();
   const [loading, setLoading] = useState(false);
+  const isMobile = useIsMobile();
+
+  // Performance monitoring
+  const performanceMetrics = usePerformanceMonitor('NodeList', process.env.NODE_ENV === 'development');
+  const { shouldOptimize, recommendations } = useListPerformance(nodes.length);
+
+  // View mode and search/filter state
+  const [viewMode, setViewMode] = useLocalStorage<ViewMode>('nodes-view-mode', 'card');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filters, setFilters] = useState<NodeFilters>({});
+  const [selectedNodes, setSelectedNodes] = useState<string[]>([]);
+
+  // Force list view on mobile
+  const effectiveViewMode = isMobile ? 'list' : viewMode;
+
+  // Filter nodes
+  const { filteredNodes, availableEnvironments, stats } = useNodeFiltering(
+    nodes,
+    searchQuery,
+    filters
+  );
 
   useEffect(() => {
     loadNodes();
@@ -25,9 +59,10 @@ export default function NodeList() {
     setLoading(true);
     try {
       const response = await nodesApi.getNodes();
-      setNodes(response.nodes || []);
+      setNodes(response.data?.nodes || []);
     } catch (error) {
       console.error('Failed to load nodes:', error);
+      message.error('Failed to load nodes');
     } finally {
       setLoading(false);
     }
@@ -42,6 +77,36 @@ export default function NodeList() {
     },
   });
 
+  const handleBulkAction = async (action: BulkAction) => {
+    try {
+      switch (action.type) {
+        case 'refresh_all':
+          message.info(`Refreshing ${action.nodeIds.length} nodes...`);
+          // TODO: Implement bulk refresh
+          break;
+        case 'restart_all':
+          message.info(`Restarting all processes on ${action.nodeIds.length} nodes...`);
+          // TODO: Implement bulk restart
+          break;
+        case 'start_all':
+          message.info(`Starting all processes on ${action.nodeIds.length} nodes...`);
+          // TODO: Implement bulk start
+          break;
+        case 'stop_all':
+          message.info(`Stopping all processes on ${action.nodeIds.length} nodes...`);
+          // TODO: Implement bulk stop
+          break;
+        case 'delete_selected':
+          message.warning('Node deletion not implemented yet');
+          break;
+      }
+      setSelectedNodes([]);
+    } catch (error) {
+      console.error('Bulk action failed:', error);
+      message.error('Bulk action failed');
+    }
+  };
+
   if (loading && nodes.length === 0) {
     return (
       <div style={{ textAlign: 'center', padding: 50 }}>
@@ -51,151 +116,103 @@ export default function NodeList() {
   }
 
   return (
-    <div>
-      <div style={{ marginBottom: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
-          <h2 style={{ margin: 0, fontSize: 24 }}>Nodes</h2>
-          <p style={{ color: '#666', marginTop: 8 }}>
-            Manage your supervisor nodes
-          </p>
-        </div>
-        <Button
-          type="primary"
-          icon={<ReloadOutlined />}
-          onClick={loadNodes}
+    <ErrorBoundary>
+      <div>
+        <NodesToolbar
+          viewMode={effectiveViewMode}
+          onViewModeChange={setViewMode}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          filters={filters}
+          onFiltersChange={setFilters}
+          environments={availableEnvironments}
+          totalNodes={stats.total}
+          filteredNodes={stats.filtered}
+          selectedNodes={selectedNodes}
+          onBulkAction={handleBulkAction}
+          onRefreshAll={loadNodes}
           loading={loading}
-        >
-          Refresh
-        </Button>
-      </div>
+          isMobile={isMobile}
+        />
 
-      {nodes.length === 0 ? (
-        <Card>
-          <Empty
-            description="No nodes configured"
-            image={Empty.PRESENTED_IMAGE_SIMPLE}
-          >
-            <p style={{ color: '#999' }}>
-              Add nodes in your config.toml file
-            </p>
-          </Empty>
-        </Card>
-      ) : (
-        <Row gutter={[16, 16]}>
-          {nodes.map((node) => (
-            <Col xs={24} sm={12} lg={8} key={node.name}>
-              <NodeCard node={node} onView={() => navigate(`/nodes/${node.name}`)} />
-            </Col>
-          ))}
-        </Row>
-      )}
-    </div>
-  );
-}
+        {/* Performance recommendations */}
+        {shouldOptimize && recommendations.length > 0 && process.env.NODE_ENV === 'development' && (
+          <div style={{ marginBottom: 16 }}>
+            {recommendations.map((rec, index) => (
+              <div key={index} style={{ 
+                padding: 8, 
+                backgroundColor: '#fff7e6', 
+                border: '1px solid #ffd591',
+                borderRadius: 4,
+                marginBottom: 4,
+                fontSize: 12,
+                color: '#d46b08'
+              }}>
+                💡 {rec}
+              </div>
+            ))}
+          </div>
+        )}
 
-// Node Card Component
-function NodeCard({ node, onView }: { node: Node; onView: () => void }) {
-  const isOnline = node.is_connected;
-
-  return (
-    <Card
-      hoverable
-      style={{
-        height: '100%',
-        cursor: 'pointer',
-      }}
-      onClick={onView}
-    >
-      <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-        {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div
-              style={{
-                width: 48,
-                height: 48,
-                borderRadius: 8,
-                background: '#1890ff20',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
+        {filteredNodes.length === 0 ? (
+          <Card>
+            <Empty
+              description={
+                stats.total === 0 
+                  ? "No nodes configured"
+                  : "No nodes match your search criteria"
+              }
+              image={Empty.PRESENTED_IMAGE_SIMPLE}
+            >
+              {stats.total === 0 ? (
+                <p style={{ color: '#999' }}>
+                  Add nodes in your config.toml file
+                </p>
+              ) : (
+                <Button onClick={() => {
+                  setSearchQuery('');
+                  setFilters({});
+                }}>
+                  Clear filters
+                </Button>
+              )}
+            </Empty>
+          </Card>
+        ) : effectiveViewMode === 'list' ? (
+          <ErrorBoundary fallback={
+            <div style={{ padding: 20, textAlign: 'center' }}>
+              <p>Failed to load list view. Please try refreshing the page.</p>
+            </div>
+          }>
+            <NodesListView
+              nodes={filteredNodes}
+              loading={loading}
+              selectedNodes={selectedNodes}
+              onSelectionChange={setSelectedNodes}
+              onNodeClick={(nodeName) => navigate(`/nodes/${nodeName}`)}
+              onRefreshNode={(nodeName) => {
+                message.info(`Refreshing node: ${nodeName}`);
+                // TODO: Implement single node refresh
               }}
-            >
-              <CheckCircleOutlined style={{ fontSize: 24, color: '#1890ff' }} />
+              searchQuery={searchQuery}
+            />
+          </ErrorBoundary>
+        ) : (
+          <ErrorBoundary fallback={
+            <div style={{ padding: 20, textAlign: 'center' }}>
+              <p>Failed to load card view. Please try refreshing the page.</p>
             </div>
-            <div>
-              <h3 style={{ margin: 0, fontSize: 18 }}>{node.name}</h3>
-              <Tag color="blue" style={{ marginTop: 4 }}>
-                {node.environment || 'default'}
-              </Tag>
-            </div>
-          </div>
-          <div
-            style={{
-              width: 12,
-              height: 12,
-              borderRadius: '50%',
-              background: isOnline ? '#52c41a' : '#ff4d4f',
-            }}
-          />
-        </div>
-
-        {/* Info */}
-        <div>
-          <div style={{ color: '#666', fontSize: 14, marginBottom: 4 }}>
-            {node.host}:{node.port}
-          </div>
-          {node.username && (
-            <div style={{ color: '#666', fontSize: 14 }}>
-              User: {node.username}
-            </div>
-          )}
-        </div>
-
-        {/* Stats */}
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            paddingTop: 16,
-            borderTop: '1px solid #f0f0f0',
-          }}
-        >
-          <div style={{ textAlign: 'center', flex: 1 }}>
-            <div style={{ fontSize: 24, fontWeight: 'bold', color: '#1890ff' }}>
-              {node.process_count || 0}
-            </div>
-            <div style={{ fontSize: 12, color: '#999' }}>Processes</div>
-          </div>
-          <div
-            style={{
-              textAlign: 'center',
-              flex: 1,
-              borderLeft: '1px solid #f0f0f0',
-            }}
-          >
-            <Tag
-              icon={isOnline ? <CheckCircleOutlined /> : <CloseCircleOutlined />}
-              color={isOnline ? 'success' : 'error'}
-            >
-              {isOnline ? 'Online' : 'Offline'}
-            </Tag>
-          </div>
-        </div>
-
-        {/* Action Button */}
-        <Button
-          type="primary"
-          block
-          icon={<EyeOutlined />}
-          onClick={(e) => {
-            e.stopPropagation();
-            onView();
-          }}
-        >
-          View Details
-        </Button>
-      </Space>
-    </Card>
+          }>
+            <PaginatedCardView
+              nodes={filteredNodes}
+              onNodeClick={(nodeName) => navigate(`/nodes/${nodeName}`)}
+              searchQuery={searchQuery}
+            />
+          </ErrorBoundary>
+        )}
+      </div>
+    </ErrorBoundary>
   );
 }
+
+export default NodeList;

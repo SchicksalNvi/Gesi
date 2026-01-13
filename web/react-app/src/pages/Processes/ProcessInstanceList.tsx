@@ -6,9 +6,6 @@ import {
   Space,
   Popconfirm,
   message,
-  Modal,
-  Input,
-  Tabs,
 } from 'antd';
 import {
   PlayCircleOutlined,
@@ -18,8 +15,7 @@ import {
 } from '@ant-design/icons';
 import { ProcessInstance } from '@/types';
 import { nodesApi } from '@/api/nodes';
-
-const { TextArea } = Input;
+import LogViewer from '@/components/LogViewer';
 
 interface ProcessInstanceListProps {
   instances: ProcessInstance[];
@@ -33,9 +29,8 @@ const ProcessInstanceList: React.FC<ProcessInstanceListProps> = ({
   onRefresh,
 }) => {
   const [actionLoading, setActionLoading] = useState<Record<string, boolean>>({});
-  const [logModalVisible, setLogModalVisible] = useState(false);
+  const [logViewerVisible, setLogViewerVisible] = useState(false);
   const [selectedInstance, setSelectedInstance] = useState<ProcessInstance | null>(null);
-  const [processLogs, setProcessLogs] = useState({ stdout: '', stderr: '' });
 
   const getProcessStateColor = (state: number) => {
     switch (state) {
@@ -85,20 +80,9 @@ const ProcessInstanceList: React.FC<ProcessInstanceListProps> = ({
     }
   };
 
-  const handleViewLogs = async (instance: ProcessInstance) => {
+  const handleViewLogs = (instance: ProcessInstance) => {
     setSelectedInstance(instance);
-    setLogModalVisible(true);
-
-    try {
-      const response = await nodesApi.getProcessLogs(instance.node_name, processName);
-      setProcessLogs({
-        stdout: (response as any).stdout || 'No stdout logs',
-        stderr: (response as any).stderr || 'No stderr logs',
-      });
-    } catch (error) {
-      console.error('Failed to load logs:', error);
-      message.error('Failed to load logs');
-    }
+    setLogViewerVisible(true);
   };
 
   const columns = [
@@ -140,12 +124,6 @@ const ProcessInstanceList: React.FC<ProcessInstanceListProps> = ({
       title: 'Group',
       dataIndex: 'group',
       key: 'group',
-    },
-    {
-      title: 'Description',
-      dataIndex: 'description',
-      key: 'description',
-      ellipsis: true,
     },
     {
       title: 'Actions',
@@ -210,46 +188,17 @@ const ProcessInstanceList: React.FC<ProcessInstanceListProps> = ({
         size="small"
       />
 
-      <Modal
-        title={`Logs: ${processName} on ${selectedInstance?.node_name}`}
-        open={logModalVisible}
-        onCancel={() => setLogModalVisible(false)}
-        width={800}
-        footer={[
-          <Button key="close" onClick={() => setLogModalVisible(false)}>
-            Close
-          </Button>,
-        ]}
-      >
-        <Tabs
-          items={[
-            {
-              key: 'stdout',
-              label: 'Standard Output',
-              children: (
-                <TextArea
-                  value={processLogs.stdout}
-                  rows={15}
-                  readOnly
-                  style={{ fontFamily: 'monospace', fontSize: '12px' }}
-                />
-              ),
-            },
-            {
-              key: 'stderr',
-              label: 'Standard Error',
-              children: (
-                <TextArea
-                  value={processLogs.stderr}
-                  rows={15}
-                  readOnly
-                  style={{ fontFamily: 'monospace', fontSize: '12px' }}
-                />
-              ),
-            },
-          ]}
+      {selectedInstance && (
+        <LogViewer
+          visible={logViewerVisible}
+          onClose={() => {
+            setLogViewerVisible(false);
+            setSelectedInstance(null);
+          }}
+          nodeName={selectedInstance.node_name}
+          processName={processName}
         />
-      </Modal>
+      )}
     </>
   );
 };

@@ -35,4 +35,10 @@ export const nodesApi = {
   // Get process logs
   getProcessLogs: (nodeName: string, processName: string) =>
     apiClient.get(`/nodes/${nodeName}/processes/${processName}/logs`),
+
+  // Get process log stream (structured logs with pagination)
+  getProcessLogStream: (nodeName: string, processName: string, offset?: number, maxLines?: number) =>
+    apiClient.get(`/nodes/${nodeName}/processes/${processName}/logs/stream`, {
+      params: { offset: offset || 0, max_lines: maxLines || 50 }
+    }),
 };

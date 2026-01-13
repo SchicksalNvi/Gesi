@@ -64,6 +64,7 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB, service *supervisor.SupervisorServi
 			nodesGroup.POST("/:node_name/processes/:process_name/stop", nodesAPI.StopProcess)
 			nodesGroup.POST("/:node_name/processes/:process_name/restart", nodesAPI.RestartProcess)
 			nodesGroup.GET("/:node_name/processes/:process_name/logs", nodesAPI.GetProcessLogs)
+			nodesGroup.GET("/:node_name/processes/:process_name/logs/stream", nodesAPI.GetProcessLogStream)
 			// Batch operations
 			nodesGroup.POST("/:node_name/processes/start-all", nodesAPI.StartAllProcesses)
 			nodesGroup.POST("/:node_name/processes/stop-all", nodesAPI.StopAllProcesses)

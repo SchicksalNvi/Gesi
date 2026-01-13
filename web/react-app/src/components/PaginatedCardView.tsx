@@ -1,0 +1,254 @@
+import React, { useState, useMemo } from 'react';
+import { Row, Col, Pagination, Card, Tag, Button, Space, Alert } from 'antd';
+import {
+  CheckCircleOutlined,
+  CloseCircleOutlined,
+  EyeOutlined,
+} from '@ant-design/icons';
+import { Node } from '@/types';
+
+interface PaginatedCardViewProps {
+  nodes: Node[];
+  onNodeClick: (nodeName: string) => void;
+  searchQuery?: string;
+  pageSize?: number;
+}
+
+const DEFAULT_PAGE_SIZE = 50;
+const PAGINATION_THRESHOLD = 20; // Show pagination when more than 20 nodes
+
+export const PaginatedCardView: React.FC<PaginatedCardViewProps> = ({
+  nodes,
+  onNodeClick,
+  searchQuery = '',
+  pageSize = DEFAULT_PAGE_SIZE,
+}) => {
+  const [currentPage, setCurrentPage] = useState(1);
+  const [currentPageSize, setCurrentPageSize] = useState(pageSize);
+
+  // Calculate pagination
+  const shouldPaginate = nodes.length > PAGINATION_THRESHOLD;
+  
+  const paginatedNodes = useMemo(() => {
+    if (!shouldPaginate) {
+      return nodes;
+    }
+    
+    const start = (currentPage - 1) * currentPageSize;
+    return nodes.slice(start, start + currentPageSize);
+  }, [nodes, currentPage, currentPageSize, shouldPaginate]);
+
+  // Reset to first page when nodes change (e.g., after filtering)
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [nodes.length]);
+
+  // Highlight search matches
+  const highlightText = (text: string) => {
+    if (!searchQuery) return text;
+    
+    const regex = new RegExp(`(${searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+    const parts = text.split(regex);
+    
+    return parts.map((part, index) => 
+      regex.test(part) ? (
+        <mark key={index} style={{ backgroundColor: '#fff566', padding: 0 }}>
+          {part}
+        </mark>
+      ) : part
+    );
+  };
+
+  const handlePageChange = (page: number, size?: number) => {
+    setCurrentPage(page);
+    if (size && size !== currentPageSize) {
+      setCurrentPageSize(size);
+    }
+  };
+
+  return (
+    <div>
+      {/* Performance info for large datasets */}
+      {shouldPaginate && (
+        <Alert
+          message={`Large dataset (${nodes.length} nodes). Showing ${currentPageSize} nodes per page for better performance.`}
+          type="info"
+          showIcon
+          style={{ marginBottom: 16 }}
+        />
+      )}
+
+      {/* Cards Grid */}
+      <Row gutter={[16, 16]}>
+        {paginatedNodes.map((node) => (
+          <Col xs={24} sm={12} lg={8} key={node.name}>
+            <NodeCard 
+              node={node} 
+              onView={() => onNodeClick(node.name)}
+              searchQuery={searchQuery}
+            />
+          </Col>
+        ))}
+      </Row>
+
+      {/* Pagination Controls */}
+      {shouldPaginate && (
+        <div style={{ 
+          marginTop: 24, 
+          textAlign: 'center',
+          padding: '16px 0',
+          borderTop: '1px solid #f0f0f0'
+        }}>
+          <Pagination
+            current={currentPage}
+            total={nodes.length}
+            pageSize={currentPageSize}
+            showSizeChanger
+            showQuickJumper
+            showTotal={(total, range) => 
+              `${range[0]}-${range[1]} of ${total} nodes`
+            }
+            pageSizeOptions={['20', '50', '100', '200']}
+            onChange={handlePageChange}
+            onShowSizeChange={handlePageChange}
+          />
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Node Card Component
+function NodeCard({ 
+  node, 
+  onView, 
+  searchQuery = '' 
+}: { 
+  node: Node; 
+  onView: () => void;
+  searchQuery?: string;
+}) {
+  const isOnline = node.is_connected;
+
+  // Highlight search matches
+  const highlightText = (text: string) => {
+    if (!searchQuery) return text;
+    
+    const regex = new RegExp(`(${searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+    const parts = text.split(regex);
+    
+    return parts.map((part, index) => 
+      regex.test(part) ? (
+        <mark key={index} style={{ backgroundColor: '#fff566', padding: 0 }}>
+          {part}
+        </mark>
+      ) : part
+    );
+  };
+
+  return (
+    <Card
+      hoverable
+      style={{
+        height: '100%',
+        cursor: 'pointer',
+      }}
+      onClick={onView}
+    >
+      <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div
+              style={{
+                width: 48,
+                height: 48,
+                borderRadius: 8,
+                background: '#1890ff20',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <CheckCircleOutlined style={{ fontSize: 24, color: '#1890ff' }} />
+            </div>
+            <div>
+              <h3 style={{ margin: 0, fontSize: 18 }}>
+                {highlightText(node.name)}
+              </h3>
+              <Tag color="blue" style={{ marginTop: 4 }}>
+                {highlightText(node.environment || 'default')}
+              </Tag>
+            </div>
+          </div>
+          <div
+            style={{
+              width: 12,
+              height: 12,
+              borderRadius: '50%',
+              background: isOnline ? '#52c41a' : '#ff4d4f',
+            }}
+          />
+        </div>
+
+        {/* Info */}
+        <div>
+          <div style={{ color: '#666', fontSize: 14, marginBottom: 4 }}>
+            {highlightText(`${node.host}:${node.port}`)}
+          </div>
+          {node.username && (
+            <div style={{ color: '#666', fontSize: 14 }}>
+              User: {highlightText(node.username)}
+            </div>
+          )}
+        </div>
+
+        {/* Stats */}
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            paddingTop: 16,
+            borderTop: '1px solid #f0f0f0',
+          }}
+        >
+          <div style={{ textAlign: 'center', flex: 1 }}>
+            <div style={{ fontSize: 24, fontWeight: 'bold', color: '#1890ff' }}>
+              {node.process_count || 0}
+            </div>
+            <div style={{ fontSize: 12, color: '#999' }}>Processes</div>
+          </div>
+          <div
+            style={{
+              textAlign: 'center',
+              flex: 1,
+              borderLeft: '1px solid #f0f0f0',
+            }}
+          >
+            <Tag
+              icon={isOnline ? <CheckCircleOutlined /> : <CloseCircleOutlined />}
+              color={isOnline ? 'success' : 'error'}
+            >
+              {isOnline ? 'Online' : 'Offline'}
+            </Tag>
+          </div>
+        </div>
+
+        {/* Action Button */}
+        <Button
+          type="primary"
+          block
+          icon={<EyeOutlined />}
+          onClick={(e) => {
+            e.stopPropagation();
+            onView();
+          }}
+        >
+          View Details
+        </Button>
+      </Space>
+    </Card>
+  );
+}
+
+export default PaginatedCardView;

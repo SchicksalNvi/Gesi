@@ -2,6 +2,7 @@ package websocket
 
 import (
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -112,7 +113,7 @@ func (c *Client) handleClientMessage(msg ClientMessage) {
 	switch msg.Type {
 	case "subscribe_node":
 		if nodeName, ok := msg.Data["node_name"].(string); ok {
-			c.subscribed[nodeName] = true
+			c.subscribed.Store(nodeName, true)
 			logger.Info("Client subscribed to node",
 				zap.String("user_id", c.userID),
 				zap.String("node_name", nodeName))
@@ -143,7 +144,7 @@ func (c *Client) handleClientMessage(msg ClientMessage) {
 
 	case "unsubscribe_node":
 		if nodeName, ok := msg.Data["node_name"].(string); ok {
-			delete(c.subscribed, nodeName)
+			c.subscribed.Delete(nodeName)
 			logger.Info("Client unsubscribed from node",
 				zap.String("user_id", c.userID),
 				zap.String("node_name", nodeName))
@@ -177,6 +178,55 @@ func (c *Client) handleClientMessage(msg ClientMessage) {
 							zap.String("user_id", c.userID))
 					}
 				}
+			}
+		}
+
+	case "subscribe_logs":
+		if nodeName, ok := msg.Data["node_name"].(string); ok {
+			if processName, ok := msg.Data["process_name"].(string); ok {
+				logKey := fmt.Sprintf("%s:%s", nodeName, processName)
+				c.subscribed.Store("logs:"+logKey, true)
+				logger.Info("Client subscribed to process logs",
+					zap.String("user_id", c.userID),
+					zap.String("node_name", nodeName),
+					zap.String("process_name", processName))
+
+				// Send initial log data
+				if node, err := c.hub.service.GetNode(nodeName); err == nil {
+					if logStream, err := node.GetProcessLogStream(processName, 0, 50); err == nil {
+						logMsg := Message{
+							Type: "log_stream",
+							Data: map[string]interface{}{
+								"node_name":    nodeName,
+								"process_name": processName,
+								"log_type":     "stdout",
+								"entries":      logStream.Entries,
+								"timestamp":    time.Now(),
+							},
+						}
+
+						if data, err := json.Marshal(logMsg); err == nil {
+							select {
+							case c.send <- data:
+							default:
+								logger.Warn("Client send channel full",
+									zap.String("user_id", c.userID))
+							}
+						}
+					}
+				}
+			}
+		}
+
+	case "unsubscribe_logs":
+		if nodeName, ok := msg.Data["node_name"].(string); ok {
+			if processName, ok := msg.Data["process_name"].(string); ok {
+				logKey := fmt.Sprintf("%s:%s", nodeName, processName)
+				c.subscribed.Delete("logs:" + logKey)
+				logger.Info("Client unsubscribed from process logs",
+					zap.String("user_id", c.userID),
+					zap.String("node_name", nodeName),
+					zap.String("process_name", processName))
 			}
 		}
 
@@ -215,18 +265,32 @@ func (h *Hub) SendToSubscribedClients(nodeName string, message Message) {
 		return
 	}
 
-	h.mu.RLock()
-	defer h.mu.RUnlock()
-
+	// Use collect-then-modify pattern to avoid race conditions
+	h.clientsMu.RLock()
+	clientsToRemove := make([]*Client, 0)
+	
 	for client := range h.clients {
-		if client.subscribed[nodeName] {
+		if _, subscribed := client.subscribed.Load(nodeName); subscribed {
 			select {
 			case client.send <- data:
+				// Successfully sent
 			default:
-				// Client's send channel is full, close it
-				close(client.send)
-				delete(h.clients, client)
+				// Client's send channel is full, collect for removal
+				clientsToRemove = append(clientsToRemove, client)
 			}
+		}
+	}
+	h.clientsMu.RUnlock()
+	
+	// Remove clients with full channels via cleanup worker
+	for _, client := range clientsToRemove {
+		select {
+		case h.cleanup <- client:
+		default:
+			// Cleanup channel full, force close
+			logger.Warn("Cleanup channel full, force closing client",
+				zap.String("user_id", client.userID))
+			client.conn.Close()
 		}
 	}
 }

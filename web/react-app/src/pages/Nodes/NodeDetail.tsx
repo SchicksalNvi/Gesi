@@ -10,8 +10,6 @@ import {
   Tabs,
   message,
   Popconfirm,
-  Modal,
-  Input,
   Spin,
   Row,
   Col,
@@ -29,8 +27,7 @@ import {
 } from '@ant-design/icons';
 import { nodesApi } from '@/api/nodes';
 import { Node, Process } from '@/types';
-
-const { TextArea } = Input;
+import LogViewer from '@/components/LogViewer';
 
 const NodeDetail: React.FC = () => {
   const { nodeName } = useParams<{ nodeName: string }>();
@@ -39,9 +36,8 @@ const NodeDetail: React.FC = () => {
   const [processes, setProcesses] = useState<Process[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<Record<string, boolean>>({});
-  const [logModalVisible, setLogModalVisible] = useState(false);
+  const [logViewerVisible, setLogViewerVisible] = useState(false);
   const [selectedProcess, setSelectedProcess] = useState<Process | null>(null);
-  const [processLogs, setProcessLogs] = useState({ stdout: '', stderr: '' });
 
   useEffect(() => {
     if (nodeName) {
@@ -114,23 +110,9 @@ const NodeDetail: React.FC = () => {
     }
   };
 
-  const handleViewLogs = async (process: Process) => {
-    if (!nodeName) return;
-    
+  const handleViewLogs = (process: Process) => {
     setSelectedProcess(process);
-    setLogModalVisible(true);
-    
-    try {
-      const response = await nodesApi.getProcessLogs(nodeName, process.name);
-      // 后端直接返回 { status, stdout, stderr }
-      setProcessLogs({
-        stdout: (response as any).stdout || 'No stdout logs',
-        stderr: (response as any).stderr || 'No stderr logs',
-      });
-    } catch (error) {
-      console.error('Failed to load logs:', error);
-      message.error('Failed to load logs');
-    }
+    setLogViewerVisible(true);
   };
 
   const getProcessStateColor = (state: number) => {
@@ -177,12 +159,6 @@ const NodeDetail: React.FC = () => {
       dataIndex: 'uptime_human',
       key: 'uptime_human',
       render: (uptime: string) => uptime || '-',
-    },
-    {
-      title: 'Description',
-      dataIndex: 'description',
-      key: 'description',
-      ellipsis: true,
     },
     {
       title: 'Actions',
@@ -362,47 +338,18 @@ const NodeDetail: React.FC = () => {
         ]}
       />
 
-      {/* 日志查看 Modal */}
-      <Modal
-        title={`Logs: ${selectedProcess?.name}`}
-        open={logModalVisible}
-        onCancel={() => setLogModalVisible(false)}
-        width={800}
-        footer={[
-          <Button key="close" onClick={() => setLogModalVisible(false)}>
-            Close
-          </Button>,
-        ]}
-      >
-        <Tabs
-          items={[
-            {
-              key: 'stdout',
-              label: 'Standard Output',
-              children: (
-                <TextArea
-                  value={processLogs.stdout}
-                  rows={15}
-                  readOnly
-                  style={{ fontFamily: 'monospace', fontSize: '12px' }}
-                />
-              ),
-            },
-            {
-              key: 'stderr',
-              label: 'Standard Error',
-              children: (
-                <TextArea
-                  value={processLogs.stderr}
-                  rows={15}
-                  readOnly
-                  style={{ fontFamily: 'monospace', fontSize: '12px' }}
-                />
-              ),
-            },
-          ]}
+      {/* Enhanced Log Viewer */}
+      {selectedProcess && (
+        <LogViewer
+          visible={logViewerVisible}
+          onClose={() => {
+            setLogViewerVisible(false);
+            setSelectedProcess(null);
+          }}
+          nodeName={nodeName || ''}
+          processName={selectedProcess.name}
         />
-      </Modal>
+      )}
     </div>
   );
 };

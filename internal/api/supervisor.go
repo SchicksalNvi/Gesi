@@ -51,12 +51,13 @@ func (api *SupervisorAPI) GetNodeProcesses(c *gin.Context) {
 	response := make([]map[string]interface{}, len(processes))
 	for i, process := range processes {
 		response[i] = map[string]interface{}{
-			"name":        process.Name,
-			"group":       process.Group,
-			"state":       process.State,
-			"description": process.Description,
-			"start_time":  process.StartTime,
-			"stop_time":   process.StopTime,
+			"name":       process.Name,
+			"group":      process.Group,
+			"state":      process.State,
+			"pid":        process.PID,
+			"start_time": process.StartTime,
+			"stop_time":  process.StopTime,
+			"uptime":     process.Uptime.Seconds(),
 		}
 	}
 

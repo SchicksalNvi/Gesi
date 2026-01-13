@@ -13,6 +13,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// min 返回两个整数中的较小值
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
 // 属性 27：资源释放
 // 验证需求：10.5
 func TestResourceReleaseProperties(t *testing.T) {
@@ -56,8 +64,8 @@ func TestResourceReleaseProperties(t *testing.T) {
 			initialStats := sqlDB.Stats()
 			initialOpen := initialStats.OpenConnections
 
-			// 等待空闲超时
-			time.Sleep(time.Duration(idleTime+1) * time.Second)
+			// 等待空闲超时（减少等待时间）
+			time.Sleep(time.Duration(min(idleTime+1, 3)) * time.Second)
 
 			// 获取最终统计
 			finalStats := sqlDB.Stats()

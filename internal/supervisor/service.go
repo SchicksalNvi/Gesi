@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
+	"go-cesi/internal/config"
 	"go-cesi/internal/errors"
 	"go-cesi/internal/logger"
 	"go.uber.org/zap"
@@ -20,19 +22,46 @@ type SupervisorService struct {
 	mu                 sync.RWMutex
 	stopChan           chan struct{}
 	wg                 sync.WaitGroup
-	shutdown           bool
+	shutdown           int32  // atomic flag
 	activityLogger     ActivityLogger
 	processStates      map[string]map[string]int // nodeName -> processName -> state
 	nodeStates         map[string]bool            // nodeName -> isConnected
 	statesMu           sync.RWMutex
+	
+	// Connection management - configurable
+	connectionSemaphore chan struct{} // Configurable concurrent connections limit
+	config             *config.PerformanceConfig
+	
+	// Timeout management
+	timeoutManager     *TimeoutManager
 }
 
 func NewSupervisorService() *SupervisorService {
 	return &SupervisorService{
-		nodes:         make(map[string]*Node),
-		stopChan:      make(chan struct{}),
-		processStates: make(map[string]map[string]int),
-		nodeStates:    make(map[string]bool),
+		nodes:               make(map[string]*Node),
+		stopChan:            make(chan struct{}),
+		processStates:       make(map[string]map[string]int),
+		nodeStates:          make(map[string]bool),
+		connectionSemaphore: make(chan struct{}, 100), // Default fallback
+		timeoutManager:      NewTimeoutManager(nil),   // Use default config
+	}
+}
+
+// NewSupervisorServiceWithConfig creates service with performance config
+func NewSupervisorServiceWithConfig(perfConfig *config.PerformanceConfig) *SupervisorService {
+	maxConn := perfConfig.MaxConcurrentConnections
+	if maxConn <= 0 {
+		maxConn = 100 // Fallback
+	}
+	
+	return &SupervisorService{
+		nodes:               make(map[string]*Node),
+		stopChan:            make(chan struct{}),
+		processStates:       make(map[string]map[string]int),
+		nodeStates:          make(map[string]bool),
+		connectionSemaphore: make(chan struct{}, maxConn),
+		config:              perfConfig,
+		timeoutManager:      NewTimeoutManager(nil), // Use default config
 	}
 }
 
@@ -194,7 +223,7 @@ func (s *SupervisorService) AddNode(name, environment, host string, port int, us
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	
-	if s.shutdown {
+	if atomic.LoadInt32(&s.shutdown) != 0 {
 		return errors.NewInternalError("service is shutting down", nil)
 	}
 	
@@ -243,7 +272,7 @@ func (s *SupervisorService) GetNode(name string) (*Node, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	
-	if s.shutdown {
+	if atomic.LoadInt32(&s.shutdown) != 0 {
 		return nil, errors.NewInternalError("service is shutting down", nil)
 	}
 	
@@ -255,56 +284,26 @@ func (s *SupervisorService) GetNode(name string) (*Node, error) {
 }
 
 func (s *SupervisorService) GetAllNodes() []*Node {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	
-	if s.shutdown {
+	// 检查是否已关闭
+	if atomic.LoadInt32(&s.shutdown) != 0 {
 		return nil
 	}
 	
-	nodes := make([]*Node, 0, len(s.nodes))
-	for _, node := range s.nodes {
-		// 只在节点从未连接过或者很久没有ping时才尝试重连
-		if !node.IsConnected || time.Since(node.LastPing) > 60*time.Second {
-			// 异步检查连接状态，添加超时控制
-			s.wg.Add(1)
-			go func(n *Node) {
-				defer s.wg.Done()
-				
-				// 创建带超时的context
-				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-				defer cancel()
-				
-				// 使用channel来处理超时
-				done := make(chan bool, 1)
-				go func() {
-					if err := n.Connect(); err == nil {
-						n.IsConnected = true
-						n.LastPing = time.Now()
-						done <- true
-					} else {
-						n.IsConnected = false
-						done <- false
-					}
-				}()
-				
-				select {
-				case <-done:
-					// 连接完成
-				case <-ctx.Done():
-					// 超时处理
-					n.IsConnected = false
-					logger.Warn("Node connection check timeout",
-						zap.String("node_name", n.Name))
-				case <-s.stopChan:
-					// 服务正在关闭
-					return
-				}
-			}(node)
-		}
-		nodes = append(nodes, node)
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	
+	// 再次检查关闭状态（双重检查）
+	if atomic.LoadInt32(&s.shutdown) != 0 {
+		return nil
 	}
-	return nodes
+	
+	// 简单返回节点列表，不做异步连接检查
+	allNodes := make([]*Node, 0, len(s.nodes))
+	for _, node := range s.nodes {
+		allNodes = append(allNodes, node)
+	}
+	
+	return allNodes
 }
 
 func (s *SupervisorService) checkNodeStatus(node *Node) bool {
@@ -324,7 +323,13 @@ func (s *SupervisorService) GetNodeProcesses(nodeName string) ([]Process, error)
 		return nil, err
 	}
 
-	return node.Processes, nil
+	// 安全地获取进程列表副本
+	node.mu.RLock()
+	processes := make([]Process, len(node.Processes))
+	copy(processes, node.Processes)
+	node.mu.RUnlock()
+
+	return processes, nil
 }
 
 func (s *SupervisorService) StartProcess(nodeName, processName string) error {
@@ -332,7 +337,14 @@ func (s *SupervisorService) StartProcess(nodeName, processName string) error {
 	if err != nil {
 		return err
 	}
-	return node.StartProcess(processName)
+	
+	// 使用超时管理器执行操作
+	ctx := context.Background()
+	operationName := fmt.Sprintf("start_process_%s_%s", nodeName, processName)
+	
+	return s.timeoutManager.ExecuteWithRetry(ctx, operationName, func(ctx context.Context) error {
+		return node.StartProcess(processName)
+	})
 }
 
 func (s *SupervisorService) StopProcess(nodeName, processName string) error {
@@ -340,7 +352,14 @@ func (s *SupervisorService) StopProcess(nodeName, processName string) error {
 	if err != nil {
 		return err
 	}
-	return node.StopProcess(processName)
+	
+	// 使用超时管理器执行操作
+	ctx := context.Background()
+	operationName := fmt.Sprintf("stop_process_%s_%s", nodeName, processName)
+	
+	return s.timeoutManager.ExecuteWithRetry(ctx, operationName, func(ctx context.Context) error {
+		return node.StopProcess(processName)
+	})
 }
 
 func (s *SupervisorService) GetProcessLogs(nodeName, processName string) (map[string][]string, error) {
@@ -351,7 +370,7 @@ func (s *SupervisorService) GetProcessLogs(nodeName, processName string) (map[st
 	return node.GetProcessLogs(processName)
 }
 
-// StartAllProcesses starts all processes on a specific node
+// StartAllProcesses starts all processes on a specific node with timeout management
 func (s *SupervisorService) StartAllProcesses(nodeName string) error {
 	node, err := s.GetNode(nodeName)
 	if err != nil {
@@ -362,18 +381,42 @@ func (s *SupervisorService) StartAllProcesses(nodeName string) error {
 		return err
 	}
 	
+	// 创建批量操作
+	var operations []BatchOperation
 	for _, process := range node.Processes {
-		if err := node.StartProcess(process.Name); err != nil {
-			logger.Error("Failed to start process",
-				zap.String("process_name", process.Name),
+		processName := process.Name // 捕获循环变量
+		operations = append(operations, BatchOperation{
+			Name: fmt.Sprintf("start_%s_%s", nodeName, processName),
+			Execute: func(ctx context.Context) error {
+				return node.StartProcess(processName)
+			},
+		})
+	}
+	
+	// 执行批量操作
+	ctx := context.Background()
+	results := s.timeoutManager.ExecuteBatchWithTimeout(ctx, operations)
+	
+	// 检查结果
+	var errors []error
+	for _, result := range results {
+		if result.Error != nil {
+			errors = append(errors, result.Error)
+			logger.Error("Failed to start process in batch",
 				zap.String("node_name", nodeName),
-				zap.Error(err))
+				zap.Int("operation_index", result.Index),
+				zap.Error(result.Error))
 		}
 	}
+	
+	if len(errors) > 0 {
+		return fmt.Errorf("batch start failed with %d errors", len(errors))
+	}
+	
 	return nil
 }
 
-// StopAllProcesses stops all processes on a specific node
+// StopAllProcesses stops all processes on a specific node with timeout management
 func (s *SupervisorService) StopAllProcesses(nodeName string) error {
 	node, err := s.GetNode(nodeName)
 	if err != nil {
@@ -384,14 +427,38 @@ func (s *SupervisorService) StopAllProcesses(nodeName string) error {
 		return err
 	}
 	
+	// 创建批量操作
+	var operations []BatchOperation
 	for _, process := range node.Processes {
-		if err := node.StopProcess(process.Name); err != nil {
-			logger.Error("Failed to stop process",
-				zap.String("process_name", process.Name),
+		processName := process.Name // 捕获循环变量
+		operations = append(operations, BatchOperation{
+			Name: fmt.Sprintf("stop_%s_%s", nodeName, processName),
+			Execute: func(ctx context.Context) error {
+				return node.StopProcess(processName)
+			},
+		})
+	}
+	
+	// 执行批量操作
+	ctx := context.Background()
+	results := s.timeoutManager.ExecuteBatchWithTimeout(ctx, operations)
+	
+	// 检查结果
+	var errors []error
+	for _, result := range results {
+		if result.Error != nil {
+			errors = append(errors, result.Error)
+			logger.Error("Failed to stop process in batch",
 				zap.String("node_name", nodeName),
-				zap.Error(err))
+				zap.Int("operation_index", result.Index),
+				zap.Error(result.Error))
 		}
 	}
+	
+	if len(errors) > 0 {
+		return fmt.Errorf("batch stop failed with %d errors", len(errors))
+	}
+	
 	return nil
 }
 
@@ -421,16 +488,20 @@ func (s *SupervisorService) RestartAllProcesses(nodeName string) error {
 
 // GetEnvironments 获取所有环境列表
 func (s *SupervisorService) GetEnvironments() []map[string]interface{} {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	
 	environmentMap := make(map[string][]map[string]interface{})
 	
 	// 按环境分组节点
 	for _, node := range s.nodes {
+		isConnected, lastPing := node.GetConnectionStatus()
 		nodeInfo := map[string]interface{}{
 			"name": node.Name,
 			"host": node.Host,
 			"port": node.Port,
-			"is_connected": node.IsConnected,
-			"last_ping": node.LastPing,
+			"is_connected": isConnected,
+			"last_ping": lastPing,
 		}
 		environmentMap[node.Environment] = append(environmentMap[node.Environment], nodeInfo)
 	}
@@ -450,17 +521,22 @@ func (s *SupervisorService) GetEnvironments() []map[string]interface{} {
 
 // GetEnvironmentDetails 获取特定环境的详细信息
 func (s *SupervisorService) GetEnvironmentDetails(environmentName string) map[string]interface{} {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	
 	members := make([]map[string]interface{}, 0)
 	
 	for _, node := range s.nodes {
 		if node.Environment == environmentName {
+			isConnected, lastPing := node.GetConnectionStatus()
+			processCount := node.GetProcessCount()
 			nodeInfo := map[string]interface{}{
 				"name": node.Name,
 				"host": node.Host,
 				"port": node.Port,
-				"is_connected": node.IsConnected,
-				"last_ping": node.LastPing,
-				"processes": len(node.Processes),
+				"is_connected": isConnected,
+				"last_ping": lastPing,
+				"processes": processCount,
 			}
 			members = append(members, nodeInfo)
 		}
@@ -478,19 +554,31 @@ func (s *SupervisorService) GetEnvironmentDetails(environmentName string) map[st
 
 // GetGroups 获取所有进程分组
 func (s *SupervisorService) GetGroups() []map[string]interface{} {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	
 	groupMap := make(map[string]map[string][]map[string]interface{})
 	
 	// 按分组和环境组织进程
 	for _, node := range s.nodes {
-		if !node.IsConnected {
+		isConnected, _ := node.GetConnectionStatus()
+		if !isConnected {
 			continue
 		}
 		
 		// 刷新进程信息
 		node.RefreshProcesses()
 		
-		for _, process := range node.Processes {
-			groupName := process.Group
+		// 获取进程列表的副本以避免竞态条件
+		processes := node.SerializeProcesses()
+		
+		for _, processData := range processes {
+			processName, _ := processData["name"].(string)
+			groupName, _ := processData["group"].(string)
+			state, _ := processData["state"].(int)
+			pid, _ := processData["pid"].(int)
+			uptime, _ := processData["uptime"].(float64)
+			
 			if groupName == "" {
 				groupName = "default"
 			}
@@ -500,11 +588,11 @@ func (s *SupervisorService) GetGroups() []map[string]interface{} {
 			}
 			
 			processInfo := map[string]interface{}{
-				"name": process.Name,
-				"state": process.State,
+				"name": processName,
+				"state": state,
 				"node": node.Name,
-				"pid": process.PID,
-				"uptime": process.Uptime,
+				"pid": pid,
+				"uptime": time.Duration(uptime * float64(time.Second)),
 			}
 			
 			groupMap[groupName][node.Environment] = append(groupMap[groupName][node.Environment], processInfo)
@@ -580,19 +668,28 @@ func (s *SupervisorService) RestartGroupProcesses(groupName, environmentName str
 
 // operateGroupProcesses 对分组中的进程执行操作
 func (s *SupervisorService) operateGroupProcesses(groupName, environmentName, operation string) error {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	
 	for _, node := range s.nodes {
 		if environmentName != "" && node.Environment != environmentName {
 			continue
 		}
 		
-		if !node.IsConnected {
+		isConnected, _ := node.GetConnectionStatus()
+		if !isConnected {
 			continue
 		}
 		
 		node.RefreshProcesses()
 		
-		for _, process := range node.Processes {
-			processGroupName := process.Group
+		// 获取进程列表的副本
+		processes := node.SerializeProcesses()
+		
+		for _, processData := range processes {
+			processName, _ := processData["name"].(string)
+			processGroupName, _ := processData["group"].(string)
+			
 			if processGroupName == "" {
 				processGroupName = "default"
 			}
@@ -600,11 +697,11 @@ func (s *SupervisorService) operateGroupProcesses(groupName, environmentName, op
 			if processGroupName == groupName {
 				switch operation {
 				case "start":
-					node.StartProcess(process.Name)
+					node.StartProcess(processName)
 				case "stop":
-					node.StopProcess(process.Name)
+					node.StopProcess(processName)
 				case "restart":
-					node.RestartProcess(process.Name)
+					node.RestartProcess(processName)
 				}
 			}
 		}
@@ -624,7 +721,17 @@ func (s *SupervisorService) StartAutoRefresh(interval time.Duration) chan struct
 			case <-ticker.C:
 				// 刷新所有节点状态
 				logger.Debug("Auto-refreshing node connections")
+				
+				// 收集节点列表，避免在持有锁时进行网络操作
+				s.mu.RLock()
+				nodes := make([]*Node, 0, len(s.nodes))
 				for _, node := range s.nodes {
+					nodes = append(nodes, node)
+				}
+				s.mu.RUnlock()
+				
+				// 在锁外进行网络操作
+				for _, node := range nodes {
 					prevConnected := node.IsConnected
 					if err := node.Connect(); err == nil {
 						node.IsConnected = true
@@ -661,13 +768,10 @@ func (s *SupervisorService) StopAutoRefresh(stopChan chan struct{}) {
 
 // Shutdown 优雅关闭SupervisorService，清理所有资源
 func (s *SupervisorService) Shutdown(ctx context.Context) error {
-	s.mu.Lock()
-	if s.shutdown {
-		s.mu.Unlock()
+	// 使用原子操作设置shutdown标志
+	if !atomic.CompareAndSwapInt32(&s.shutdown, 0, 1) {
 		return nil // 已经关闭
 	}
-	s.shutdown = true
-	s.mu.Unlock()
 	
 	logger.Info("Shutting down SupervisorService")
 	
@@ -686,7 +790,12 @@ func (s *SupervisorService) Shutdown(ctx context.Context) error {
 		logger.Info("All SupervisorService goroutines stopped gracefully")
 	case <-ctx.Done():
 		logger.Warn("SupervisorService shutdown timeout, some goroutines may still be running")
-		return ctx.Err()
+		// 不返回错误，继续清理
+	}
+	
+	// 清理超时管理器
+	if s.timeoutManager != nil {
+		s.timeoutManager.Cleanup()
 	}
 	
 	// 清理所有节点连接
@@ -706,9 +815,7 @@ func (s *SupervisorService) Shutdown(ctx context.Context) error {
 
 // IsShutdown 检查服务是否已关闭
 func (s *SupervisorService) IsShutdown() bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.shutdown
+	return atomic.LoadInt32(&s.shutdown) != 0
 }
 
 // Lifecycle 接口实现
@@ -718,7 +825,7 @@ func (s *SupervisorService) Start(ctx context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.shutdown {
+	if atomic.LoadInt32(&s.shutdown) != 0 {
 		return errors.NewInternalError("service already shutdown", nil)
 	}
 
@@ -758,7 +865,7 @@ func (s *SupervisorService) Health() HealthStatus {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	if s.shutdown {
+	if atomic.LoadInt32(&s.shutdown) != 0 {
 		return HealthStatus{
 			Status:    "unhealthy",
 			Timestamp: time.Now(),
@@ -772,7 +879,8 @@ func (s *SupervisorService) Health() HealthStatus {
 	totalNodes := len(s.nodes)
 	connectedNodes := 0
 	for _, node := range s.nodes {
-		if node.IsConnected {
+		isConnected, _ := node.GetConnectionStatus()
+		if isConnected {
 			connectedNodes++
 		}
 	}

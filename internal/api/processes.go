@@ -45,7 +45,6 @@ type ProcessInstance struct {
 	PID         int     `json:"pid"`
 	Uptime      float64 `json:"uptime"`
 	UptimeHuman string  `json:"uptime_human"`
-	Description string  `json:"description"`
 	Group       string  `json:"group"`
 }
 
@@ -94,7 +93,6 @@ func (api *ProcessesAPI) GetAggregatedProcesses(c *gin.Context) {
 				PID:         process.PID,
 				Uptime:      process.Uptime.Seconds(),
 				UptimeHuman: formatDuration(process.Uptime),
-				Description: process.Description,
 				Group:       process.Group,
 			}
 			aggProc.Instances = append(aggProc.Instances, instance)
