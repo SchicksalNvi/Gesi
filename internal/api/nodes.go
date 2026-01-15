@@ -170,7 +170,7 @@ func (api *NodesAPI) GetProcessLogStream(c *gin.Context) {
 	processName := c.Param("process_name")
 	
 	// 获取查询参数
-	offset := 0
+	offset := -1 // -1 表示从文件末尾读取
 	maxLines := 100
 	
 	if offsetStr := c.Query("offset"); offsetStr != "" {
@@ -211,6 +211,21 @@ func (api *NodesAPI) GetProcessLogStream(c *gin.Context) {
 		return
 	}
 	
+	// 如果 offset < 0，从文件末尾读取最新日志
+	if offset < 0 {
+		logStream, err := node.GetProcessLogStreamTail(processName, maxLines)
+		if err != nil {
+			handleAppError(c, err)
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{
+			"status": "success",
+			"data":   logStream,
+		})
+		return
+	}
+	
+	// 从指定偏移量读取
 	logStream, err := node.GetProcessLogStream(processName, offset, maxLines)
 	if err != nil {
 		handleAppError(c, err)

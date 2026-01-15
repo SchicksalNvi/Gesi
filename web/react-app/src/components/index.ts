@@ -7,13 +7,10 @@ export { default as NodesToolbar } from './NodesToolbar';
 export { default as VirtualizedNodesTable } from './VirtualizedNodesTable';
 export { default as PaginatedCardView } from './PaginatedCardView';
 export { default as ErrorBoundary } from './ErrorBoundary';
+export { GesiLogo } from './GesiLogo';
 
 // Re-export types
 export type { ViewMode } from './ViewToggle';
 export type { NodeFilters } from './FilterBar';
 export type { BulkAction } from './NodesToolbar';
 export { default as LogViewer } from './LogViewer';
-
-// Re-export types
-export type { ViewMode } from './ViewToggle';
-export type { NodeFilters } from './FilterBar';

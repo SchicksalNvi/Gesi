@@ -1,7 +1,6 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   Modal,
-  Tabs,
   Button,
   Switch,
   Space,
@@ -23,6 +22,7 @@ import {
 import { nodesApi } from '@/api/nodes';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { LogEntry, LogStream, LogStreamMessage } from '@/types';
+import { useStore } from '@/store';
 
 const { Text } = Typography;
 const { Search } = Input;
@@ -41,16 +41,36 @@ const LogViewer: React.FC<LogViewerProps> = ({
   nodeName,
   processName,
 }) => {
+  const { userPreferences } = useStore();
   const [logEntries, setLogEntries] = useState<LogEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [realTimeEnabled, setRealTimeEnabled] = useState(false);
-  const [lastOffset, setLastOffset] = useState(0);
   const [searchText, setSearchText] = useState('');
   const [levelFilter, setLevelFilter] = useState<string>('');
   const [autoScroll, setAutoScroll] = useState(true);
   
   const logContainerRef = useRef<HTMLDivElement>(null);
   const isSubscribedRef = useRef(false);
+
+  // 根据用户时区设置格式化时间戳
+  const formatTimestamp = useMemo(() => {
+    const timezone = userPreferences?.timezone || 'UTC';
+    return (timestamp: string) => {
+      try {
+        const date = new Date(timestamp);
+        return date.toLocaleTimeString('en-US', {
+          timeZone: timezone,
+          hour12: false,
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+        });
+      } catch {
+        // 如果时区无效，回退到本地时间
+        return new Date(timestamp).toLocaleTimeString();
+      }
+    };
+  }, [userPreferences?.timezone]);
 
   // WebSocket for real-time logs
   const { send, isConnected } = useWebSocket({
@@ -67,7 +87,19 @@ const LogViewer: React.FC<LogViewerProps> = ({
   const handleNewLogEntries = useCallback((newEntries: LogEntry[]) => {
     if (newEntries.length > 0) {
       setLogEntries(prev => {
-        const combined = [...prev, ...newEntries];
+        // 去重：基于 timestamp + message 组合
+        const existingKeys = new Set(
+          prev.map(e => `${e.timestamp}|${e.message}`)
+        );
+        const uniqueNewEntries = newEntries.filter(
+          e => !existingKeys.has(`${e.timestamp}|${e.message}`)
+        );
+        
+        if (uniqueNewEntries.length === 0) {
+          return prev; // 没有新条目，不更新
+        }
+        
+        const combined = [...prev, ...uniqueNewEntries];
         // Keep only last 1000 entries to prevent memory issues
         return combined.slice(-1000);
       });
@@ -87,11 +119,11 @@ const LogViewer: React.FC<LogViewerProps> = ({
   const loadInitialLogs = async () => {
     setLoading(true);
     try {
-      const response = await nodesApi.getProcessLogStream(nodeName, processName, 0, 100);
+      // 不传 offset，让后端从文件末尾读取最新日志
+      const response = await nodesApi.getProcessLogStream(nodeName, processName, undefined, 100);
       const logStream = (response as any).data as LogStream;
       
       setLogEntries(logStream.entries || []);
-      setLastOffset(logStream.last_offset || 0);
     } catch (error) {
       console.error('Failed to load logs:', error);
       message.error('Failed to load logs');
@@ -137,7 +169,6 @@ const LogViewer: React.FC<LogViewerProps> = ({
 
   const clearLogs = () => {
     setLogEntries([]);
-    setLastOffset(0);
   };
 
   const exportLogs = () => {
@@ -193,7 +224,6 @@ const LogViewer: React.FC<LogViewerProps> = ({
       unsubscribeFromLogs();
       setRealTimeEnabled(false);
       setLogEntries([]);
-      setLastOffset(0);
     }
   }, [visible]);
 
@@ -317,7 +347,7 @@ const LogViewer: React.FC<LogViewerProps> = ({
               >
                 <Space size="small">
                   <Text type="secondary" style={{ minWidth: 80 }}>
-                    {new Date(entry.timestamp).toLocaleTimeString()}
+                    {formatTimestamp(entry.timestamp)}
                   </Text>
                   <Tag
                     color={getLogLevelColor(entry.level)}

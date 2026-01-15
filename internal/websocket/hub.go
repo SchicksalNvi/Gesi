@@ -108,6 +108,16 @@ type Hub struct {
 	cancel        context.CancelFunc
 	wg            sync.WaitGroup  // New: for graceful shutdown
 	closeOnce     sync.Once       // Ensure Close is called only once
+	
+	// Refresh interval management
+	refreshInterval time.Duration
+	refreshMu       sync.RWMutex
+	refreshStop     chan struct{}
+	refreshWg       sync.WaitGroup
+	
+	// Log streaming offsets - shared across goroutines
+	logOffsets    map[string]int
+	logOffsetsMu  sync.RWMutex
 }
 
 type Client struct {
@@ -171,19 +181,22 @@ func NewHub(service *supervisor.SupervisorService) *Hub {
 	ctx, cancel := context.WithCancel(context.Background())
 	
 	hub := &Hub{
-		clients:    make(map[*Client]bool),
-		broadcast:  make(chan []byte, 256),
-		register:   make(chan *Client),
-		unregister: make(chan *Client),
-		cleanup:    make(chan *Client, 100), // Buffered cleanup channel
-		service:    service,
-		config:     GetDefaultWebSocketConfig(),
-		ctx:        ctx,
-		cancel:     cancel,
+		clients:         make(map[*Client]bool),
+		broadcast:       make(chan []byte, 256),
+		register:        make(chan *Client),
+		unregister:      make(chan *Client),
+		cleanup:         make(chan *Client, 100), // Buffered cleanup channel
+		service:         service,
+		config:          GetDefaultWebSocketConfig(),
+		ctx:             ctx,
+		cancel:          cancel,
+		refreshInterval: 5 * time.Second, // 默认 5 秒
+		refreshStop:     make(chan struct{}),
+		logOffsets:      make(map[string]int),
 	}
 	
 	// Pre-add WaitGroup count for background goroutines
-	hub.wg.Add(4) // Updated for log streaming goroutine
+	hub.wg.Add(3) // heartbeat, cleanup, log streaming
 	return hub
 }
 
@@ -192,19 +205,22 @@ func NewHubWithConfig(service *supervisor.SupervisorService, config *WebSocketCo
 	ctx, cancel := context.WithCancel(context.Background())
 	
 	hub := &Hub{
-		clients:    make(map[*Client]bool),
-		broadcast:  make(chan []byte, 256),
-		register:   make(chan *Client),
-		unregister: make(chan *Client),
-		cleanup:    make(chan *Client, 100), // Buffered cleanup channel
-		service:    service,
-		config:     config,
-		ctx:        ctx,
-		cancel:     cancel,
+		clients:         make(map[*Client]bool),
+		broadcast:       make(chan []byte, 256),
+		register:        make(chan *Client),
+		unregister:      make(chan *Client),
+		cleanup:         make(chan *Client, 100), // Buffered cleanup channel
+		service:         service,
+		config:          config,
+		ctx:             ctx,
+		cancel:          cancel,
+		refreshInterval: 5 * time.Second, // 默认 5 秒
+		refreshStop:     make(chan struct{}),
+		logOffsets:      make(map[string]int),
 	}
 	
 	// Pre-add WaitGroup count for background goroutines
-	hub.wg.Add(4) // Updated for log streaming goroutine
+	hub.wg.Add(3) // heartbeat, cleanup, log streaming
 	return hub
 }
 
@@ -217,6 +233,7 @@ func (h *Hub) Close() {
 		done := make(chan struct{})
 		go func() {
 			h.wg.Wait()
+			h.refreshWg.Wait()
 			close(done)
 		}()
 		
@@ -229,6 +246,36 @@ func (h *Hub) Close() {
 	})
 }
 
+// SetRefreshInterval 设置刷新间隔并重启定期更新
+func (h *Hub) SetRefreshInterval(interval time.Duration) {
+	h.refreshMu.Lock()
+	oldInterval := h.refreshInterval
+	h.refreshInterval = interval
+	h.refreshMu.Unlock()
+	
+	if oldInterval != interval {
+		logger.Info("WebSocket refresh interval changed, restarting periodic updates",
+			zap.Duration("old_interval", oldInterval),
+			zap.Duration("new_interval", interval))
+		
+		// 停止旧的定期更新
+		close(h.refreshStop)
+		h.refreshWg.Wait()
+		
+		// 启动新的定期更新
+		h.refreshStop = make(chan struct{})
+		h.refreshWg.Add(1)
+		go h.startPeriodicUpdates()
+	}
+}
+
+// GetRefreshInterval 获取当前刷新间隔
+func (h *Hub) GetRefreshInterval() time.Duration {
+	h.refreshMu.RLock()
+	defer h.refreshMu.RUnlock()
+	return h.refreshInterval
+}
+
 // GetConnectionCount 获取当前连接数
 func (h *Hub) GetConnectionCount() int64 {
 	return atomic.LoadInt64(&h.connectionCount)
@@ -236,6 +283,7 @@ func (h *Hub) GetConnectionCount() int64 {
 
 func (h *Hub) Run() {
 	// Start background goroutines
+	h.refreshWg.Add(1)
 	go h.startPeriodicUpdates()
 	go h.startHeartbeatChecker()
 	go h.startCleanupWorker() // New: separate cleanup worker
@@ -335,13 +383,20 @@ func (h *Hub) startCleanupWorker() {
 }
 
 func (h *Hub) startPeriodicUpdates() {
-	defer h.wg.Done()
-	ticker := time.NewTicker(5 * time.Second)
+	defer h.refreshWg.Done()
+	
+	h.refreshMu.RLock()
+	interval := h.refreshInterval
+	h.refreshMu.RUnlock()
+	
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-h.ctx.Done():
+			return
+		case <-h.refreshStop:
 			return
 		case <-ticker.C:
 			h.broadcastNodesUpdate()
@@ -357,21 +412,18 @@ func (h *Hub) startLogStreaming() {
 	ticker := time.NewTicker(2 * time.Second) // 每2秒检查一次日志更新
 	defer ticker.Stop()
 
-	// 跟踪每个进程的日志偏移量
-	logOffsets := make(map[string]int) // key: "nodeName:processName"
-
 	for {
 		select {
 		case <-h.ctx.Done():
 			return
 		case <-ticker.C:
-			h.pollAndStreamLogs(logOffsets)
+			h.pollAndStreamLogs()
 		}
 	}
 }
 
 // pollAndStreamLogs 轮询并流式传输日志
-func (h *Hub) pollAndStreamLogs(logOffsets map[string]int) {
+func (h *Hub) pollAndStreamLogs() {
 	// 收集所有订阅的日志流
 	subscribedLogs := h.getSubscribedLogStreams()
 	
@@ -389,11 +441,30 @@ func (h *Hub) pollAndStreamLogs(logOffsets map[string]int) {
 			continue
 		}
 		
-		// 获取当前偏移量
-		currentOffset := logOffsets[logKey]
+		// 获取当前偏移量（使用共享的 logOffsets）
+		h.logOffsetsMu.RLock()
+		currentOffset, exists := h.logOffsets[logKey]
+		h.logOffsetsMu.RUnlock()
 		
-		// 获取新的日志条目
-		logStream, err := node.GetProcessLogStream(processName, currentOffset, 20)
+		if !exists {
+			// 首次订阅：获取当前文件大小作为起始偏移量，不发送任何日志
+			// 这样只会推送订阅之后的新日志
+			fileSize, err := node.GetProcessLogSize(processName)
+			if err != nil {
+				logger.Debug("Failed to get log size",
+					zap.String("node", nodeName),
+					zap.String("process", processName),
+					zap.Error(err))
+				continue
+			}
+			h.logOffsetsMu.Lock()
+			h.logOffsets[logKey] = fileSize
+			h.logOffsetsMu.Unlock()
+			continue // 不发送任何日志，等待下次轮询
+		}
+		
+		// 从当前偏移量读取新日志
+		logStream, err := node.GetProcessLogStream(processName, currentOffset, 50)
 		if err != nil {
 			logger.Debug("Failed to get log stream",
 				zap.String("node", nodeName),
@@ -402,11 +473,13 @@ func (h *Hub) pollAndStreamLogs(logOffsets map[string]int) {
 			continue
 		}
 		
-		// 如果有新的日志条目，发送给订阅的客户端
-		if len(logStream.Entries) > 0 {
+		// 只有当偏移量变化时才发送（说明有新日志）
+		if logStream.LastOffset > currentOffset && len(logStream.Entries) > 0 {
 			h.SendLogStreamToSubscribedClients(nodeName, processName, logStream)
 			// 更新偏移量
-			logOffsets[logKey] = logStream.LastOffset
+			h.logOffsetsMu.Lock()
+			h.logOffsets[logKey] = logStream.LastOffset
+			h.logOffsetsMu.Unlock()
 		}
 	}
 }

@@ -220,6 +220,72 @@ func extractFieldValue(structXML, fieldName string) string {
 
 
 
+// parseBooleanResponse 解析 XML-RPC 布尔响应
+// 从 XML 中提取 <boolean> 标签的值
+// 返回: (success bool, err error)
+func parseBooleanResponse(xmlResponse string) (bool, error) {
+	// 检查是否是 fault 响应
+	if strings.Contains(xmlResponse, "<fault>") {
+		_, faultString, _ := parseFaultResponse(xmlResponse)
+		return false, fmt.Errorf("XML-RPC fault: %s", faultString)
+	}
+
+	// 查找 <boolean> 标签
+	// 格式: <value><boolean>1</boolean></value> 或 <value><boolean>0</boolean></value>
+	if strings.Contains(xmlResponse, "<boolean>1</boolean>") {
+		return true, nil
+	}
+	if strings.Contains(xmlResponse, "<boolean>0</boolean>") {
+		return false, nil
+	}
+
+	// 尝试更精确的解析
+	boolStart := strings.Index(xmlResponse, "<boolean>")
+	if boolStart == -1 {
+		return false, fmt.Errorf("no boolean value found in response")
+	}
+	boolStart += 9 // len("<boolean>")
+
+	boolEnd := strings.Index(xmlResponse[boolStart:], "</boolean>")
+	if boolEnd == -1 {
+		return false, fmt.Errorf("malformed boolean response")
+	}
+
+	value := strings.TrimSpace(xmlResponse[boolStart : boolStart+boolEnd])
+	switch value {
+	case "1", "true":
+		return true, nil
+	case "0", "false":
+		return false, nil
+	default:
+		return false, fmt.Errorf("invalid boolean value: %s", value)
+	}
+}
+
+// parseFaultResponse 解析 XML-RPC Fault 响应
+// 从 XML 中提取 faultCode 和 faultString
+// 返回: (faultCode int, faultString string, isFault bool)
+func parseFaultResponse(xmlResponse string) (int, string, bool) {
+	if !strings.Contains(xmlResponse, "<fault>") {
+		return 0, "", false
+	}
+
+	faultCode := 0
+	faultString := ""
+
+	// 提取 faultCode
+	if codeStr := extractValue(xmlResponse, "faultCode"); codeStr != "" {
+		if code, err := strconv.Atoi(codeStr); err == nil {
+			faultCode = code
+		}
+	}
+
+	// 提取 faultString
+	faultString = extractValue(xmlResponse, "faultString")
+
+	return faultCode, faultString, true
+}
+
 // formatUptime 格式化运行时间为人类可读格式
 func formatUptime(seconds int64) string {
 	if seconds < 60 {
@@ -247,8 +313,28 @@ func (s *SupervisorClient) StartProcess(name string) error {
 		return err
 	}
 
-	if success, ok := result.(bool); !ok || !success {
-		return fmt.Errorf("failed to start process %s", name)
+	xmlResponse, ok := result.(string)
+	if !ok {
+		return fmt.Errorf("unexpected response type: %T", result)
+	}
+
+	// 检查是否是 fault 响应
+	if faultCode, faultString, isFault := parseFaultResponse(xmlResponse); isFault {
+		// ALREADY_STARTED 视为成功（幂等操作）
+		if strings.Contains(faultString, "ALREADY_STARTED") {
+			return nil
+		}
+		return fmt.Errorf("supervisor fault [%d]: %s", faultCode, faultString)
+	}
+
+	// 解析布尔响应
+	success, err := parseBooleanResponse(xmlResponse)
+	if err != nil {
+		return fmt.Errorf("failed to parse response for process %s: %v", name, err)
+	}
+
+	if !success {
+		return fmt.Errorf("supervisor rejected start request for process %s", name)
 	}
 
 	return nil
@@ -256,13 +342,49 @@ func (s *SupervisorClient) StartProcess(name string) error {
 
 // StopProcess 停止进程
 func (s *SupervisorClient) StopProcess(name string) error {
-	result, err := s.client.Call("supervisor.stopProcess", []interface{}{name})
+	// 先检查进程状态，如果已经停止则直接返回成功
+	info, err := s.GetProcessInfo(name)
 	if err != nil {
 		return err
 	}
+	
+	// 如果进程已经停止，直接返回成功
+	// Supervisor 状态码: 0=STOPPED, 10=STARTING, 20=RUNNING, 30=BACKOFF, 40=STOPPING, 100=EXITED, 200=FATAL, 1000=UNKNOWN
+	if info.State == 0 || info.State == 100 || info.State == 200 {
+		return nil // 进程已经停止或退出，无需再停止
+	}
+	
+	result, err := s.client.Call("supervisor.stopProcess", []interface{}{name})
+	if err != nil {
+		// 如果错误信息表明进程已经停止，也返回成功
+		if strings.Contains(err.Error(), "NOT_RUNNING") || strings.Contains(err.Error(), "not running") {
+			return nil
+		}
+		return err
+	}
 
-	if success, ok := result.(bool); !ok || !success {
-		return fmt.Errorf("failed to stop process %s", name)
+	xmlResponse, ok := result.(string)
+	if !ok {
+		return fmt.Errorf("unexpected response type: %T", result)
+	}
+
+	// 检查是否是 fault 响应
+	if faultCode, faultString, isFault := parseFaultResponse(xmlResponse); isFault {
+		// NOT_RUNNING 视为成功（幂等操作）
+		if strings.Contains(faultString, "NOT_RUNNING") {
+			return nil
+		}
+		return fmt.Errorf("supervisor fault [%d]: %s", faultCode, faultString)
+	}
+
+	// 解析布尔响应
+	success, err := parseBooleanResponse(xmlResponse)
+	if err != nil {
+		return fmt.Errorf("failed to parse response for process %s: %v", name, err)
+	}
+
+	if !success {
+		return fmt.Errorf("supervisor rejected stop request for process %s", name)
 	}
 
 	return nil
@@ -275,17 +397,102 @@ func (s *SupervisorClient) GetProcessInfo(name string) (*ProcessInfo, error) {
 		return nil, err
 	}
 
-	if info, ok := result.(map[string]interface{}); ok {
-		pi := &ProcessInfo{}
-		// 填充ProcessInfo字段
-		if name, ok := info["name"].(string); ok {
-			pi.Name = name
-		}
-		// ... 其他字段的解析
-		return pi, nil
+	// 处理 XML 响应
+	xmlResponse, ok := result.(string)
+	if !ok {
+		return nil, fmt.Errorf("unexpected response type: %T", result)
 	}
 
-	return nil, fmt.Errorf("invalid process info response")
+	// 检查是否有 fault
+	if strings.Contains(xmlResponse, "<fault>") {
+		return nil, fmt.Errorf("XML-RPC fault in response")
+	}
+
+	// 解析单个进程信息
+	pi := &ProcessInfo{}
+	
+	// 解析 name
+	if nameMatch := extractValue(xmlResponse, "name"); nameMatch != "" {
+		pi.Name = nameMatch
+	}
+	
+	// 解析 group
+	if groupMatch := extractValue(xmlResponse, "group"); groupMatch != "" {
+		pi.Group = groupMatch
+	}
+	
+	// 解析 state
+	if stateMatch := extractValue(xmlResponse, "state"); stateMatch != "" {
+		if state, err := strconv.Atoi(stateMatch); err == nil {
+			pi.State = state
+		}
+	}
+	
+	// 解析 statename
+	if statenameMatch := extractValue(xmlResponse, "statename"); statenameMatch != "" {
+		pi.StateName = statenameMatch
+	}
+	
+	// 解析 pid
+	if pidMatch := extractValue(xmlResponse, "pid"); pidMatch != "" {
+		if pid, err := strconv.Atoi(pidMatch); err == nil {
+			pi.PID = pid
+		}
+	}
+
+	return pi, nil
+}
+
+// extractValue 从 XML 响应中提取指定字段的值
+func extractValue(xml, fieldName string) string {
+	// 查找 <name>fieldName</name> 后面的 <value> 标签
+	nameTag := "<name>" + fieldName + "</name>"
+	idx := strings.Index(xml, nameTag)
+	if idx == -1 {
+		return ""
+	}
+	
+	// 从 nameTag 位置开始查找 <value> 标签
+	remaining := xml[idx+len(nameTag):]
+	
+	// 尝试解析 <int> 类型
+	if intStart := strings.Index(remaining, "<int>"); intStart != -1 && intStart < 100 {
+		intEnd := strings.Index(remaining[intStart:], "</int>")
+		if intEnd != -1 {
+			return remaining[intStart+5 : intStart+intEnd]
+		}
+	}
+	
+	// 尝试解析 <i4> 类型
+	if i4Start := strings.Index(remaining, "<i4>"); i4Start != -1 && i4Start < 100 {
+		i4End := strings.Index(remaining[i4Start:], "</i4>")
+		if i4End != -1 {
+			return remaining[i4Start+4 : i4Start+i4End]
+		}
+	}
+	
+	// 尝试解析 <string> 类型
+	if strStart := strings.Index(remaining, "<string>"); strStart != -1 && strStart < 100 {
+		strEnd := strings.Index(remaining[strStart:], "</string>")
+		if strEnd != -1 {
+			return remaining[strStart+8 : strStart+strEnd]
+		}
+	}
+	
+	// 尝试解析空 <value></value> 或 <value/>
+	if valueStart := strings.Index(remaining, "<value>"); valueStart != -1 && valueStart < 50 {
+		valueEnd := strings.Index(remaining[valueStart:], "</value>")
+		if valueEnd != -1 {
+			content := remaining[valueStart+7 : valueStart+valueEnd]
+			// 去除可能的标签
+			content = strings.TrimSpace(content)
+			if !strings.HasPrefix(content, "<") {
+				return content
+			}
+		}
+	}
+	
+	return ""
 }
 
 // TailProcessStdoutLog 获取进程 stdout 日志尾部 - 符合官方 API 规范
@@ -338,41 +545,143 @@ func (s *SupervisorClient) TailProcessStderrLog(name string, offset, length int)
 
 // parseTailLogResponse 解析 tailProcessLog 的响应
 // Supervisor API 返回格式: [string bytes, int offset, bool overflow]
+// XML-RPC 数组格式: <array><data><value>...</value><value>...</value><value>...</value></data></array>
 func parseTailLogResponse(xmlResponse string) (string, int, bool) {
-	// 查找数组结构 <data><value>...</value><value>...</value><value>...</value></data>
 	logContent := ""
 	nextOffset := 0
 	overflow := false
 	
-	// 提取第一个值 (日志内容)
-	if start := strings.Index(xmlResponse, "<value><string>"); start != -1 {
-		start += 15 // len("<value><string>")
-		if end := strings.Index(xmlResponse[start:], "</string></value>"); end != -1 {
-			logContent = xmlResponse[start : start+end]
-		}
+	// 查找 <array><data> 结构
+	dataStart := strings.Index(xmlResponse, "<data>")
+	dataEnd := strings.Index(xmlResponse, "</data>")
+	if dataStart == -1 || dataEnd == -1 {
+		return logContent, nextOffset, overflow
 	}
 	
-	// 提取第二个值 (偏移量)
-	// 查找第二个 <value><int>
-	firstIntEnd := strings.Index(xmlResponse, "</int></value>")
-	if firstIntEnd != -1 {
-		searchStart := firstIntEnd + 14 // len("</int></value>")
-		if start := strings.Index(xmlResponse[searchStart:], "<value><int>"); start != -1 {
-			start += searchStart + 12 // len("<value><int>")
-			if end := strings.Index(xmlResponse[start:], "</int></value>"); end != -1 {
-				if offset, err := strconv.Atoi(xmlResponse[start : start+end]); err == nil {
-					nextOffset = offset
-				}
-			}
-		}
+	dataContent := xmlResponse[dataStart:dataEnd]
+	
+	// 提取所有 <value>...</value> 元素
+	values := extractValues(dataContent)
+	
+	// 第一个值: 日志内容 (string)
+	if len(values) > 0 {
+		logContent = extractStringValue(values[0])
 	}
 	
-	// 提取第三个值 (溢出标志)
-	if strings.Contains(xmlResponse, "<value><boolean>1</boolean></value>") {
-		overflow = true
+	// 第二个值: 偏移量 (int)
+	if len(values) > 1 {
+		nextOffset = extractIntValue(values[1])
+	}
+	
+	// 第三个值: 溢出标志 (boolean)
+	if len(values) > 2 {
+		overflow = extractBoolValue(values[2])
 	}
 	
 	return logContent, nextOffset, overflow
+}
+
+// extractValues 从 <data> 内容中提取所有 <value> 元素
+func extractValues(dataContent string) []string {
+	var values []string
+	remaining := dataContent
+	
+	for {
+		start := strings.Index(remaining, "<value>")
+		if start == -1 {
+			break
+		}
+		
+		// 找到对应的 </value>，需要处理嵌套
+		end := findMatchingValueEnd(remaining[start:])
+		if end == -1 {
+			break
+		}
+		
+		valueContent := remaining[start : start+end+8] // 8 = len("</value>")
+		values = append(values, valueContent)
+		remaining = remaining[start+end+8:]
+	}
+	
+	return values
+}
+
+// findMatchingValueEnd 找到匹配的 </value> 位置
+func findMatchingValueEnd(s string) int {
+	depth := 0
+	i := 0
+	for i < len(s) {
+		if strings.HasPrefix(s[i:], "<value>") {
+			depth++
+			i += 7
+		} else if strings.HasPrefix(s[i:], "</value>") {
+			depth--
+			if depth == 0 {
+				return i
+			}
+			i += 8
+		} else {
+			i++
+		}
+	}
+	return -1
+}
+
+// extractStringValue 从 <value> 元素中提取字符串值
+func extractStringValue(valueXML string) string {
+	// 尝试 <string>...</string>
+	if start := strings.Index(valueXML, "<string>"); start != -1 {
+		start += 8
+		if end := strings.Index(valueXML[start:], "</string>"); end != -1 {
+			return valueXML[start : start+end]
+		}
+	}
+	// 有些实现直接在 <value> 中放字符串
+	if start := strings.Index(valueXML, "<value>"); start != -1 {
+		start += 7
+		if end := strings.Index(valueXML[start:], "</value>"); end != -1 {
+			content := valueXML[start : start+end]
+			// 如果没有其他标签，就是纯字符串
+			if !strings.Contains(content, "<") {
+				return content
+			}
+		}
+	}
+	return ""
+}
+
+// extractIntValue 从 <value> 元素中提取整数值
+func extractIntValue(valueXML string) int {
+	// 尝试 <int>...</int>
+	if start := strings.Index(valueXML, "<int>"); start != -1 {
+		start += 5
+		if end := strings.Index(valueXML[start:], "</int>"); end != -1 {
+			if val, err := strconv.Atoi(valueXML[start : start+end]); err == nil {
+				return val
+			}
+		}
+	}
+	// 尝试 <i4>...</i4>
+	if start := strings.Index(valueXML, "<i4>"); start != -1 {
+		start += 4
+		if end := strings.Index(valueXML[start:], "</i4>"); end != -1 {
+			if val, err := strconv.Atoi(valueXML[start : start+end]); err == nil {
+				return val
+			}
+		}
+	}
+	return 0
+}
+
+// extractBoolValue 从 <value> 元素中提取布尔值
+func extractBoolValue(valueXML string) bool {
+	if strings.Contains(valueXML, "<boolean>1</boolean>") {
+		return true
+	}
+	if strings.Contains(valueXML, "<boolean>true</boolean>") {
+		return true
+	}
+	return false
 }
 
 // formatLogContent 格式化日志内容
@@ -384,16 +693,7 @@ func formatLogContent(content string) string {
 	content = strings.ReplaceAll(content, "&quot;", "\"")
 	content = strings.ReplaceAll(content, "&#39;", "'")
 	
-	// 按逗号分割并格式化为多行
-	lines := strings.Split(content, ",")
-	var formattedLines []string
-	
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if line != "" {
-			formattedLines = append(formattedLines, line)
-		}
-	}
-	
-	return strings.Join(formattedLines, "\n")
+	// 日志内容应该保持原样，不要按逗号分割
+	// 只需要清理首尾空白
+	return strings.TrimSpace(content)
 }

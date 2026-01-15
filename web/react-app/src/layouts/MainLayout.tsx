@@ -15,6 +15,7 @@ import {
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 import { useStore } from '@/store';
+import { GesiLogo } from '@/components/GesiLogo';
 
 const { Header, Sider, Content } = Layout;
 
@@ -133,14 +134,12 @@ export default function MainLayout() {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            color: '#fff',
-            fontSize: collapsed ? 16 : 20,
-            fontWeight: 'bold',
-            cursor: 'pointer', // Indicates clickable element for navigation
+            cursor: 'pointer',
+            padding: '0 20px',
           }}
-          onClick={() => navigate('/dashboard')} // Navigate to dashboard on logo click
+          onClick={() => navigate('/dashboard')}
         >
-          {collapsed ? 'GC' : 'Go-CESI'}
+          <GesiLogo size={36} collapsed={collapsed} textColor="#fff" />
         </div>
         <Menu
           theme="dark"

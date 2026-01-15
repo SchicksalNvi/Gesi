@@ -33,12 +33,12 @@ type AlertRule struct {
 // Alert 告警记录
 type Alert struct {
 	ID          uint           `json:"id" gorm:"primaryKey"`
-	RuleID      uint           `json:"rule_id" gorm:"not null;index:idx_rule_id;uniqueIndex:idx_alert_unique" validate:"required,gt=0"`
-	NodeName    string         `json:"node_name" gorm:"size:100;index:idx_alert_node_name;uniqueIndex:idx_alert_unique" validate:"omitempty,max=100"`
-	ProcessName *string        `json:"process_name,omitempty" gorm:"size:100;index:idx_alert_process_name;uniqueIndex:idx_alert_unique" validate:"omitempty,max=100"`
+	RuleID      uint           `json:"rule_id" gorm:"not null;index:idx_rule_id" validate:"required,gt=0"`
+	NodeName    string         `json:"node_name" gorm:"size:100;index:idx_alert_node_name" validate:"omitempty,max=100"`
+	ProcessName *string        `json:"process_name,omitempty" gorm:"size:100;index:idx_alert_process_name" validate:"omitempty,max=100"`
 	Message     string         `json:"message" gorm:"not null;size:1000" validate:"required,min=1,max=1000"`
 	Severity    string         `json:"severity" gorm:"not null;size:20;index:idx_alert_severity" validate:"required,oneof=low medium high critical"`
-	Status      string         `json:"status" gorm:"not null;size:20;default:'active';index:idx_alert_status;uniqueIndex:idx_alert_unique" validate:"required,oneof=active acknowledged resolved"`
+	Status      string         `json:"status" gorm:"not null;size:20;default:'active';index:idx_alert_status" validate:"required,oneof=active acknowledged resolved"`
 	Value       float64        `json:"value" validate:"gte=0"`
 	StartTime   time.Time      `json:"start_time" gorm:"not null;index:idx_start_time" validate:"required"`
 	EndTime     *time.Time     `json:"end_time,omitempty" gorm:"index:idx_end_time"`

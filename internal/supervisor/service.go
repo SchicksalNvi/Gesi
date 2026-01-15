@@ -70,8 +70,10 @@ func (s *SupervisorService) SetActivityLogger(logger ActivityLogger) {
 	s.activityLogger = logger
 }
 
-// StartMonitoring 启动状态监控
-func (s *SupervisorService) StartMonitoring(interval time.Duration) {
+// StartMonitoring 启动状态监控，返回停止通道
+func (s *SupervisorService) StartMonitoring(interval time.Duration) chan struct{} {
+	stopChan := make(chan struct{})
+	
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
@@ -82,11 +84,23 @@ func (s *SupervisorService) StartMonitoring(interval time.Duration) {
 			select {
 			case <-s.stopChan:
 				return
+			case <-stopChan:
+				logger.Debug("Stopping monitoring goroutine")
+				return
 			case <-ticker.C:
 				s.monitorStates()
 			}
 		}
 	}()
+	
+	return stopChan
+}
+
+// StopMonitoring 停止状态监控
+func (s *SupervisorService) StopMonitoring(stopChan chan struct{}) {
+	if stopChan != nil {
+		close(stopChan)
+	}
 }
 
 // monitorStates 监控节点和进程状态变化
@@ -259,6 +273,13 @@ func (s *SupervisorService) AddNode(name, environment, host string, port int, us
 			zap.String("name", name))
 		node.IsConnected = true
 		node.LastPing = time.Now()
+		
+		// 连接成功后立即刷新进程列表
+		if err := node.RefreshProcesses(); err != nil {
+			logger.Warn("Failed to refresh processes on initial connection",
+				zap.String("name", name),
+				zap.Error(err))
+		}
 	}
 
 	s.nodes[name] = node

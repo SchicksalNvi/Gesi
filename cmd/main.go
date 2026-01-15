@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -273,10 +274,6 @@ func main() {
 	
 	// 设置活动日志记录器到 supervisor
 	supervisorService.SetActivityLogger(activityLogService)
-	
-	// 启动状态监控（每 10 秒检查一次）
-	supervisorService.StartMonitoring(10 * time.Second)
-	logger.Info("Supervisor state monitoring started")
 
 	// 初始化WebSocket Hub
 	hub := websocket.NewHub(supervisorService)
@@ -314,8 +311,22 @@ func main() {
 		}
 	}
 
-	// 启动自动刷新
-	stopRefresh := supervisorService.StartAutoRefresh(30 * time.Second)
+	// 启动自动刷新和状态监控（从系统设置读取间隔）
+	refreshInterval := getRefreshIntervalFromSettings(db)
+	stopRefresh := supervisorService.StartAutoRefresh(refreshInterval)
+	stopMonitoring := supervisorService.StartMonitoring(refreshInterval)
+	
+	// 设置 WebSocket Hub 的刷新间隔
+	processRefreshInterval := getProcessRefreshIntervalFromSettings(db)
+	hub.SetRefreshInterval(processRefreshInterval)
+	
+	logger.Info("Supervisor auto-refresh and state monitoring started",
+		zap.Duration("interval", refreshInterval))
+	logger.Info("WebSocket process refresh started",
+		zap.Duration("interval", processRefreshInterval))
+	
+	// 启动配置监听器，当刷新间隔改变时重启自动刷新和监控
+	go watchRefreshIntervalChanges(db, supervisorService, hub, &stopRefresh, &stopMonitoring)
 
 	// 设置Gin路由
 	router := gin.Default()
@@ -489,8 +500,9 @@ func main() {
 	alertMonitor.Stop()
 	logger.Info("Alert Monitor stopped")
 
-	// 停止自动刷新
+	// 停止自动刷新和监控
 	supervisorService.StopAutoRefresh(stopRefresh)
+	supervisorService.StopMonitoring(stopMonitoring)
 
 	// 停止性能监控
 	if appConfig.Performance.MemoryMonitoringEnabled {
@@ -607,4 +619,82 @@ func loadConfig() (*Config, error) {
 		zap.Int("nodes_count", len(cfg.Nodes)))
 
 	return &cfg, nil
+}
+
+// getRefreshIntervalFromSettings 从系统设置中读取刷新间隔
+func getRefreshIntervalFromSettings(db *gorm.DB) time.Duration {
+	var setting models.SystemSettings
+	result := db.Where("key = ?", "refresh_interval").First(&setting)
+	
+	if result.Error != nil || setting.Value == "" {
+		// 默认 30 秒
+		return 30 * time.Second
+	}
+	
+	// 解析间隔值（秒）
+	interval, err := strconv.Atoi(setting.Value)
+	if err != nil || interval <= 0 {
+		return 30 * time.Second
+	}
+	
+	return time.Duration(interval) * time.Second
+}
+
+// getProcessRefreshIntervalFromSettings 从系统设置中读取进程页面刷新间隔
+func getProcessRefreshIntervalFromSettings(db *gorm.DB) time.Duration {
+	var setting models.SystemSettings
+	result := db.Where("key = ?", "process_refresh_interval").First(&setting)
+	
+	if result.Error != nil || setting.Value == "" {
+		// 默认 5 秒
+		return 5 * time.Second
+	}
+	
+	// 解析间隔值（秒）
+	interval, err := strconv.Atoi(setting.Value)
+	if err != nil || interval <= 0 {
+		return 5 * time.Second
+	}
+	
+	return time.Duration(interval) * time.Second
+}
+
+// watchRefreshIntervalChanges 监听刷新间隔配置的变化
+func watchRefreshIntervalChanges(db *gorm.DB, service *supervisor.SupervisorService, hub *websocket.Hub, stopRefresh *chan struct{}, stopMonitoring *chan struct{}) {
+	ticker := time.NewTicker(10 * time.Second) // 每 10 秒检查一次配置
+	defer ticker.Stop()
+	
+	lastInterval := getRefreshIntervalFromSettings(db)
+	lastProcessInterval := getProcessRefreshIntervalFromSettings(db)
+	
+	for range ticker.C {
+		currentInterval := getRefreshIntervalFromSettings(db)
+		currentProcessInterval := getProcessRefreshIntervalFromSettings(db)
+		
+		// 检查节点刷新间隔是否变化
+		if currentInterval != lastInterval {
+			logger.Info("Refresh interval changed, restarting auto-refresh and monitoring",
+				zap.Duration("old_interval", lastInterval),
+				zap.Duration("new_interval", currentInterval))
+			
+			// 停止旧的自动刷新和监控
+			close(*stopRefresh)
+			close(*stopMonitoring)
+			
+			// 启动新的自动刷新和监控
+			*stopRefresh = service.StartAutoRefresh(currentInterval)
+			*stopMonitoring = service.StartMonitoring(currentInterval)
+			lastInterval = currentInterval
+		}
+		
+		// 检查进程刷新间隔是否变化
+		if currentProcessInterval != lastProcessInterval {
+			logger.Info("Process refresh interval changed, updating WebSocket hub",
+				zap.Duration("old_interval", lastProcessInterval),
+				zap.Duration("new_interval", currentProcessInterval))
+			
+			hub.SetRefreshInterval(currentProcessInterval)
+			lastProcessInterval = currentProcessInterval
+		}
+	}
 }

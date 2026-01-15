@@ -15,6 +15,31 @@ import (
 // ErrNodeNotConnected 节点未连接错误
 var ErrNodeNotConnected = errors.NewConnectionError("node", nil)
 
+// LogTimezone 日志解析使用的时区，默认为本地时区
+// 可通过 SetLogTimezone 设置
+var LogTimezone = time.Local
+
+// SetLogTimezone 设置日志解析使用的时区
+func SetLogTimezone(tzName string) error {
+	if tzName == "" || tzName == "Local" {
+		LogTimezone = time.Local
+		return nil
+	}
+	
+	loc, err := time.LoadLocation(tzName)
+	if err != nil {
+		logger.Warn("Invalid timezone, using local timezone",
+			zap.String("timezone", tzName),
+			zap.Error(err))
+		LogTimezone = time.Local
+		return err
+	}
+	
+	LogTimezone = loc
+	logger.Info("Log timezone set", zap.String("timezone", tzName))
+	return nil
+}
+
 type Node struct {
 	Name         string
 	Environment  string
@@ -319,7 +344,70 @@ func (n *Node) GetProcessLogs(name string) (map[string][]string, error) {
 	}, nil
 }
 
-// GetProcessLogStream 获取结构化的日志流 - 使用正确的 Supervisor API
+// GetProcessLogSize 获取进程日志文件当前大小（字节偏移量）
+func (n *Node) GetProcessLogSize(name string) (int, error) {
+	n.mu.RLock()
+	connected := n.IsConnected
+	n.mu.RUnlock()
+	
+	if !connected {
+		return 0, ErrNodeNotConnected
+	}
+
+	// 调用 tailProcessStdoutLog(name, 0, 0) 获取当前文件大小
+	_, fileSize, _, err := n.client.TailProcessStdoutLog(name, 0, 0)
+	if err != nil {
+		return 0, err
+	}
+	
+	return fileSize, nil
+}
+
+// GetProcessLogStreamTail 从文件末尾读取最新日志
+func (n *Node) GetProcessLogStreamTail(name string, maxLines int) (*LogStream, error) {
+	n.mu.RLock()
+	connected := n.IsConnected
+	n.mu.RUnlock()
+	
+	if !connected {
+		return nil, ErrNodeNotConnected
+	}
+
+	bytesToRead := maxLines * 200
+	
+	// 先获取文件大小
+	_, fileSize, _, err := n.client.TailProcessStdoutLog(name, 0, 0)
+	if err != nil {
+		return nil, err
+	}
+	
+	// 从文件末尾读取
+	startOffset := fileSize - bytesToRead
+	if startOffset < 0 {
+		startOffset = 0
+	}
+	
+	stdout, nextOffset, overflow, err := n.client.TailProcessStdoutLog(name, startOffset, bytesToRead)
+	if err != nil {
+		return nil, err
+	}
+
+	entries := n.parseLogEntries(stdout, "stdout", name)
+	if len(entries) > maxLines {
+		entries = entries[len(entries)-maxLines:]
+	}
+
+	return &LogStream{
+		ProcessName: name,
+		NodeName:    n.Name,
+		LogType:     "stdout",
+		Entries:     entries,
+		LastOffset:  nextOffset,
+		Overflow:    overflow,
+	}, nil
+}
+
+// GetProcessLogStream 获取结构化的日志流 - 从指定偏移量读取
 func (n *Node) GetProcessLogStream(name string, offset int, maxLines int) (*LogStream, error) {
 	n.mu.RLock()
 	connected := n.IsConnected
@@ -329,8 +417,9 @@ func (n *Node) GetProcessLogStream(name string, offset int, maxLines int) (*LogS
 		return nil, ErrNodeNotConnected
 	}
 
-	// 使用 tailProcessStdoutLog API，它返回 [bytes, nextOffset, overflow]
-	bytesToRead := maxLines * 100 // 估算每行 100 字节
+	bytesToRead := maxLines * 200 // 估算每行 200 字节
+	
+	// 直接从指定偏移量读取
 	stdout, nextOffset, overflow, err := n.client.TailProcessStdoutLog(name, offset, bytesToRead)
 	if err != nil {
 		return nil, err
@@ -349,8 +438,8 @@ func (n *Node) GetProcessLogStream(name string, offset int, maxLines int) (*LogS
 		NodeName:    n.Name,
 		LogType:     "stdout",
 		Entries:     entries,
-		LastOffset:  nextOffset,  // 使用 API 返回的正确偏移量
-		Overflow:    overflow,    // 标记是否有日志溢出
+		LastOffset:  nextOffset,
+		Overflow:    overflow,
 	}, nil
 }
 
@@ -411,14 +500,14 @@ func extractTimestamp(line string) time.Time {
 	for _, format := range formats {
 		// 尝试从行首提取时间戳
 		if len(line) >= len(format) {
-			if t, err := time.Parse(format, line[:len(format)]); err == nil {
+			if t, err := time.ParseInLocation(format, line[:len(format)], time.Local); err == nil {
 				return t
 			}
 		}
 		
 		// 尝试查找时间戳模式
 		for i := 0; i <= len(line)-len(format); i++ {
-			if t, err := time.Parse(format, line[i:i+len(format)]); err == nil {
+			if t, err := time.ParseInLocation(format, line[i:i+len(format)], time.Local); err == nil {
 				return t
 			}
 		}
@@ -432,11 +521,12 @@ func (n *Node) Serialize() map[string]interface{} {
 	defer n.mu.RUnlock()
 	
 	return map[string]interface{}{
-		"name":         n.Name,
-		"environment":  n.Environment,
-		"is_connected": n.IsConnected,
-		"host":         n.Host,
-		"port":         n.Port,
+		"name":          n.Name,
+		"environment":   n.Environment,
+		"is_connected":  n.IsConnected,
+		"host":          n.Host,
+		"port":          n.Port,
+		"process_count": len(n.Processes),
 	}
 }
 

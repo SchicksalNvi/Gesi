@@ -30,6 +30,7 @@ export interface UserPreferences {
 
 export interface SystemSettings {
   refresh_interval: number;
+  process_refresh_interval: number;
   log_retention_days: number;
   max_concurrent_connections: number;
   enable_websocket: boolean;

@@ -77,19 +77,27 @@ type DataImportRecord struct {
 // SystemSettings 系统设置模型
 type SystemSettings struct {
 	ID          string         `gorm:"primaryKey" json:"id"`
-	Category    string         `gorm:"size:50;not null" json:"category"` // theme, language, email, backup, security
+	Category    string         `gorm:"size:50;default:'general'" json:"category"` // theme, language, email, backup, security
 	Key         string         `gorm:"size:100;not null;uniqueIndex:idx_category_key" json:"key"`
 	Value       string         `gorm:"type:text" json:"value"`
 	ValueType   string         `gorm:"size:20;default:'string'" json:"value_type"` // string, number, boolean, json
 	Description string         `gorm:"size:500" json:"description"`
 	IsPublic    bool           `gorm:"default:false" json:"is_public"` // 是否允许普通用户查看
-	UpdatedBy   string         `gorm:"size:50" json:"updated_by"`
+	UpdatedBy   *string        `gorm:"size:50" json:"updated_by"`
 	CreatedAt   time.Time      `json:"created_at"`
 	UpdatedAt   time.Time      `json:"updated_at"`
 	DeletedAt   gorm.DeletedAt `gorm:"index:idx_system_settings_deleted_at" json:"-"`
 
 	// 关联关系
-	Updater User `gorm:"foreignKey:UpdatedBy;references:ID" json:"updater,omitempty"`
+	Updater *User `gorm:"foreignKey:UpdatedBy;references:ID" json:"updater,omitempty"`
+}
+
+// GetCategory 获取分类，如果为空则返回默认值
+func (s *SystemSettings) GetCategory() string {
+	if s.Category == "" {
+		return "general"
+	}
+	return s.Category
 }
 
 // UserPreferences 用户个人偏好设置模型

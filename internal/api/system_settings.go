@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 	"github.com/gammazero/workerpool"
 	"go-cesi/internal/models"
@@ -88,6 +89,14 @@ func (api *SystemSettingsAPI) UpdateSystemSetting(c *gin.Context) {
 		return
 	}
 
+	// 获取当前用户 ID
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+	userIDStr := userID.(string)
+
 	// Check if setting exists
 	var setting models.SystemSettings
 	result := api.db.Where("key = ?", key).First(&setting)
@@ -95,10 +104,12 @@ func (api *SystemSettingsAPI) UpdateSystemSetting(c *gin.Context) {
 		if result.Error == gorm.ErrRecordNotFound {
 			// Create new setting
 			setting = models.SystemSettings{
+				ID:          uuid.New().String(),
 				Key:         key,
 				Value:       request.Value,
 				Description: request.Description,
 				Category:    request.Category,
+				UpdatedBy:   &userIDStr,
 			}
 			result = api.db.Create(&setting)
 		} else {
@@ -108,6 +119,7 @@ func (api *SystemSettingsAPI) UpdateSystemSetting(c *gin.Context) {
 	} else {
 		// Update existing setting
 		setting.Value = request.Value
+		setting.UpdatedBy = &userIDStr
 		if request.Description != "" {
 			setting.Description = request.Description
 		}
@@ -137,6 +149,14 @@ func (api *SystemSettingsAPI) UpdateMultipleSettings(c *gin.Context) {
 		return
 	}
 
+	// 获取当前用户 ID
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+	userIDStr := userID.(string)
+
 	tx := api.db.Begin()
 	defer func() {
 		if r := recover(); r != nil {
@@ -164,9 +184,11 @@ func (api *SystemSettingsAPI) UpdateMultipleSettings(c *gin.Context) {
 			if result.Error == gorm.ErrRecordNotFound {
 				// Create new setting
 				setting = models.SystemSettings{
-					Key:      key,
-					Value:    valueStr,
-					Category: request.Category,
+					ID:        uuid.New().String(),
+					Key:       key,
+					Value:     valueStr,
+					Category:  request.Category,
+					UpdatedBy: &userIDStr,
 				}
 				if err := tx.Create(&setting).Error; err != nil {
 					tx.Rollback()
@@ -181,6 +203,7 @@ func (api *SystemSettingsAPI) UpdateMultipleSettings(c *gin.Context) {
 		} else {
 			// Update existing setting
 			setting.Value = valueStr
+			setting.UpdatedBy = &userIDStr
 			if request.Category != "" {
 				setting.Category = request.Category
 			}

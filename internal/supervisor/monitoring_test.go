@@ -46,11 +46,14 @@ func TestStartMonitoring(t *testing.T) {
 	service.SetActivityLogger(mockLogger)
 
 	// 启动监控
-	service.StartMonitoring(100 * time.Millisecond)
+	stopChan := service.StartMonitoring(100 * time.Millisecond)
 
 	// 等待一小段时间
 	time.Sleep(150 * time.Millisecond)
 
+	// 停止监控
+	service.StopMonitoring(stopChan)
+	
 	// 停止服务
 	close(service.stopChan)
 	service.wg.Wait()

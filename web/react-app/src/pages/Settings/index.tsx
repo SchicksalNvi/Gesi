@@ -107,6 +107,7 @@ const Settings: React.FC = () => {
         const settings = response.settings || {};
         systemForm.setFieldsValue({
           refresh_interval: parseInt(settings.refresh_interval) || 30,
+          process_refresh_interval: parseInt(settings.process_refresh_interval) || 5,
           log_retention_days: parseInt(settings.log_retention_days) || 30,
           max_concurrent_connections: parseInt(settings.max_concurrent_connections) || 100,
           enable_websocket: settings.enable_websocket === 'true',
@@ -117,6 +118,7 @@ const Settings: React.FC = () => {
         // 使用默认值
         systemForm.setFieldsValue({
           refresh_interval: 30,
+          process_refresh_interval: 5,
           log_retention_days: 30,
           max_concurrent_connections: 100,
           enable_websocket: true,
@@ -239,6 +241,7 @@ const Settings: React.FC = () => {
       // 调用真实的系统设置API
       const systemSettings: Partial<SystemSettings> = {
         refresh_interval: values.refresh_interval,
+        process_refresh_interval: values.process_refresh_interval,
         log_retention_days: values.log_retention_days,
         max_concurrent_connections: values.max_concurrent_connections,
         enable_websocket: values.enable_websocket,
@@ -546,6 +549,7 @@ const Settings: React.FC = () => {
                     layout="vertical"
                     initialValues={{
                       refresh_interval: 30,
+                      process_refresh_interval: 5,
                       log_retention_days: 30,
                       max_concurrent_connections: 100,
                       enable_websocket: true,
@@ -554,10 +558,20 @@ const Settings: React.FC = () => {
                   >
                     <Form.Item
                       name="refresh_interval"
-                      label="Refresh Interval (seconds)"
+                      label="Node Refresh Interval (seconds)"
+                      help="How often to refresh node and process status"
                       rules={[{ required: true }]}
                     >
                       <InputNumber min={5} max={300} style={{ width: '100%' }} />
+                    </Form.Item>
+
+                    <Form.Item
+                      name="process_refresh_interval"
+                      label="Process Page Refresh Interval (seconds)"
+                      help="How often to push process updates via WebSocket"
+                      rules={[{ required: true }]}
+                    >
+                      <InputNumber min={1} max={300} style={{ width: '100%' }} />
                     </Form.Item>
 
                     <Form.Item

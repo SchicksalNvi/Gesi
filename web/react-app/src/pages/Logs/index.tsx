@@ -20,6 +20,7 @@ import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
 import dayjs, { Dayjs } from 'dayjs';
 import { activityLogsAPI } from '../../api/activityLogs';
 import type { ActivityLog, ActivityLogsFilters, PaginationInfo } from '../../types';
+import { useAutoRefresh } from '../../hooks/useAutoRefresh';
 
 const { RangePicker } = DatePicker;
 
@@ -47,18 +48,17 @@ const Logs: React.FC = () => {
     loadLogs();
   }, []);
 
-  // 自动刷新功能
-  useEffect(() => {
-    if (!autoRefresh || pagination.page !== 1) {
-      return;
-    }
-
-    const intervalId = setInterval(() => {
-      loadLogs();
-    }, 30000); // 30 秒刷新一次
-
-    return () => clearInterval(intervalId);
-  }, [autoRefresh, pagination.page]);
+  // 使用统一的自动刷新 Hook
+  const { autoRefreshEnabled, setAutoRefreshEnabled } = useAutoRefresh(
+    () => {
+      // 只在第一页时自动刷新
+      if (pagination.page === 1) {
+        loadLogs();
+      }
+    },
+    autoRefresh,
+    [pagination.page]
+  );
 
   const buildFilters = (): ActivityLogsFilters => {
     const filters: ActivityLogsFilters = {

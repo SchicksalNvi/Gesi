@@ -190,31 +190,8 @@ func (c *Client) handleClientMessage(msg ClientMessage) {
 					zap.String("user_id", c.userID),
 					zap.String("node_name", nodeName),
 					zap.String("process_name", processName))
-
-				// Send initial log data
-				if node, err := c.hub.service.GetNode(nodeName); err == nil {
-					if logStream, err := node.GetProcessLogStream(processName, 0, 50); err == nil {
-						logMsg := Message{
-							Type: "log_stream",
-							Data: map[string]interface{}{
-								"node_name":    nodeName,
-								"process_name": processName,
-								"log_type":     "stdout",
-								"entries":      logStream.Entries,
-								"timestamp":    time.Now(),
-							},
-						}
-
-						if data, err := json.Marshal(logMsg); err == nil {
-							select {
-							case c.send <- data:
-							default:
-								logger.Warn("Client send channel full",
-									zap.String("user_id", c.userID))
-							}
-						}
-					}
-				}
+				// 不再发送初始日志，前端通过 REST API 获取初始日志
+				// WebSocket 只负责推送增量更新
 			}
 		}
 

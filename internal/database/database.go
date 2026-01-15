@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -104,7 +105,12 @@ func InitDBWithConfig(config *DatabaseConfig) error {
 		return fmt.Errorf("failed to ping database: %v", err)
 	}
 
-	// 自动迁移数据库模式
+	// 在迁移前修复 system_settings 表的空 category 字段
+	if err := fixEmptyCategories(db); err != nil {
+		log.Printf("Warning: failed to fix empty categories: %v", err)
+	}
+
+	// 自动迁移数据库模式（SystemSettings 单独处理，避免 GORM 迁移问题）
 	err = db.AutoMigrate(
 		&models.User{},
 		&models.ActivityLog{},
@@ -144,13 +150,18 @@ func InitDBWithConfig(config *DatabaseConfig) error {
 		&models.BackupRecord{},
 		&models.DataExportRecord{},
 		&models.DataImportRecord{},
-		&models.SystemSettings{},
+		// &models.SystemSettings{}, // 手动管理，避免 GORM 迁移问题
 		&models.UserPreferences{},
 		&models.WebhookConfig{},
 		&models.WebhookLog{},
 	)
 	if err != nil {
 		return fmt.Errorf("failed to migrate models: %v", err)
+	}
+
+	// 执行自定义迁移
+	if err := runCustomMigrations(db); err != nil {
+		return fmt.Errorf("failed to run custom migrations: %v", err)
 	}
 
 	DB = db
@@ -303,4 +314,253 @@ func Close() error {
 		return fmt.Errorf("failed to get underlying sql.DB: %v", err)
 	}
 	return sqlDB.Close()
+}
+
+// fixEmptyCategories 手动管理 system_settings 表，避免 GORM AutoMigrate 的问题
+func fixEmptyCategories(db *gorm.DB) error {
+	// 检查表是否存在
+	var count int64
+	if err := db.Raw("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='system_settings'").Scan(&count).Error; err != nil {
+		return err
+	}
+
+	// 表不存在，创建新表
+	if count == 0 {
+		log.Println("Creating system_settings table...")
+		createSQL := `CREATE TABLE system_settings (
+			id TEXT PRIMARY KEY,
+			category TEXT DEFAULT 'general',
+			key TEXT NOT NULL,
+			value TEXT,
+			value_type TEXT DEFAULT 'string',
+			description TEXT,
+			is_public NUMERIC DEFAULT false,
+			updated_by TEXT,
+			created_at DATETIME,
+			updated_at DATETIME,
+			deleted_at DATETIME
+		)`
+		if err := db.Exec(createSQL).Error; err != nil {
+			return err
+		}
+		db.Exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_category_key ON system_settings(category, key)")
+		db.Exec("CREATE INDEX IF NOT EXISTS idx_system_settings_deleted_at ON system_settings(deleted_at)")
+		log.Println("Created system_settings table")
+		return nil
+	}
+
+	// 表存在，检查是否需要重建（有外键约束）
+	var tableSQL string
+	if err := db.Raw("SELECT sql FROM sqlite_master WHERE type='table' AND name='system_settings'").Scan(&tableSQL).Error; err != nil {
+		return err
+	}
+
+	if !strings.Contains(tableSQL, "FOREIGN KEY") {
+		// 没有外键，只需修复空值
+		db.Exec("UPDATE system_settings SET category = 'general' WHERE category IS NULL OR category = ''")
+		return nil
+	}
+
+	log.Println("Rebuilding system_settings table to remove foreign key constraints...")
+
+	// 备份数据
+	type SettingBackup struct {
+		ID          string
+		Category    string
+		Key         string
+		Value       string
+		ValueType   string
+		Description string
+		IsPublic    bool
+		UpdatedBy   *string
+		CreatedAt   time.Time
+		UpdatedAt   time.Time
+	}
+
+	var backups []SettingBackup
+	if err := db.Raw(`SELECT id, COALESCE(category, 'general') as category, key, value, 
+		COALESCE(value_type, 'string') as value_type, description, is_public, updated_by, 
+		created_at, updated_at FROM system_settings WHERE deleted_at IS NULL`).Scan(&backups).Error; err != nil {
+		log.Printf("Warning: failed to backup system_settings: %v", err)
+		return nil
+	}
+
+	// 重建表
+	db.Exec("PRAGMA foreign_keys=OFF")
+	defer db.Exec("PRAGMA foreign_keys=ON")
+
+	db.Exec("DROP TABLE IF EXISTS system_settings")
+
+	createSQL := `CREATE TABLE system_settings (
+		id TEXT PRIMARY KEY,
+		category TEXT DEFAULT 'general',
+		key TEXT NOT NULL,
+		value TEXT,
+		value_type TEXT DEFAULT 'string',
+		description TEXT,
+		is_public NUMERIC DEFAULT false,
+		updated_by TEXT,
+		created_at DATETIME,
+		updated_at DATETIME,
+		deleted_at DATETIME
+	)`
+	if err := db.Exec(createSQL).Error; err != nil {
+		return err
+	}
+
+	// 恢复数据
+	for _, b := range backups {
+		if b.Key == "" {
+			continue
+		}
+		db.Exec(`INSERT INTO system_settings (id, category, key, value, value_type, description, is_public, updated_by, created_at, updated_at) 
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			b.ID, b.Category, b.Key, b.Value, b.ValueType, b.Description, b.IsPublic, b.UpdatedBy, b.CreatedAt, b.UpdatedAt)
+	}
+
+	db.Exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_category_key ON system_settings(category, key)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_system_settings_deleted_at ON system_settings(deleted_at)")
+
+	log.Printf("Successfully rebuilt system_settings table with %d records", len(backups))
+	return nil
+}
+
+// runCustomMigrations 执行自定义数据库迁移
+func runCustomMigrations(db *gorm.DB) error {
+	// 删除旧的全局唯一索引（如果存在）
+	if err := db.Exec("DROP INDEX IF EXISTS idx_alert_unique").Error; err != nil {
+		log.Printf("Warning: failed to drop old index idx_alert_unique: %v", err)
+	}
+	
+	// 创建条件唯一索引：仅对 status='active' 的记录生效
+	// 这允许同一个 (rule_id, node_name, process_name) 组合在不同状态下存在多条记录
+	// 但在 active 状态下只能有一条记录
+	createIndexSQL := `
+		CREATE UNIQUE INDEX IF NOT EXISTS idx_alert_unique_active 
+		ON alerts(rule_id, node_name, process_name, status) 
+		WHERE status = 'active'
+	`
+	if err := db.Exec(createIndexSQL).Error; err != nil {
+		return fmt.Errorf("failed to create conditional unique index: %v", err)
+	}
+	
+	// 修复 system_settings 表的外键约束问题
+	// SQLite 不支持直接删除外键，需要重建表
+	if err := fixSystemSettingsForeignKey(db); err != nil {
+		log.Printf("Warning: failed to fix system_settings foreign key: %v", err)
+	}
+	
+	log.Println("Custom migrations completed successfully")
+	return nil
+}
+
+// fixSystemSettingsForeignKey 修复 system_settings 表的外键约束
+func fixSystemSettingsForeignKey(db *gorm.DB) error {
+	// 检查表是否存在
+	var count int64
+	if err := db.Raw("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='system_settings'").Scan(&count).Error; err != nil {
+		return err
+	}
+	if count == 0 {
+		return nil // 表不存在，跳过
+	}
+	
+	// 检查是否需要迁移（检查外键约束是否存在）
+	var fkCount int64
+	if err := db.Raw("SELECT COUNT(*) FROM pragma_foreign_key_list('system_settings') WHERE \"table\"='users' AND \"from\"='updated_by'").Scan(&fkCount).Error; err != nil {
+		return err
+	}
+	if fkCount == 0 {
+		return nil // 外键不存在，跳过
+	}
+	
+	log.Println("Migrating system_settings table to remove foreign key constraint...")
+	
+	// SQLite 重建表的步骤
+	// 1. 禁用外键检查
+	if err := db.Exec("PRAGMA foreign_keys=OFF").Error; err != nil {
+		return err
+	}
+	
+	// 2. 开始事务
+	tx := db.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+	
+	// 3. 重命名旧表
+	if err := tx.Exec("ALTER TABLE system_settings RENAME TO system_settings_old").Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+	
+	// 4. 创建新表（没有外键约束，category 允许 NULL 但有默认值）
+	createTableSQL := `
+		CREATE TABLE system_settings (
+			id TEXT PRIMARY KEY,
+			category TEXT DEFAULT 'general',
+			key TEXT NOT NULL,
+			value TEXT,
+			value_type TEXT DEFAULT 'string',
+			description TEXT,
+			is_public NUMERIC DEFAULT false,
+			updated_by TEXT,
+			created_at DATETIME,
+			updated_at DATETIME,
+			deleted_at DATETIME
+		)
+	`
+	if err := tx.Exec(createTableSQL).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+	
+	// 4.5. 更新旧表中空的 category 字段
+	if err := tx.Exec("UPDATE system_settings_old SET category = 'general' WHERE category IS NULL OR category = ''").Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+	
+	// 5. 复制数据
+	copyDataSQL := `
+		INSERT INTO system_settings 
+		SELECT id, category, key, value, value_type, description, is_public, updated_by, created_at, updated_at, deleted_at 
+		FROM system_settings_old
+	`
+	if err := tx.Exec(copyDataSQL).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+	
+	// 6. 删除旧表
+	if err := tx.Exec("DROP TABLE system_settings_old").Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+	
+	// 7. 重新创建索引
+	if err := tx.Exec("CREATE UNIQUE INDEX idx_category_key ON system_settings(category, key)").Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+	
+	if err := tx.Exec("CREATE INDEX idx_system_settings_deleted_at ON system_settings(deleted_at)").Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+	
+	// 8. 提交事务
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+	
+	// 9. 重新启用外键检查
+	if err := db.Exec("PRAGMA foreign_keys=ON").Error; err != nil {
+		return err
+	}
+	
+	log.Println("Successfully migrated system_settings table")
+	return nil
 }
