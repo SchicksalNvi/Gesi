@@ -497,17 +497,21 @@ func extractTimestamp(line string) time.Time {
 		"Jan 02 15:04:05",
 	}
 	
+	// 获取本地时区
+	loc := time.Local
+	
 	for _, format := range formats {
 		// 尝试从行首提取时间戳
 		if len(line) >= len(format) {
-			if t, err := time.ParseInLocation(format, line[:len(format)], time.Local); err == nil {
+			if t, err := time.ParseInLocation(format, line[:len(format)], loc); err == nil {
+				// 返回本地时间，不转换为 UTC
 				return t
 			}
 		}
 		
 		// 尝试查找时间戳模式
 		for i := 0; i <= len(line)-len(format); i++ {
-			if t, err := time.ParseInLocation(format, line[i:i+len(format)], time.Local); err == nil {
+			if t, err := time.ParseInLocation(format, line[i:i+len(format)], loc); err == nil {
 				return t
 			}
 		}

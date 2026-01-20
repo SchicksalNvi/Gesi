@@ -1,12 +1,11 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+// LogViewer v2.1 - Fixed timestamp formatting
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Modal,
   Button,
   Switch,
   Space,
   Tag,
-  List,
-  Typography,
   Spin,
   message,
   Input,
@@ -24,7 +23,6 @@ import { useWebSocket } from '@/hooks/useWebSocket';
 import { LogEntry, LogStream, LogStreamMessage } from '@/types';
 import { useStore } from '@/store';
 
-const { Text } = Typography;
 const { Search } = Input;
 const { Option } = Select;
 
@@ -52,24 +50,32 @@ const LogViewer: React.FC<LogViewerProps> = ({
   const logContainerRef = useRef<HTMLDivElement>(null);
   const isSubscribedRef = useRef(false);
 
-  // 根据用户时区设置格式化时间戳
-  const formatTimestamp = useMemo(() => {
-    const timezone = userPreferences?.timezone || 'UTC';
-    return (timestamp: string) => {
-      try {
-        const date = new Date(timestamp);
-        return date.toLocaleTimeString('en-US', {
-          timeZone: timezone,
-          hour12: false,
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit',
-        });
-      } catch {
-        // 如果时区无效，回退到本地时间
-        return new Date(timestamp).toLocaleTimeString();
+  // LOGVIEWER_TIMESTAMP_V3 - 根据用户时区设置格式化时间戳
+  const formatTimestamp = useCallback((timestamp: string) => {
+    // 优先使用用户设置的时区，默认使用 Asia/Shanghai
+    const timezone = userPreferences?.timezone || 'Asia/Shanghai';
+    console.log('[LogViewer] formatTimestamp - timezone:', timezone, 'timestamp:', timestamp);
+    try {
+      const date = new Date(timestamp);
+      if (isNaN(date.getTime())) {
+        return timestamp || '----/--/-- --:--:--';
       }
-    };
+      const formatter = new Intl.DateTimeFormat('en-CA', {
+        timeZone: timezone,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false,
+      });
+      const parts = formatter.formatToParts(date);
+      const get = (type: string) => parts.find(p => p.type === type)?.value || '00';
+      return `${get('year')}-${get('month')}-${get('day')} ${get('hour')}:${get('minute')}:${get('second')}`;
+    } catch {
+      return timestamp || '----/--/-- --:--:--';
+    }
   }, [userPreferences?.timezone]);
 
   // WebSocket for real-time logs
@@ -257,7 +263,7 @@ const LogViewer: React.FC<LogViewerProps> = ({
       <div style={{ marginBottom: 16 }}>
         <Space wrap>
           <Space>
-            <Text>Real-time:</Text>
+            <span>Real-time:</span>
             <Switch
               checked={realTimeEnabled}
               onChange={toggleRealTime}
@@ -268,7 +274,7 @@ const LogViewer: React.FC<LogViewerProps> = ({
           </Space>
           
           <Space>
-            <Text>Auto-scroll:</Text>
+            <span>Auto-scroll:</span>
             <Switch
               checked={autoScroll}
               onChange={setAutoScroll}
@@ -332,37 +338,44 @@ const LogViewer: React.FC<LogViewerProps> = ({
           <div style={{ textAlign: 'center', padding: 50 }}>
             <Spin size="large" />
           </div>
+        ) : filteredEntries.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: 50, color: '#999' }}>
+            No log entries found
+          </div>
         ) : (
-          <List
-            dataSource={filteredEntries}
-            renderItem={(entry, index) => (
-              <List.Item
-                key={index}
-                style={{
+          <div style={{ fontFamily: 'monospace', fontSize: 12 }}>
+            {filteredEntries.map((entry, index) => (
+              <div 
+                key={index} 
+                style={{ 
+                  display: 'flex', 
+                  gap: 8, 
                   padding: '4px 0',
-                  borderBottom: 'none',
-                  fontFamily: 'monospace',
-                  fontSize: '12px',
+                  alignItems: 'flex-start',
                 }}
               >
-                <Space size="small">
-                  <Text type="secondary" style={{ minWidth: 80 }}>
-                    {formatTimestamp(entry.timestamp)}
-                  </Text>
-                  <Tag
-                    color={getLogLevelColor(entry.level)}
-                    style={{ minWidth: 60, textAlign: 'center' }}
-                  >
-                    {entry.level.toUpperCase()}
-                  </Tag>
-                  <Text style={{ wordBreak: 'break-all' }}>
-                    {entry.message}
-                  </Text>
-                </Space>
-              </List.Item>
-            )}
-            locale={{ emptyText: 'No log entries found' }}
-          />
+                <span 
+                  style={{ 
+                    color: 'rgba(0,0,0,0.45)',
+                    width: 152,
+                    minWidth: 152,
+                    flexShrink: 0,
+                  }}
+                >
+                  {formatTimestamp(entry.timestamp)}
+                </span>
+                <Tag
+                  color={getLogLevelColor(entry.level)}
+                  style={{ width: 60, minWidth: 60, textAlign: 'center', flexShrink: 0, margin: 0 }}
+                >
+                  {entry.level.toUpperCase()}
+                </Tag>
+                <span style={{ flex: 1, wordBreak: 'break-word' }}>
+                  {entry.message}
+                </span>
+              </div>
+            ))}
+          </div>
         )}
       </div>
 
