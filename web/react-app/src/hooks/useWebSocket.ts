@@ -1,5 +1,6 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { WebSocketMessage } from '@/types';
+import { useStore } from '@/store';
 
 interface UseWebSocketOptions {
   onMessage?: (message: WebSocketMessage) => void;
@@ -20,6 +21,7 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
     maxReconnectAttempts = 5,
   } = options;
 
+  const { websocketEnabled } = useStore();
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectAttemptsRef = useRef(0);
   const reconnectTimeoutRef = useRef<number>();
@@ -39,8 +41,18 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
   }, [onMessage, onConnect, onDisconnect, onError]);
 
   const connect = useCallback(() => {
+    // Check if WebSocket is enabled in system settings
+    if (!useStore.getState().websocketEnabled) {
+      return;
+    }
+
     const token = localStorage.getItem('token');
     if (!token) {
+      return;
+    }
+
+    // Don't create new connection if one already exists and is connecting/open
+    if (wsRef.current && (wsRef.current.readyState === WebSocket.CONNECTING || wsRef.current.readyState === WebSocket.OPEN)) {
       return;
     }
 
@@ -74,9 +86,14 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
 
       ws.onclose = () => {
         onDisconnectRef.current?.();
+        // Only reconnect if we should and haven't exceeded max attempts
         if (shouldReconnectRef.current && reconnectAttemptsRef.current < maxReconnectAttempts) {
           reconnectAttemptsRef.current++;
-          reconnectTimeoutRef.current = setTimeout(connect, reconnectInterval);
+          // Clear any existing timeout before setting a new one
+          if (reconnectTimeoutRef.current) {
+            clearTimeout(reconnectTimeoutRef.current);
+          }
+          reconnectTimeoutRef.current = window.setTimeout(connect, reconnectInterval);
         }
       };
 
@@ -111,9 +128,23 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
 
   useEffect(() => {
     const token = localStorage.getItem('token');
-    if (token) {
+    if (token && websocketEnabled) {
       shouldReconnectRef.current = true;
-      connect();
+      // Small delay to avoid race conditions in StrictMode
+      const initTimeout = window.setTimeout(() => {
+        connect();
+      }, 100);
+      return () => {
+        clearTimeout(initTimeout);
+        shouldReconnectRef.current = false;
+        if (reconnectTimeoutRef.current) {
+          clearTimeout(reconnectTimeoutRef.current);
+        }
+        if (wsRef.current) {
+          wsRef.current.close();
+          wsRef.current = null;
+        }
+      };
     }
     return () => {
       shouldReconnectRef.current = false;
@@ -126,7 +157,7 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [websocketEnabled]);
 
   return {
     send,

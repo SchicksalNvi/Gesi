@@ -154,6 +154,8 @@ func InitDBWithConfig(config *DatabaseConfig) error {
 		&models.UserPreferences{},
 		&models.WebhookConfig{},
 		&models.WebhookLog{},
+		&models.DiscoveryTask{},
+		&models.DiscoveryResult{},
 	)
 	if err != nil {
 		return fmt.Errorf("failed to migrate models: %v", err)

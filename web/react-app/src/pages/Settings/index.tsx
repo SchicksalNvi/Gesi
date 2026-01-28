@@ -105,14 +105,18 @@ const Settings: React.FC = () => {
       try {
         const response = await settingsApi.getSystemSettings();
         const settings = response.settings || {};
+        const wsEnabled = settings.enable_websocket !== 'false';
         systemForm.setFieldsValue({
           refresh_interval: parseInt(settings.refresh_interval) || 30,
           process_refresh_interval: parseInt(settings.process_refresh_interval) || 5,
           log_retention_days: parseInt(settings.log_retention_days) || 30,
           max_concurrent_connections: parseInt(settings.max_concurrent_connections) || 100,
-          enable_websocket: settings.enable_websocket === 'true',
+          enable_websocket: wsEnabled,
           enable_activity_logging: settings.enable_activity_logging === 'true',
         });
+        // Sync WebSocket setting to store
+        const { setWebsocketEnabled } = useStore.getState();
+        setWebsocketEnabled(wsEnabled);
       } catch (error) {
         console.error('Failed to load system settings:', error);
         // 使用默认值
@@ -250,6 +254,10 @@ const Settings: React.FC = () => {
       
       await settingsApi.updateSystemSettings(systemSettings);
       
+      // Update local store for WebSocket setting
+      const { setWebsocketEnabled } = useStore.getState();
+      setWebsocketEnabled(values.enable_websocket);
+      
       message.success('System settings updated');
     } catch (error: any) {
       console.error('Failed to update system settings:', error);
@@ -265,9 +273,11 @@ const Settings: React.FC = () => {
 
       <Card>
         <Tabs
+          destroyOnHidden={false}
           items={[
             {
               key: 'profile',
+              forceRender: true,
               label: (
                 <span>
                   <UserOutlined />
@@ -357,6 +367,7 @@ const Settings: React.FC = () => {
             },
             {
               key: 'security',
+              forceRender: true,
               label: (
                 <span>
                   <LockOutlined />
@@ -442,6 +453,7 @@ const Settings: React.FC = () => {
             },
             {
               key: 'notifications',
+              forceRender: true,
               label: (
                 <span>
                   <BellOutlined />
@@ -528,6 +540,7 @@ const Settings: React.FC = () => {
             },
             {
               key: 'system',
+              forceRender: true,
               label: (
                 <span>
                   <SettingOutlined />

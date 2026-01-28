@@ -1,5 +1,5 @@
 import React from 'react';
-import { Button } from 'antd';
+import { Button, Space } from 'antd';
 import { AppstoreOutlined, UnorderedListOutlined } from '@ant-design/icons';
 
 export type ViewMode = 'card' | 'list';
@@ -18,7 +18,7 @@ export const ViewToggle: React.FC<ViewToggleProps> = ({
   size = 'middle'
 }) => {
   return (
-    <Button.Group size={size} role="radiogroup" aria-label="View mode selection">
+    <Space.Compact size={size} role="radiogroup" aria-label="View mode selection">
       <Button
         type={value === 'card' ? 'primary' : 'default'}
         icon={<AppstoreOutlined />}
@@ -41,7 +41,7 @@ export const ViewToggle: React.FC<ViewToggleProps> = ({
       >
         List
       </Button>
-    </Button.Group>
+    </Space.Compact>
   );
 };
 

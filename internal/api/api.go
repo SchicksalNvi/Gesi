@@ -3,6 +3,7 @@ package api
 import (
 	"go-cesi/internal/auth"
 	"go-cesi/internal/middleware"
+	"go-cesi/internal/repository"
 	"go-cesi/internal/services"
 	"go-cesi/internal/supervisor"
 
@@ -35,6 +36,13 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB, service *supervisor.SupervisorServi
 	processEnhancedHandler := NewProcessEnhancedHandler(db)
 	configurationHandler := NewConfigurationHandler(db)
 	logAnalysisHandler := NewLogAnalysisHandler(db)
+
+	// Discovery service and API
+	// Requirements: 9.3, 9.4 - Authentication required for all discovery endpoints
+	discoveryRepo := repository.NewDiscoveryRepository(db)
+	nodeRepo := repository.NewNodeRepository(db)
+	discoveryService := services.NewDiscoveryService(db, discoveryRepo, nodeRepo, hub)
+	discoveryAPI := NewDiscoveryAPI(discoveryService, activityLogService)
 
 	// Auth routes
 	authGroup := r.Group("/api/auth")
@@ -404,6 +412,19 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB, service *supervisor.SupervisorServi
 				logGroup.GET("/levels", logManagementAPI.GetAvailableLogLevels)
 				logGroup.DELETE("/level/history", logManagementAPI.ClearLogLevelHistory)
 			}
+		}
+
+		// Discovery API - Node discovery and network scanning
+		// Requirements: 9.3, 9.4 - All discovery endpoints require authentication
+		discoveryGroup := apiGroup.Group("/discovery")
+		{
+			discoveryGroup.POST("/tasks", discoveryAPI.StartDiscovery)
+			discoveryGroup.GET("/tasks", discoveryAPI.ListTasks)
+			discoveryGroup.GET("/tasks/:id", discoveryAPI.GetTask)
+			discoveryGroup.POST("/tasks/:id/cancel", discoveryAPI.CancelTask)
+			discoveryGroup.DELETE("/tasks/:id", discoveryAPI.DeleteTask)
+			discoveryGroup.GET("/tasks/:id/progress", discoveryAPI.GetTaskProgress)
+			discoveryGroup.POST("/validate-cidr", discoveryAPI.ValidateCIDR)
 		}
 	}
 }

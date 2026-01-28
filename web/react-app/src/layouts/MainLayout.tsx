@@ -12,6 +12,7 @@ import {
   LogoutOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
+  RadarChartOutlined,
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 import { useStore } from '@/store';
@@ -46,13 +47,19 @@ export default function MainLayout() {
       onClick: () => navigate('/nodes'),
     },
     {
+      key: '/discovery',
+      icon: <RadarChartOutlined />,
+      label: 'Discovery',
+      onClick: () => navigate('/discovery'),
+    },
+    {
       key: '/processes',
       icon: <AppstoreOutlined />,
       label: 'Processes',
       onClick: () => navigate('/processes'),
     },
     {
-      key: '/alerts',
+      key: 'alerts-menu',
       icon: <BellOutlined />,
       label: 'Alerts',
       children: [

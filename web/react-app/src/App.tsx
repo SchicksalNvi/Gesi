@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useStore } from '@/store';
 import { authApi } from '@/api/auth';
+import { settingsApi } from '@/api/settings';
 import MainLayout from '@/layouts/MainLayout';
 import Login from '@/pages/Login';
 import Dashboard from '@/pages/Dashboard';
@@ -15,6 +16,7 @@ import AlertList from '@/pages/Alerts';
 import AlertRules from '@/pages/Alerts/AlertRules';
 import LogList from '@/pages/Logs';
 import Settings from '@/pages/Settings';
+import DiscoveryPage from '@/pages/Discovery';
 
 // Protected Route Component
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -28,7 +30,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 }
 
 function App() {
-  const { isAuthenticated, setUser, logout } = useStore();
+  const { isAuthenticated, setUser, logout, setWebsocketEnabled } = useStore();
 
   // Listen for logout events from API interceptor
   useEffect(() => {
@@ -39,6 +41,25 @@ function App() {
     window.addEventListener('auth:logout', handleLogout);
     return () => window.removeEventListener('auth:logout', handleLogout);
   }, [logout]);
+
+  // Load system settings (including WebSocket enabled) on auth
+  useEffect(() => {
+    const loadSystemSettings = async () => {
+      try {
+        const response = await settingsApi.getSystemSettings();
+        const settings = response.settings || {};
+        const wsEnabled = settings.enable_websocket !== 'false';
+        setWebsocketEnabled(wsEnabled);
+      } catch (error) {
+        // Use default (enabled) if can't load settings
+        console.error('Failed to load system settings:', error);
+      }
+    };
+
+    if (isAuthenticated) {
+      loadSystemSettings();
+    }
+  }, [isAuthenticated, setWebsocketEnabled]);
 
   // Validate token on mount only if we have both token and user
   useEffect(() => {
@@ -94,6 +115,7 @@ function App() {
         <Route path="alerts" element={<AlertList />} />
         <Route path="alerts/rules" element={<AlertRules />} />
         <Route path="logs" element={<LogList />} />
+        <Route path="discovery" element={<DiscoveryPage />} />
         <Route path="settings" element={<Settings />} />
       </Route>
       

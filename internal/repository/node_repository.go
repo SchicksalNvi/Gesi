@@ -98,3 +98,13 @@ func (r *nodeRepository) ExistsByName(name string) (bool, error) {
 	}
 	return count > 0, nil
 }
+
+// ExistsByHostPort checks if a node with the given host:port combination exists.
+// Requirements: 5.3 - Skip registration if node with same host:port exists
+func (r *nodeRepository) ExistsByHostPort(host string, port int) (bool, error) {
+	var count int64
+	if err := r.db.Model(&models.Node{}).Where("host = ? AND port = ?", host, port).Count(&count).Error; err != nil {
+		return false, errors.NewDatabaseError("check node host:port exists", err)
+	}
+	return count > 0, nil
+}

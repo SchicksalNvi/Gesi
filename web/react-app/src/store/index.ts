@@ -15,6 +15,10 @@ interface AppState {
   userPreferences: UserPreferences | null;
   setUserPreferences: (preferences: UserPreferences | null) => void;
 
+  // System settings state
+  websocketEnabled: boolean;
+  setWebsocketEnabled: (enabled: boolean) => void;
+
   // Nodes state
   nodes: Node[];
   selectedNode: Node | null;
@@ -68,6 +72,13 @@ export const useStore = create<AppState>((set, get) => ({
       localStorage.removeItem('userPreferences');
     }
     set({ userPreferences: preferences });
+  },
+
+  // System settings state - default to true
+  websocketEnabled: localStorage.getItem('websocketEnabled') !== 'false',
+  setWebsocketEnabled: (enabled) => {
+    localStorage.setItem('websocketEnabled', String(enabled));
+    set({ websocketEnabled: enabled });
   },
 
   // Nodes state

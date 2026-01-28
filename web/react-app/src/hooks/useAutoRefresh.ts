@@ -29,7 +29,7 @@ export const useAutoRefresh = (
     const loadSettings = async () => {
       try {
         // 加载用户偏好
-        const prefsResponse = await api.get('/api/system-settings/user-preferences');
+        const prefsResponse = await api.get('/system-settings/user-preferences');
         if (prefsResponse.data) {
           const prefs = prefsResponse.data;
           setAutoRefreshEnabled(prefs.auto_refresh !== false);
@@ -40,7 +40,7 @@ export const useAutoRefresh = (
 
         // 如果用户偏好中没有设置，则从系统设置中读取
         if (!prefsResponse.data?.refresh_interval) {
-          const settingsResponse = await api.get('/api/system-settings');
+          const settingsResponse = await api.get('/system-settings');
           if (settingsResponse.data?.settings?.refresh_interval) {
             setRefreshInterval(parseInt(settingsResponse.data.settings.refresh_interval, 10));
           }
