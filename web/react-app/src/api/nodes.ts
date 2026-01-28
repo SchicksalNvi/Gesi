@@ -1,16 +1,55 @@
 import apiClient from './client';
-import { ApiResponse, Node, Process } from '@/types';
+import { Node, Process } from '@/types';
+
+// 后端实际返回的响应格式
+interface NodesResponse {
+  status: string;
+  nodes: Node[];
+}
+
+interface NodeResponse {
+  name: string;
+  environment: string;
+  host: string;
+  port: number;
+  is_connected: boolean;
+  process_count: number;
+}
+
+interface ProcessesResponse {
+  status: string;
+  processes: Process[];
+}
+
+interface LogStreamResponse {
+  status: string;
+  data: {
+    process_name: string;
+    node_name: string;
+    log_type: string;
+    entries: Array<{
+      timestamp: string;
+      level: string;
+      message: string;
+      source: string;
+      process_name: string;
+      node_name: string;
+    }>;
+    last_offset: number;
+    overflow: boolean;
+  };
+}
 
 export const nodesApi = {
   // Get all nodes
-  getNodes: () => apiClient.get<ApiResponse<{ nodes: Node[] }>>('/nodes'),
+  getNodes: () => apiClient.get<NodesResponse>('/nodes'),
 
   // Get single node
-  getNode: (nodeName: string) => apiClient.get<ApiResponse<{ node: Node }>>(`/nodes/${nodeName}`),
+  getNode: (nodeName: string) => apiClient.get<NodeResponse>(`/nodes/${nodeName}`),
 
   // Get node processes
   getNodeProcesses: (nodeName: string) =>
-    apiClient.get<ApiResponse<{ processes: Process[] }>>(`/nodes/${nodeName}/processes`),
+    apiClient.get<ProcessesResponse>(`/nodes/${nodeName}/processes`),
 
   // Process control
   startProcess: (nodeName: string, processName: string) =>
@@ -39,7 +78,7 @@ export const nodesApi = {
   // Get process log stream (structured logs with pagination)
   // offset: undefined/-1 = read from end, >= 0 = read from specific offset
   getProcessLogStream: (nodeName: string, processName: string, offset?: number, maxLines?: number) =>
-    apiClient.get(`/nodes/${nodeName}/processes/${processName}/logs/stream`, {
+    apiClient.get<LogStreamResponse>(`/nodes/${nodeName}/processes/${processName}/logs/stream`, {
       params: { 
         offset: offset === undefined ? -1 : offset, 
         max_lines: maxLines || 50 

@@ -6,7 +6,6 @@ import {
   CloseCircleOutlined,
   EyeOutlined,
   ReloadOutlined,
-  SettingOutlined,
 } from '@ant-design/icons';
 import { Node } from '@/types';
 
@@ -247,17 +246,6 @@ export const VirtualizedNodesTable: React.FC<VirtualizedNodesTableProps> = ({
                 />
               </Tooltip>
             )}
-            <Tooltip title="Node Settings">
-              <Button
-                type="text"
-                size="small"
-                icon={<SettingOutlined />}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  console.log('Node settings for:', node.name);
-                }}
-              />
-            </Tooltip>
           </Space>
         </div>
       </div>

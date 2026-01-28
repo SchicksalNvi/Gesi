@@ -1,11 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Card, Row, Col, Tag, Button, Space, Spin, Empty, message } from 'antd';
-import {
-  CheckCircleOutlined,
-  CloseCircleOutlined,
-  ReloadOutlined,
-  EyeOutlined,
-} from '@ant-design/icons';
+import { Card, Button, Spin, Empty, message } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import { nodesApi } from '@/api/nodes';
 import { useStore } from '@/store';
@@ -22,8 +16,7 @@ import {
   NodeFilters,
   BulkAction
 } from '@/components';
-import { usePerformanceMonitor, useListPerformance } from '@/hooks/usePerformanceMonitor';
-import { Node } from '@/types';
+import { useListPerformance } from '@/hooks/usePerformanceMonitor';
 
 function NodeList() {
   const navigate = useNavigate();
@@ -32,7 +25,6 @@ function NodeList() {
   const isMobile = useIsMobile();
 
   // Performance monitoring
-  const performanceMetrics = usePerformanceMonitor('NodeList', process.env.NODE_ENV === 'development');
   const { shouldOptimize, recommendations } = useListPerformance(nodes.length);
 
   // View mode and search/filter state
@@ -59,7 +51,7 @@ function NodeList() {
     setLoading(true);
     try {
       const response = await nodesApi.getNodes();
-      setNodes(response.data?.nodes || []);
+      setNodes(response.nodes || []);
     } catch (error) {
       console.error('Failed to load nodes:', error);
       message.error('Failed to load nodes');
@@ -78,32 +70,39 @@ function NodeList() {
   });
 
   const handleBulkAction = async (action: BulkAction) => {
+    const nodeIds = action.nodeIds;
+    if (nodeIds.length === 0) return;
+
     try {
       switch (action.type) {
         case 'refresh_all':
-          message.info(`Refreshing ${action.nodeIds.length} nodes...`);
-          // TODO: Implement bulk refresh
+          message.loading({ content: `Refreshing ${nodeIds.length} nodes...`, key: 'bulk' });
+          await loadNodes();
+          message.success({ content: `Refreshed ${nodeIds.length} nodes`, key: 'bulk' });
           break;
         case 'restart_all':
-          message.info(`Restarting all processes on ${action.nodeIds.length} nodes...`);
-          // TODO: Implement bulk restart
+          message.loading({ content: `Restarting all processes on ${nodeIds.length} nodes...`, key: 'bulk' });
+          await Promise.all(nodeIds.map(nodeName => nodesApi.restartAllProcesses(nodeName)));
+          message.success({ content: `Restarted all processes on ${nodeIds.length} nodes`, key: 'bulk' });
           break;
         case 'start_all':
-          message.info(`Starting all processes on ${action.nodeIds.length} nodes...`);
-          // TODO: Implement bulk start
+          message.loading({ content: `Starting all processes on ${nodeIds.length} nodes...`, key: 'bulk' });
+          await Promise.all(nodeIds.map(nodeName => nodesApi.startAllProcesses(nodeName)));
+          message.success({ content: `Started all processes on ${nodeIds.length} nodes`, key: 'bulk' });
           break;
         case 'stop_all':
-          message.info(`Stopping all processes on ${action.nodeIds.length} nodes...`);
-          // TODO: Implement bulk stop
+          message.loading({ content: `Stopping all processes on ${nodeIds.length} nodes...`, key: 'bulk' });
+          await Promise.all(nodeIds.map(nodeName => nodesApi.stopAllProcesses(nodeName)));
+          message.success({ content: `Stopped all processes on ${nodeIds.length} nodes`, key: 'bulk' });
           break;
         case 'delete_selected':
-          message.warning('Node deletion not implemented yet');
+          message.warning('Node deletion is not supported - nodes are defined in config.toml');
           break;
       }
       setSelectedNodes([]);
     } catch (error) {
       console.error('Bulk action failed:', error);
-      message.error('Bulk action failed');
+      message.error({ content: 'Bulk action failed', key: 'bulk' });
     }
   };
 
@@ -190,9 +189,10 @@ function NodeList() {
               selectedNodes={selectedNodes}
               onSelectionChange={setSelectedNodes}
               onNodeClick={(nodeName) => navigate(`/nodes/${nodeName}`)}
-              onRefreshNode={(nodeName) => {
-                message.info(`Refreshing node: ${nodeName}`);
-                // TODO: Implement single node refresh
+              onRefreshNode={async (nodeName) => {
+                message.loading({ content: `Refreshing node: ${nodeName}`, key: 'refresh' });
+                await loadNodes();
+                message.success({ content: `Node ${nodeName} refreshed`, key: 'refresh' });
               }}
               searchQuery={searchQuery}
             />

@@ -30,16 +30,18 @@ type DeveloperToolsAPI struct {
 	service   *supervisor.SupervisorService
 	config    *config.DeveloperToolsConfig
 	logReader *utils.LogReader
+	hub       WebSocketHub
 }
 
 // NewDeveloperToolsAPI creates a new DeveloperToolsAPI instance
-func NewDeveloperToolsAPI(db *gorm.DB, service *supervisor.SupervisorService, cfg *config.DeveloperToolsConfig) *DeveloperToolsAPI {
+func NewDeveloperToolsAPI(db *gorm.DB, service *supervisor.SupervisorService, cfg *config.DeveloperToolsConfig, hub WebSocketHub) *DeveloperToolsAPI {
 	logReader := utils.NewLogReader(cfg)
 	return &DeveloperToolsAPI{
 		db:        db,
 		service:   service,
 		config:    cfg,
 		logReader: logReader,
+		hub:       hub,
 	}
 }
 
@@ -540,10 +542,13 @@ func (api *DeveloperToolsAPI) GetDatabaseMetrics(c *gin.Context) {
 
 // GetWebSocketMetrics returns WebSocket-specific metrics from hub
 func (api *DeveloperToolsAPI) GetWebSocketMetrics(c *gin.Context) {
-	// TODO: 从WebSocket Hub获取真实的连接指标
-	// 需要在Hub中实现指标收集功能
+	var activeConnections int64
+	if api.hub != nil {
+		activeConnections = api.hub.GetConnectionCount()
+	}
+	
 	metrics := WebSocketMetrics{
-		ActiveConnections: 0, // 从Hub.GetConnectionCount()获取
+		ActiveConnections: int(activeConnections),
 		MessagesPerSecond: 0, // 需要实现消息速率统计
 		TotalMessages:     0, // 需要实现总消息数统计
 	}

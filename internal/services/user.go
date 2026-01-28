@@ -2,10 +2,13 @@ package services
 
 import (
 	"go-cesi/internal/errors"
+	"go-cesi/internal/logger"
 	"go-cesi/internal/models"
 	"go-cesi/internal/repository"
 	"golang.org/x/crypto/bcrypt"
 	"time"
+
+	"go.uber.org/zap"
 )
 
 type UserService struct {
@@ -64,8 +67,10 @@ func (s *UserService) Authenticate(username, password string) (*models.User, err
 	now := time.Now()
 	user.LastLogin = &now
 	if err := s.repo.User.Update(user); err != nil {
-		// 记录错误但不影响登录流程
-		// TODO: 添加日志记录
+		logger.Warn("Failed to update last login time",
+			zap.String("user_id", user.ID),
+			zap.String("username", user.Username),
+			zap.Error(err))
 	}
 	
 	return user, nil

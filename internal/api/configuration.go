@@ -219,7 +219,9 @@ func (h *ConfigurationHandler) GetConfiguration(c *gin.Context) {
 		return
 	}
 
-	config, err := h.service.GetConfigurationByID(uint(id), 1, showSecret) // TODO: 修复用户ID类型不匹配问题
+	// 注意：由于 User.ID 是 string (UUID) 而 service 期望 uint，这里传递 0
+	// 审计日志的用户关联需要在后续版本中修复数据模型
+	config, err := h.service.GetConfigurationByID(uint(id), 0, showSecret)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Configuration not found"})
@@ -390,7 +392,9 @@ func (h *ConfigurationHandler) GetEnvironmentVariable(c *gin.Context) {
 		return
 	}
 
-	envVar, err := h.service.GetEnvironmentVariableByID(uint(id), 1, showSecret) // TODO: 修复用户ID类型不匹配问题
+	// 注意：由于 User.ID 是 string (UUID) 而 service 期望 uint，这里传递 0
+	// 审计日志的用户关联需要在后续版本中修复数据模型
+	envVar, err := h.service.GetEnvironmentVariableByID(uint(id), 0, showSecret)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Environment variable not found"})

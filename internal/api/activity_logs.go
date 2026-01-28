@@ -227,6 +227,53 @@ func (a *ActivityLogsAPI) CleanOldLogs(c *gin.Context) {
 	})
 }
 
+// DeleteLogs 按条件删除日志（管理员功能）
+func (a *ActivityLogsAPI) DeleteLogs(c *gin.Context) {
+	// 获取过滤参数
+	filters := map[string]interface{}{
+		"level":      c.Query("level"),
+		"action":     c.Query("action"),
+		"resource":   c.Query("resource"),
+		"username":   c.Query("username"),
+		"start_time": c.Query("start_time"),
+		"end_time":   c.Query("end_time"),
+	}
+
+	// 检查是否有任何过滤条件
+	hasFilter := false
+	for _, v := range filters {
+		if v != nil && v != "" {
+			hasFilter = true
+			break
+		}
+	}
+
+	// 执行删除
+	deleted, err := a.service.DeleteLogs(filters)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "error",
+			"message": "Failed to delete logs: " + err.Error(),
+		})
+		return
+	}
+
+	// 记录删除操作
+	message := "Deleted all logs"
+	if hasFilter {
+		message = "Deleted logs matching filters"
+	}
+	a.service.LogWithContext(c, "INFO", "delete_logs", "system", "",
+		message+" ("+strconv.FormatInt(deleted, 10)+" records)",
+		filters)
+
+	c.JSON(http.StatusOK, gin.H{
+		"status":  "success",
+		"message": message,
+		"deleted": deleted,
+	})
+}
+
 // ExportLogs 导出日志为 CSV
 func (a *ActivityLogsAPI) ExportLogs(c *gin.Context) {
 	// 获取过滤参数

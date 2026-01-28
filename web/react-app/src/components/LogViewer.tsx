@@ -20,7 +20,7 @@ import {
 } from '@ant-design/icons';
 import { nodesApi } from '@/api/nodes';
 import { useWebSocket } from '@/hooks/useWebSocket';
-import { LogEntry, LogStream, LogStreamMessage } from '@/types';
+import { LogEntry, LogStreamMessage } from '@/types';
 import { useStore } from '@/store';
 
 const { Search } = Input;
@@ -54,7 +54,6 @@ const LogViewer: React.FC<LogViewerProps> = ({
   const formatTimestamp = useCallback((timestamp: string) => {
     // 优先使用用户设置的时区，默认使用 Asia/Shanghai
     const timezone = userPreferences?.timezone || 'Asia/Shanghai';
-    console.log('[LogViewer] formatTimestamp - timezone:', timezone, 'timestamp:', timestamp);
     try {
       const date = new Date(timestamp);
       if (isNaN(date.getTime())) {
@@ -127,9 +126,8 @@ const LogViewer: React.FC<LogViewerProps> = ({
     try {
       // 不传 offset，让后端从文件末尾读取最新日志
       const response = await nodesApi.getProcessLogStream(nodeName, processName, undefined, 100);
-      const logStream = (response as any).data as LogStream;
-      
-      setLogEntries(logStream.entries || []);
+      // 后端返回 { status, data: LogStream }
+      setLogEntries(response.data?.entries || []);
     } catch (error) {
       console.error('Failed to load logs:', error);
       message.error('Failed to load logs');

@@ -13,6 +13,7 @@ import (
 // WebSocketHub interface for broadcasting
 type WebSocketHub interface {
 	Broadcast(message []byte)
+	GetConnectionCount() int64
 }
 
 func SetupRoutes(r *gin.Engine, db *gorm.DB, service *supervisor.SupervisorService, hub WebSocketHub) {
@@ -133,6 +134,7 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB, service *supervisor.SupervisorServi
 			activityLogsGroup.GET("/statistics", activityLogsAPI.GetLogStatistics)
 			activityLogsGroup.GET("/export", activityLogsAPI.ExportLogs)
 			activityLogsGroup.DELETE("/clean", activityLogsAPI.CleanOldLogs)
+			activityLogsGroup.DELETE("", activityLogsAPI.DeleteLogs)
 		}
 
 		// Roles and Permissions API
@@ -370,7 +372,7 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB, service *supervisor.SupervisorServi
 		}
 
 		// Developer Tools API
-		developerToolsHandler := NewDeveloperToolsAPI(db, service, nil)
+		developerToolsHandler := NewDeveloperToolsAPI(db, service, nil, hub)
 		developerGroup := apiGroup.Group("/developer")
 		{
 			// API 文档

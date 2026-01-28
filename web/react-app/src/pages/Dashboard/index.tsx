@@ -29,7 +29,7 @@ export default function Dashboard() {
     setLoading(true);
     try {
       const response = await nodesApi.getNodes();
-      setNodes(response.data?.nodes || []);
+      setNodes(response.nodes || []);
     } catch (error) {
       console.error('Failed to load nodes:', error);
     } finally {

@@ -124,6 +124,33 @@ class ActivityLogsAPI {
 
     return response.blob();
   }
+
+  async deleteLogs(filters: ActivityLogsFilters = {}): Promise<{ status: string; message: string; deleted: number }> {
+    const params = new URLSearchParams();
+    
+    if (filters.level) params.append('level', filters.level);
+    if (filters.action) params.append('action', filters.action);
+    if (filters.resource) params.append('resource', filters.resource);
+    if (filters.username) params.append('username', filters.username);
+    if (filters.start_time) params.append('start_time', filters.start_time);
+    if (filters.end_time) params.append('end_time', filters.end_time);
+
+    const queryString = params.toString();
+    const url = `/api/activity-logs${queryString ? `?${queryString}` : ''}`;
+    
+    const response = await fetch(url, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to delete logs');
+    }
+
+    return response.json();
+  }
 }
 
 export const activityLogsAPI = new ActivityLogsAPI();

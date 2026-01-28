@@ -46,10 +46,8 @@ export default function EnvironmentDetail() {
     setError(null);
     try {
       const response = await environmentsApi.getEnvironmentDetail(environmentName);
-      console.log('Environment detail API response:', response);
-      // 后端直接返回 { status, environment }，不是嵌套在 data 里
-      if ((response as any).environment) {
-        setEnvironment((response as any).environment);
+      if (response.environment) {
+        setEnvironment(response.environment);
       } else {
         setError('Environment not found');
       }

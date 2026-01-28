@@ -20,9 +20,7 @@ export default function EnvironmentList() {
     setLoading(true);
     try {
       const response = await environmentsApi.getEnvironments();
-      console.log('Environments API response:', response);
-      // 后端直接返回 { status, environments }，不是嵌套在 data 里
-      setEnvironments((response as any).environments || []);
+      setEnvironments(response.environments || []);
     } catch (error) {
       console.error('Failed to load environments:', error);
       message.error('Failed to load environments. Please try again.');

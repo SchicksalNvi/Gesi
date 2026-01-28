@@ -15,7 +15,9 @@ import {
   SearchOutlined,
   ReloadOutlined,
   DownloadOutlined,
+  DeleteOutlined,
 } from '@ant-design/icons';
+import { Modal } from 'antd';
 import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
 import dayjs, { Dayjs } from 'dayjs';
 import { activityLogsAPI } from '../../api/activityLogs';
@@ -124,6 +126,39 @@ const Logs: React.FC = () => {
       console.error('Failed to export logs:', err);
       message.error({ content: 'Failed to export logs', key: 'export' });
     }
+  };
+
+  const hasFilters = () => {
+    return !!(levelFilter || actionFilter || resourceFilter || usernameFilter || (dateRange && dateRange[0] && dateRange[1]));
+  };
+
+  const handleClearLogs = () => {
+    const filtered = hasFilters();
+    Modal.confirm({
+      title: filtered ? 'Clear Filtered Logs' : 'Clear All Logs',
+      content: filtered 
+        ? 'Are you sure you want to delete all logs matching the current filters? This action cannot be undone.'
+        : 'Are you sure you want to delete ALL activity logs? This action cannot be undone.',
+      okText: 'Delete',
+      okType: 'danger',
+      cancelText: 'Cancel',
+      onOk: async () => {
+        try {
+          message.loading({ content: 'Deleting logs...', key: 'delete' });
+          const filters = buildFilters();
+          // Remove pagination from delete filters
+          delete filters.page;
+          delete filters.page_size;
+          
+          const result = await activityLogsAPI.deleteLogs(filters);
+          message.success({ content: `Deleted ${result.deleted} logs`, key: 'delete' });
+          loadLogs({ page: 1 });
+        } catch (err) {
+          console.error('Failed to delete logs:', err);
+          message.error({ content: 'Failed to delete logs', key: 'delete' });
+        }
+      },
+    });
   };
 
   const getLevelColor = (level: string) => {
@@ -250,6 +285,14 @@ const Logs: React.FC = () => {
             disabled={loading}
           >
             Export
+          </Button>
+          <Button
+            danger
+            icon={<DeleteOutlined />}
+            onClick={handleClearLogs}
+            disabled={loading}
+          >
+            {hasFilters() ? 'Clear Filtered' : 'Clear All'}
           </Button>
           <Button
             type="primary"

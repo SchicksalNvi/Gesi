@@ -224,6 +224,54 @@ func (s *ActivityLogService) CleanOldLogs(days int) error {
 	return s.db.Where("created_at < ?", cutoffTime).Delete(&models.ActivityLog{}).Error
 }
 
+// DeleteLogs 按条件删除日志
+func (s *ActivityLogService) DeleteLogs(filters map[string]interface{}) (int64, error) {
+	query := s.db.Model(&models.ActivityLog{})
+	hasFilter := false
+
+	// 应用过滤器
+	for key, value := range filters {
+		if value != nil && value != "" {
+			hasFilter = true
+			switch key {
+			case "level":
+				query = query.Where("level = ?", value)
+			case "action":
+				query = query.Where("action = ?", value)
+			case "resource":
+				if str, ok := value.(string); ok {
+					query = query.Where("resource LIKE ?", "%"+str+"%")
+				}
+			case "username":
+				if str, ok := value.(string); ok {
+					query = query.Where("username LIKE ?", "%"+str+"%")
+				}
+			case "start_time":
+				if str, ok := value.(string); ok && str != "" {
+					query = query.Where("created_at >= ?", str)
+				}
+			case "end_time":
+				if str, ok := value.(string); ok && str != "" {
+					query = query.Where("created_at <= ?", str)
+				}
+			}
+		}
+	}
+
+	// 执行删除
+	result := query.Delete(&models.ActivityLog{})
+	if result.Error != nil {
+		return 0, result.Error
+	}
+
+	// 如果没有任何过滤条件，返回特殊标记
+	if !hasFilter {
+		return result.RowsAffected, nil
+	}
+
+	return result.RowsAffected, nil
+}
+
 // 便捷方法
 func (s *ActivityLogService) LogLogin(c *gin.Context, username string) {
 	message := fmt.Sprintf("User %s logged in", username)

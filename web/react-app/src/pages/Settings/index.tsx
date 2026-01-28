@@ -143,13 +143,13 @@ const Settings: React.FC = () => {
         full_name: values.full_name,
       });
       
-      // 更新本地状态
-      if (response.data?.data && user) {
+      // 更新本地状态 - 后端返回 { status, message, data: {...} }
+      if ((response as any).data && user) {
         const updatedUser = { 
           ...user, 
-          email: response.data.data.email,
-          full_name: response.data.data.full_name,
-          updated_at: response.data.data.updated_at,
+          email: (response as any).data.email,
+          full_name: (response as any).data.full_name,
+          updated_at: (response as any).data.updated_at,
         };
         setUser(updatedUser);
       }
