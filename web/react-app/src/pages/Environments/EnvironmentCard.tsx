@@ -5,6 +5,7 @@ import {
   CloseCircleOutlined,
 } from '@ant-design/icons';
 import { Environment } from '@/types';
+import { useStore } from '@/store';
 
 interface EnvironmentCardProps {
   environment: Environment;
@@ -12,6 +13,7 @@ interface EnvironmentCardProps {
 }
 
 export default function EnvironmentCard({ environment, onClick }: EnvironmentCardProps) {
+  const { t } = useStore();
   const totalNodes = environment.members.length;
   const onlineNodes = environment.members.filter((node) => node.is_connected).length;
   const offlineNodes = totalNodes - onlineNodes;
@@ -44,7 +46,7 @@ export default function EnvironmentCard({ environment, onClick }: EnvironmentCar
           <div>
             <h3 style={{ margin: 0, fontSize: 18 }}>{environment.name}</h3>
             <p style={{ margin: 0, color: '#999', fontSize: 14 }}>
-              {totalNodes} {totalNodes === 1 ? 'node' : 'nodes'}
+              {totalNodes} {t.nav.nodes.toLowerCase()}
             </p>
           </div>
         </div>
@@ -64,7 +66,7 @@ export default function EnvironmentCard({ environment, onClick }: EnvironmentCar
             </div>
             <div style={{ fontSize: 12, color: '#999', marginTop: 4 }}>
               <CheckCircleOutlined style={{ marginRight: 4 }} />
-              Online
+              {t.nodes.online}
             </div>
           </div>
           <div
@@ -79,7 +81,7 @@ export default function EnvironmentCard({ environment, onClick }: EnvironmentCar
             </div>
             <div style={{ fontSize: 12, color: '#999', marginTop: 4 }}>
               <CloseCircleOutlined style={{ marginRight: 4 }} />
-              Offline
+              {t.nodes.offline}
             </div>
           </div>
         </div>
@@ -88,15 +90,15 @@ export default function EnvironmentCard({ environment, onClick }: EnvironmentCar
         <div style={{ textAlign: 'center' }}>
           {onlineNodes === totalNodes ? (
             <Tag color="success" style={{ margin: 0 }}>
-              All nodes online
+              {t.environmentCard.allNodesOnline}
             </Tag>
           ) : onlineNodes === 0 ? (
             <Tag color="error" style={{ margin: 0 }}>
-              All nodes offline
+              {t.environmentCard.allNodesOffline}
             </Tag>
           ) : (
             <Tag color="warning" style={{ margin: 0 }}>
-              Partial connectivity
+              {t.environmentCard.partialConnectivity}
             </Tag>
           )}
         </div>

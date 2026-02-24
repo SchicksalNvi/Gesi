@@ -6,6 +6,7 @@ import {
   EyeOutlined,
 } from '@ant-design/icons';
 import { Node } from '@/types';
+import { useStore } from '@/store';
 
 interface PaginatedCardViewProps {
   nodes: Node[];
@@ -23,6 +24,7 @@ export const PaginatedCardView: React.FC<PaginatedCardViewProps> = ({
   searchQuery = '',
   pageSize = DEFAULT_PAGE_SIZE,
 }) => {
+  const { t } = useStore();
   const [currentPage, setCurrentPage] = useState(1);
   const [currentPageSize, setCurrentPageSize] = useState(pageSize);
 
@@ -71,7 +73,7 @@ export const PaginatedCardView: React.FC<PaginatedCardViewProps> = ({
       {/* Performance info for large datasets */}
       {shouldPaginate && (
         <Alert
-          message={`Large dataset (${nodes.length} nodes). Showing ${currentPageSize} nodes per page for better performance.`}
+          message={t.paginatedCard.largeDatasetInfo.replace('{count}', String(nodes.length)).replace('{pageSize}', String(currentPageSize))}
           type="info"
           showIcon
           style={{ marginBottom: 16 }}
@@ -106,7 +108,7 @@ export const PaginatedCardView: React.FC<PaginatedCardViewProps> = ({
             showSizeChanger
             showQuickJumper
             showTotal={(total, range) => 
-              `${range[0]}-${range[1]} of ${total} nodes`
+              t.paginatedCard.ofNodes.replace('{start}', String(range[0])).replace('{end}', String(range[1])).replace('{total}', String(total))
             }
             pageSizeOptions={['20', '50', '100', '200']}
             onChange={handlePageChange}
@@ -128,6 +130,7 @@ function NodeCard({
   onView: () => void;
   searchQuery?: string;
 }) {
+  const { t } = useStore();
   const isOnline = node.is_connected;
 
   // Highlight search matches
@@ -216,7 +219,7 @@ function NodeCard({
             <div style={{ fontSize: 24, fontWeight: 'bold', color: '#1890ff' }}>
               {node.process_count || 0}
             </div>
-            <div style={{ fontSize: 12, color: '#999' }}>Processes</div>
+            <div style={{ fontSize: 12, color: '#999' }}>{t.nodes.processes}</div>
           </div>
           <div
             style={{
@@ -229,7 +232,7 @@ function NodeCard({
               icon={isOnline ? <CheckCircleOutlined /> : <CloseCircleOutlined />}
               color={isOnline ? 'success' : 'error'}
             >
-              {isOnline ? 'Online' : 'Offline'}
+              {isOnline ? t.nodes.online : t.nodes.offline}
             </Tag>
           </div>
         </div>
@@ -244,7 +247,7 @@ function NodeCard({
             onView();
           }}
         >
-          View Details
+          {t.nodes.viewDetails}
         </Button>
       </Space>
     </Card>

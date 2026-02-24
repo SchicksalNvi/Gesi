@@ -18,7 +18,7 @@ import { useStore } from '@/store';
 import { settingsApi, SystemSettings } from '@/api/settings';
 
 const Settings: React.FC = () => {
-  const { user } = useStore();
+  const { user, t } = useStore();
   const [loading, setLoading] = useState(false);
   const [systemForm] = Form.useForm();
 
@@ -80,7 +80,7 @@ const Settings: React.FC = () => {
       const { setWebsocketEnabled } = useStore.getState();
       setWebsocketEnabled(values.enable_websocket);
       
-      message.success('System settings updated');
+      message.success(t.settings.systemSettingsUpdated);
     } catch (error: any) {
       console.error('Failed to update system settings:', error);
       message.error(error.response?.data?.message || 'Failed to update system settings');
@@ -93,8 +93,8 @@ const Settings: React.FC = () => {
     return (
       <div style={{ padding: 24 }}>
         <Alert
-          message="Access Denied"
-          description="Only administrators can access system settings"
+          message={t.common.error}
+          description={t.settings.adminOnlyAccess}
           type="error"
           showIcon
         />
@@ -104,12 +104,12 @@ const Settings: React.FC = () => {
 
   return (
     <div style={{ padding: 24 }}>
-      <h1 style={{ marginBottom: 16 }}>System Settings</h1>
+      <h1 style={{ marginBottom: 16 }}>{t.settings.title}</h1>
 
       <Card>
         <Alert
-          message="System Configuration"
-          description="Configure global system settings. Changes will affect all users."
+          message={t.settings.system}
+          description={t.settings.systemSettingsDesc}
           type="warning"
           showIcon
           style={{ marginBottom: 24 }}
@@ -130,8 +130,8 @@ const Settings: React.FC = () => {
         >
           <Form.Item
             name="refresh_interval"
-            label="Node Refresh Interval (seconds)"
-            help="How often to refresh node and process status"
+            label={t.settings.refreshInterval + ' (seconds)'}
+            help={t.settings.refreshIntervalHelp}
             rules={[{ required: true }]}
           >
             <InputNumber min={5} max={300} style={{ width: '100%' }} />
@@ -139,8 +139,8 @@ const Settings: React.FC = () => {
 
           <Form.Item
             name="process_refresh_interval"
-            label="Process Page Refresh Interval (seconds)"
-            help="How often to push process updates via WebSocket"
+            label={t.settings.processRefreshInterval + ' (seconds)'}
+            help={t.settings.processRefreshHelp}
             rules={[{ required: true }]}
           >
             <InputNumber min={1} max={300} style={{ width: '100%' }} />
@@ -148,7 +148,7 @@ const Settings: React.FC = () => {
 
           <Form.Item
             name="log_retention_days"
-            label="Log Retention (days)"
+            label={t.settings.dataRetention + ' (days)'}
             rules={[{ required: true }]}
           >
             <InputNumber min={1} max={365} style={{ width: '100%' }} />
@@ -156,7 +156,7 @@ const Settings: React.FC = () => {
 
           <Form.Item
             name="max_concurrent_connections"
-            label="Max Concurrent Connections"
+            label={t.settings.maxConcurrentConnections}
             rules={[{ required: true }]}
           >
             <InputNumber min={10} max={1000} style={{ width: '100%' }} />
@@ -166,16 +166,16 @@ const Settings: React.FC = () => {
 
           <Form.Item
             name="enable_websocket"
-            label="Enable WebSocket"
+            label={t.settings.websocketEnabled}
             valuePropName="checked"
-            help="When disabled, real-time updates will not be available"
+            help={t.settings.processRefreshHelp}
           >
             <Switch />
           </Form.Item>
 
           <Form.Item
             name="enable_activity_logging"
-            label="Enable Activity Logging"
+            label={t.settings.enableActivityLogging}
             valuePropName="checked"
           >
             <Switch />
@@ -189,13 +189,13 @@ const Settings: React.FC = () => {
                 onClick={handleSystemUpdate}
                 loading={loading}
               >
-                Save Settings
+                {t.settings.saveSettings}
               </Button>
               <Button
                 icon={<DatabaseOutlined />}
-                onClick={() => message.info('Database backup started')}
+                onClick={() => message.info(t.settings.databaseBackupStarted)}
               >
-                Backup Database
+                {t.settings.backupNow}
               </Button>
             </Space>
           </Form.Item>

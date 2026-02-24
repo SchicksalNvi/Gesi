@@ -29,9 +29,12 @@ import { nodesApi } from '@/api/nodes';
 import { Node, Process } from '@/types';
 import LogViewer from '@/components/LogViewer';
 
+import { useStore } from '@/store';
+
 const NodeDetail: React.FC = () => {
   const { nodeName } = useParams<{ nodeName: string }>();
   const navigate = useNavigate();
+  const { t } = useStore();
   const [node, setNode] = useState<Node | null>(null);
   const [processes, setProcesses] = useState<Process[]>([]);
   const [loading, setLoading] = useState(true);
@@ -128,18 +131,18 @@ const NodeDetail: React.FC = () => {
 
   const processColumns = [
     {
-      title: 'Name',
+      title: t.common.name,
       dataIndex: 'name',
       key: 'name',
       render: (name: string) => <strong>{name}</strong>,
     },
     {
-      title: 'Group',
+      title: t.processes.processGroup,
       dataIndex: 'group',
       key: 'group',
     },
     {
-      title: 'State',
+      title: t.processes.processState,
       dataIndex: 'state_string',
       key: 'state_string',
       render: (state: string, record: Process) => (
@@ -149,19 +152,19 @@ const NodeDetail: React.FC = () => {
       ),
     },
     {
-      title: 'PID',
+      title: t.processes.pid,
       dataIndex: 'pid',
       key: 'pid',
       render: (pid: number) => pid || '-',
     },
     {
-      title: 'Uptime',
+      title: t.processes.uptime,
       dataIndex: 'uptime_human',
       key: 'uptime_human',
       render: (uptime: string) => uptime || '-',
     },
     {
-      title: 'Actions',
+      title: t.common.actions,
       key: 'actions',
       render: (_: any, record: Process) => (
         <Space>
@@ -173,15 +176,15 @@ const NodeDetail: React.FC = () => {
               onClick={() => handleProcessAction(record.name, 'start')}
               loading={actionLoading[`${record.name}-start`]}
             >
-              Start
+              {t.processes.start}
             </Button>
           )}
           {record.state === 20 && (
             <Popconfirm
-              title="Stop this process?"
+              title={t.nodeDetail.stopProcess}
               onConfirm={() => handleProcessAction(record.name, 'stop')}
-              okText="Yes"
-              cancelText="No"
+              okText={t.common.yes}
+              cancelText={t.common.no}
             >
               <Button
                 size="small"
@@ -189,7 +192,7 @@ const NodeDetail: React.FC = () => {
                 loading={actionLoading[`${record.name}-stop`]}
                 danger
               >
-                Stop
+                {t.processes.stop}
               </Button>
             </Popconfirm>
           )}
@@ -199,14 +202,14 @@ const NodeDetail: React.FC = () => {
             onClick={() => handleProcessAction(record.name, 'restart')}
             loading={actionLoading[`${record.name}-restart`]}
           >
-            Restart
+            {t.processes.restart}
           </Button>
           <Button
             size="small"
             icon={<FileTextOutlined />}
             onClick={() => handleViewLogs(record)}
           >
-            Logs
+            {t.logs.title}
           </Button>
         </Space>
       ),
@@ -234,16 +237,16 @@ const NodeDetail: React.FC = () => {
       <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Space>
           <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/nodes')}>
-            Back
+            {t.common.back}
           </Button>
-          <h1 style={{ margin: 0 }}>Node: {node.name}</h1>
+          <h1 style={{ margin: 0 }}>{t.nav.nodes}: {node.name}</h1>
           {node.is_connected ? (
             <Tag icon={<CheckCircleOutlined />} color="success">
-              Connected
+              {t.nodeDetail.connected}
             </Tag>
           ) : (
             <Tag icon={<CloseCircleOutlined />} color="error">
-              Disconnected
+              {t.nodeDetail.disconnected}
             </Tag>
           )}
         </Space>
@@ -253,7 +256,7 @@ const NodeDetail: React.FC = () => {
           onClick={loadNodeDetail}
           loading={loading}
         >
-          Refresh
+          {t.common.refresh}
         </Button>
       </div>
 
@@ -262,7 +265,7 @@ const NodeDetail: React.FC = () => {
         <Col xs={24} sm={8}>
           <Card>
             <Statistic
-              title="Total Processes"
+              title={t.nodeDetail.totalProcesses}
               value={totalProcesses}
               prefix={<InfoCircleOutlined />}
             />
@@ -271,7 +274,7 @@ const NodeDetail: React.FC = () => {
         <Col xs={24} sm={8}>
           <Card>
             <Statistic
-              title="Running"
+              title={t.nodeDetail.running}
               value={runningProcesses}
               prefix={<PlayCircleOutlined />}
               valueStyle={{ color: '#52c41a' }}
@@ -281,7 +284,7 @@ const NodeDetail: React.FC = () => {
         <Col xs={24} sm={8}>
           <Card>
             <Statistic
-              title="Stopped"
+              title={t.nodeDetail.stopped}
               value={stoppedProcesses}
               prefix={<StopOutlined />}
               valueStyle={{ color: '#ff4d4f' }}
@@ -295,7 +298,7 @@ const NodeDetail: React.FC = () => {
         items={[
           {
             key: 'processes',
-            label: 'Processes',
+            label: t.processes.title,
             children: (
               <Card>
                 <Table
@@ -310,25 +313,25 @@ const NodeDetail: React.FC = () => {
           },
           {
             key: 'info',
-            label: 'Node Information',
+            label: t.nodeDetail.nodeInfo,
             children: (
               <Card>
                 <Descriptions bordered column={2}>
-                  <Descriptions.Item label="Name">{node.name}</Descriptions.Item>
-                  <Descriptions.Item label="Host">{node.host}</Descriptions.Item>
-                  <Descriptions.Item label="Port">{node.port}</Descriptions.Item>
-                  <Descriptions.Item label="Environment">
+                  <Descriptions.Item label={t.common.name}>{node.name}</Descriptions.Item>
+                  <Descriptions.Item label={t.nodeDetail.host}>{node.host}</Descriptions.Item>
+                  <Descriptions.Item label={t.nodeDetail.port}>{node.port}</Descriptions.Item>
+                  <Descriptions.Item label={t.nodes.environment}>
                     <Tag color={node.environment === 'production' ? 'red' : 'blue'}>
                       {node.environment || 'development'}
                     </Tag>
                   </Descriptions.Item>
-                  <Descriptions.Item label="Username">{node.username}</Descriptions.Item>
-                  <Descriptions.Item label="Status">
+                  <Descriptions.Item label={t.nodeDetail.username}>{node.username}</Descriptions.Item>
+                  <Descriptions.Item label={t.common.status}>
                     <Tag color={node.is_connected ? 'success' : 'error'}>
-                      {node.is_connected ? 'Connected' : 'Disconnected'}
+                      {node.is_connected ? t.nodeDetail.connected : t.nodeDetail.disconnected}
                     </Tag>
                   </Descriptions.Item>
-                  <Descriptions.Item label="Last Ping" span={2}>
+                  <Descriptions.Item label={t.nodeDetail.lastPing} span={2}>
                     {node.last_ping ? new Date(node.last_ping).toLocaleString() : '-'}
                   </Descriptions.Item>
                 </Descriptions>

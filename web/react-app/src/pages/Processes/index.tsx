@@ -27,10 +27,12 @@ import { processesApi } from '@/api/processes';
 import { AggregatedProcess, BatchOperationResult } from '@/types';
 import ProcessInstanceList from './ProcessInstanceList';
 import { useWebSocket } from '@/hooks/useWebSocket';
+import { useStore } from '@/store';
 
 const { Search } = Input;
 
 const ProcessesPage: React.FC = () => {
+  const { t } = useStore();
   const [processes, setProcesses] = useState<AggregatedProcess[]>([]);
   const [filteredProcesses, setFilteredProcesses] = useState<AggregatedProcess[]>([]);
   const [loading, setLoading] = useState(true);
@@ -159,20 +161,20 @@ const ProcessesPage: React.FC = () => {
   return (
     <div>
       <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h1 style={{ margin: 0 }}>Processes</h1>
+        <h1 style={{ margin: 0 }}>{t.processes.title}</h1>
         <Button
           type="primary"
           icon={<ReloadOutlined />}
           onClick={loadProcesses}
           loading={loading}
         >
-          Refresh
+          {t.common.refresh}
         </Button>
       </div>
 
       <Card style={{ marginBottom: 16 }}>
         <Search
-          placeholder="Search processes by name..."
+          placeholder={t.common.search + '...'}
           allowClear
           enterButton={<SearchOutlined />}
           size="large"
@@ -187,8 +189,8 @@ const ProcessesPage: React.FC = () => {
           <Empty
             description={
               searchText
-                ? `No processes found matching "${searchText}"`
-                : 'No processes available'
+                ? `${t.common.noData}: "${searchText}"`
+                : t.common.noData
             }
           />
         </Card>
@@ -213,14 +215,13 @@ const ProcessesPage: React.FC = () => {
                     loading={actionLoading[`${proc.name}-start`]}
                     disabled={proc.running_instances === proc.total_instances}
                   >
-                    Start All
+                    {t.nodes.startAll}
                   </Button>
                   <Popconfirm
-                    title="Stop all instances?"
-                    description={`This will stop all ${proc.total_instances} instance(s) of ${proc.name}`}
+                    title={t.processes.confirmStop}
                     onConfirm={() => handleBatchOperation(proc.name, 'stop')}
-                    okText="Yes"
-                    cancelText="No"
+                    okText={t.common.yes}
+                    cancelText={t.common.no}
                   >
                     <Button
                       size="small"
@@ -229,7 +230,7 @@ const ProcessesPage: React.FC = () => {
                       disabled={proc.running_instances === 0}
                       danger
                     >
-                      Stop All
+                      {t.nodes.stopAll}
                     </Button>
                   </Popconfirm>
                   <Button
@@ -238,7 +239,7 @@ const ProcessesPage: React.FC = () => {
                     onClick={() => handleBatchOperation(proc.name, 'restart')}
                     loading={actionLoading[`${proc.name}-restart`]}
                   >
-                    Restart All
+                    {t.nodes.restartAll}
                   </Button>
                 </Space>
               }
@@ -246,14 +247,14 @@ const ProcessesPage: React.FC = () => {
               <Row gutter={16} style={{ marginBottom: 16 }}>
                 <Col xs={24} sm={8}>
                   <Statistic
-                    title="Total Instances"
+                    title={t.common.total}
                     value={proc.total_instances}
                     prefix={<InfoCircleOutlined />}
                   />
                 </Col>
                 <Col xs={24} sm={8}>
                   <Statistic
-                    title="Running"
+                    title={t.processes.running}
                     value={proc.running_instances}
                     prefix={<PlayCircleOutlined />}
                     valueStyle={{ color: '#52c41a' }}
@@ -261,7 +262,7 @@ const ProcessesPage: React.FC = () => {
                 </Col>
                 <Col xs={24} sm={8}>
                   <Statistic
-                    title="Stopped"
+                    title={t.processes.stopped}
                     value={proc.stopped_instances}
                     prefix={<StopOutlined />}
                     valueStyle={{ color: '#ff4d4f' }}
@@ -270,7 +271,7 @@ const ProcessesPage: React.FC = () => {
               </Row>
 
               <div style={{ marginBottom: 16 }}>
-                <strong>Nodes:</strong>{' '}
+                <strong>{t.nav.nodes}:</strong>{' '}
                 {proc.instances.map((inst, idx) => (
                   <Tag key={idx} color="default">
                     {inst.node_name}
@@ -282,7 +283,7 @@ const ProcessesPage: React.FC = () => {
                 items={[
                   {
                     key: '1',
-                    label: 'Instance Details',
+                    label: t.common.details,
                     children: (
                       <ProcessInstanceList
                         instances={proc.instances}
