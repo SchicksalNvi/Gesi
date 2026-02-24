@@ -8,7 +8,7 @@ import { GesiLogo } from '@/components/GesiLogo';
 
 export default function Login() {
   const navigate = useNavigate();
-  const { setUser, setToken } = useStore();
+  const { setUser, setToken, t } = useStore();
   const [loading, setLoading] = useState(false);
 
   const onFinish = async (values: { username: string; password: string }) => {
@@ -25,13 +25,13 @@ export default function Login() {
         // 设置用户信息
         setUser(user);
         
-        message.success('Login successful!');
+        message.success(t.login.loginSuccess);
         navigate('/dashboard');
       } else {
-        message.error(response.message || 'Login failed');
+        message.error(response.message || t.login.loginFailed);
       }
     } catch (error: any) {
-      message.error(error.response?.data?.message || 'Login failed');
+      message.error(error.response?.data?.message || t.login.loginFailed);
     } finally {
       setLoading(false);
     }
@@ -69,21 +69,21 @@ export default function Login() {
           >
             <Form.Item
               name="username"
-              rules={[{ required: true, message: 'Please input your username!' }]}
+              rules={[{ required: true, message: t.login.usernameRequired }]}
             >
               <Input
                 prefix={<UserOutlined />}
-                placeholder="Username"
+                placeholder={t.login.username}
               />
             </Form.Item>
 
             <Form.Item
               name="password"
-              rules={[{ required: true, message: 'Please input your password!' }]}
+              rules={[{ required: true, message: t.login.passwordRequired }]}
             >
               <Input.Password
                 prefix={<LockOutlined />}
-                placeholder="Password"
+                placeholder={t.login.password}
               />
             </Form.Item>
 
@@ -94,7 +94,7 @@ export default function Login() {
                 loading={loading}
                 block
               >
-                Log in
+                {t.login.loginButton}
               </Button>
             </Form.Item>
           </Form>

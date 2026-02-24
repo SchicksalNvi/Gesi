@@ -1,8 +1,14 @@
 import { create } from 'zustand';
 import { User, Node, SystemStats } from '@/types';
 import { UserPreferences } from '@/api/settings';
+import { Language, translations, TranslationKeys } from '@/i18n';
 
 interface AppState {
+  // Language state
+  language: Language;
+  t: TranslationKeys;
+  setLanguage: (lang: Language) => void;
+
   // Auth state
   user: User | null;
   token: string | null;
@@ -35,6 +41,14 @@ interface AppState {
 }
 
 export const useStore = create<AppState>((set, get) => ({
+  // Language state - Initialize from localStorage, default to 'en'
+  language: (localStorage.getItem('language') as Language) || 'en',
+  t: translations[(localStorage.getItem('language') as Language) || 'en'],
+  setLanguage: (lang: Language) => {
+    localStorage.setItem('language', lang);
+    set({ language: lang, t: translations[lang] });
+  },
+
   // Auth state - Initialize based on localStorage
   user: JSON.parse(localStorage.getItem('user') || 'null'),
   token: localStorage.getItem('token'),

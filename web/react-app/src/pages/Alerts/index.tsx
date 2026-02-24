@@ -20,6 +20,7 @@ import {
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useWebSocket } from '@/hooks/useWebSocket';
+import { useStore } from '@/store';
 import type { ColumnsType } from 'antd/es/table';
 
 const { Search } = Input;
@@ -40,6 +41,7 @@ interface Alert {
 
 const Alerts: React.FC = () => {
   const navigate = useNavigate();
+  const { t } = useStore();
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchText, setSearchText] = useState('');
@@ -190,7 +192,7 @@ const Alerts: React.FC = () => {
 
   const columns: ColumnsType<Alert> = [
     {
-      title: 'Severity',
+      title: t.alerts.severity,
       dataIndex: 'severity',
       key: 'severity',
       width: 120,
@@ -201,13 +203,13 @@ const Alerts: React.FC = () => {
       ),
     },
     {
-      title: 'Message',
+      title: t.alerts.alertMessage,
       dataIndex: 'message',
       key: 'message',
       ellipsis: true,
     },
     {
-      title: 'Status',
+      title: t.common.status,
       dataIndex: 'status',
       key: 'status',
       width: 120,
@@ -218,14 +220,14 @@ const Alerts: React.FC = () => {
       ),
     },
     {
-      title: 'Created',
+      title: t.alerts.alertTime,
       dataIndex: 'start_time',
       key: 'start_time',
       width: 180,
       render: (date: string) => new Date(date).toLocaleString(),
     },
     {
-      title: 'Actions',
+      title: t.common.actions,
       key: 'actions',
       width: 200,
       render: (_, record: Alert) => (
@@ -235,7 +237,7 @@ const Alerts: React.FC = () => {
               size="small"
               onClick={() => handleAcknowledge(record.id)}
             >
-              Acknowledge
+              {t.alerts.acknowledge}
             </Button>
           )}
           {record.status !== 'resolved' && (
@@ -244,7 +246,7 @@ const Alerts: React.FC = () => {
               type="primary"
               onClick={() => handleResolve(record.id)}
             >
-              Resolve
+              {t.alerts.resolve}
             </Button>
           )}
         </Space>
@@ -260,14 +262,14 @@ const Alerts: React.FC = () => {
     <div>
       <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Space>
-          <h1 style={{ margin: 0 }}>Alerts</h1>
+          <h1 style={{ margin: 0 }}>{t.alerts.title}</h1>
           <Badge count={activeCount} style={{ backgroundColor: '#ff4d4f' }} />
         </Space>
         <Space>
           <Button
             onClick={() => navigate('/alerts/rules')}
           >
-            Alert Rules
+            {t.alerts.alertRules}
           </Button>
           <Button
             type="primary"
@@ -275,7 +277,7 @@ const Alerts: React.FC = () => {
             onClick={loadAlerts}
             loading={loading}
           >
-            Refresh
+            {t.common.refresh}
           </Button>
         </Space>
       </div>
@@ -286,7 +288,7 @@ const Alerts: React.FC = () => {
           <Space>
             <CloseCircleOutlined style={{ fontSize: 24, color: '#ff4d4f' }} />
             <div>
-              <div style={{ fontSize: 12, color: '#666' }}>Active</div>
+              <div style={{ fontSize: 12, color: '#666' }}>{t.alerts.unacknowledged}</div>
               <div style={{ fontSize: 20, fontWeight: 'bold' }}>{activeCount}</div>
             </div>
           </Space>
@@ -295,7 +297,7 @@ const Alerts: React.FC = () => {
           <Space>
             <WarningOutlined style={{ fontSize: 24, color: '#faad14' }} />
             <div>
-              <div style={{ fontSize: 12, color: '#666' }}>Acknowledged</div>
+              <div style={{ fontSize: 12, color: '#666' }}>{t.alerts.acknowledged}</div>
               <div style={{ fontSize: 20, fontWeight: 'bold' }}>{acknowledgedCount}</div>
             </div>
           </Space>
@@ -304,7 +306,7 @@ const Alerts: React.FC = () => {
           <Space>
             <CheckCircleOutlined style={{ fontSize: 24, color: '#52c41a' }} />
             <div>
-              <div style={{ fontSize: 12, color: '#666' }}>Resolved</div>
+              <div style={{ fontSize: 12, color: '#666' }}>{t.alerts.resolve}</div>
               <div style={{ fontSize: 20, fontWeight: 'bold' }}>{resolvedCount}</div>
             </div>
           </Space>
@@ -315,7 +317,7 @@ const Alerts: React.FC = () => {
       <Card style={{ marginBottom: 16 }}>
         <Space wrap>
           <Search
-            placeholder="Search alerts..."
+            placeholder={t.common.search + '...'}
             allowClear
             style={{ width: 300 }}
             onChange={(e) => setSearchText(e.target.value)}
@@ -326,11 +328,11 @@ const Alerts: React.FC = () => {
             value={severityFilter}
             onChange={setSeverityFilter}
             options={[
-              { label: 'All Severities', value: 'all' },
-              { label: 'Critical', value: 'critical' },
-              { label: 'Error', value: 'error' },
-              { label: 'Warning', value: 'warning' },
-              { label: 'Info', value: 'info' },
+              { label: t.common.all, value: 'all' },
+              { label: t.alerts.critical, value: 'critical' },
+              { label: t.common.error, value: 'error' },
+              { label: t.common.warning, value: 'warning' },
+              { label: t.common.info, value: 'info' },
             ]}
           />
           <Select
@@ -338,10 +340,10 @@ const Alerts: React.FC = () => {
             value={statusFilter}
             onChange={setStatusFilter}
             options={[
-              { label: 'Active Only', value: 'active' },
-              { label: 'Acknowledged', value: 'acknowledged' },
-              { label: 'Resolved', value: 'resolved' },
-              { label: 'All Status', value: 'all' },
+              { label: t.alerts.unacknowledged, value: 'active' },
+              { label: t.alerts.acknowledged, value: 'acknowledged' },
+              { label: t.alerts.resolve, value: 'resolved' },
+              { label: t.common.all, value: 'all' },
             ]}
           />
         </Space>
@@ -358,7 +360,7 @@ const Alerts: React.FC = () => {
             pageSize: 20,
             showSizeChanger: true,
             showQuickJumper: true,
-            showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} alerts`,
+            showTotal: (total, range) => `${range[0]}-${range[1]} / ${total}`,
           }}
           scroll={{ x: 1200 }}
         />

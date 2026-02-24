@@ -39,7 +39,7 @@ const LogViewer: React.FC<LogViewerProps> = ({
   nodeName,
   processName,
 }) => {
-  const { userPreferences } = useStore();
+  const { userPreferences, t } = useStore();
   const [logEntries, setLogEntries] = useState<LogEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [realTimeEnabled, setRealTimeEnabled] = useState(false);
@@ -243,9 +243,9 @@ const LogViewer: React.FC<LogViewerProps> = ({
     <Modal
       title={
         <Space>
-          <span>Logs: {processName} on {nodeName}</span>
+          <span>{t.logViewer.title}: {processName} on {nodeName}</span>
           <Tag color={realTimeEnabled ? 'green' : 'default'}>
-            {realTimeEnabled ? 'Live' : 'Static'}
+            {realTimeEnabled ? t.logViewer.live : t.logViewer.static}
           </Tag>
         </Space>
       }
@@ -254,14 +254,14 @@ const LogViewer: React.FC<LogViewerProps> = ({
       width={1000}
       footer={[
         <Button key="close" onClick={onClose}>
-          Close
+          {t.common.close}
         </Button>,
       ]}
     >
       <div style={{ marginBottom: 16 }}>
         <Space wrap>
           <Space>
-            <span>Real-time:</span>
+            <span>{t.logViewer.realTime}:</span>
             <Switch
               checked={realTimeEnabled}
               onChange={toggleRealTime}
@@ -272,7 +272,7 @@ const LogViewer: React.FC<LogViewerProps> = ({
           </Space>
           
           <Space>
-            <span>Auto-scroll:</span>
+            <span>{t.logViewer.autoScroll}:</span>
             <Switch
               checked={autoScroll}
               onChange={setAutoScroll}
@@ -281,7 +281,7 @@ const LogViewer: React.FC<LogViewerProps> = ({
           </Space>
 
           <Search
-            placeholder="Search logs..."
+            placeholder={t.logViewer.searchLogs}
             value={searchText}
             onChange={(e) => setSearchText(e.target.value)}
             style={{ width: 200 }}
@@ -290,16 +290,16 @@ const LogViewer: React.FC<LogViewerProps> = ({
           />
 
           <Select
-            placeholder="Filter by level"
+            placeholder={t.logViewer.filterByLevel}
             value={levelFilter}
             onChange={setLevelFilter}
             style={{ width: 120 }}
             allowClear
           >
-            <Option value="error">Error</Option>
-            <Option value="warn">Warning</Option>
-            <Option value="info">Info</Option>
-            <Option value="debug">Debug</Option>
+            <Option value="error">{t.logs.error}</Option>
+            <Option value="warn">{t.logs.warn}</Option>
+            <Option value="info">{t.logs.info}</Option>
+            <Option value="debug">{t.logs.debug}</Option>
             <Option value="trace">Trace</Option>
           </Select>
 
@@ -308,7 +308,7 @@ const LogViewer: React.FC<LogViewerProps> = ({
             onClick={clearLogs}
             size="small"
           >
-            Clear
+            {t.logViewer.clear}
           </Button>
 
           <Button
@@ -316,7 +316,7 @@ const LogViewer: React.FC<LogViewerProps> = ({
             onClick={exportLogs}
             size="small"
           >
-            Export
+            {t.logViewer.export}
           </Button>
         </Space>
       </div>
@@ -338,7 +338,7 @@ const LogViewer: React.FC<LogViewerProps> = ({
           </div>
         ) : filteredEntries.length === 0 ? (
           <div style={{ textAlign: 'center', padding: 50, color: '#999' }}>
-            No log entries found
+            {t.logViewer.noLogEntries}
           </div>
         ) : (
           <div style={{ fontFamily: 'monospace', fontSize: 12 }}>
@@ -378,10 +378,10 @@ const LogViewer: React.FC<LogViewerProps> = ({
       </div>
 
       <div style={{ marginTop: 8, fontSize: '12px', color: '#666' }}>
-        Showing {filteredEntries.length} of {logEntries.length} entries
+        {t.logViewer.showingEntries.replace('{filtered}', String(filteredEntries.length)).replace('{total}', String(logEntries.length))}
         {realTimeEnabled && isConnected && (
           <span style={{ marginLeft: 16, color: '#52c41a' }}>
-            ● Connected - receiving real-time updates
+            ● {t.logViewer.connectedReceiving}
           </span>
         )}
       </div>

@@ -9,6 +9,7 @@ import {
 } from '@ant-design/icons';
 import { Node } from '@/types';
 import { VirtualizedNodesTable } from './VirtualizedNodesTable';
+import { useStore } from '@/store';
 
 const { Text } = Typography;
 
@@ -39,6 +40,7 @@ export const NodesListView: React.FC<NodesListViewProps> = ({
   onRefreshNode,
   searchQuery = '',
 }) => {
+  const { t } = useStore();
   const [sortedInfo, setSortedInfo] = useState<any>({});
   const [useVirtualization, setUseVirtualization] = useState(true);
 
@@ -52,7 +54,7 @@ export const NodesListView: React.FC<NodesListViewProps> = ({
         <div>
           {nodes.length >= VIRTUALIZATION_THRESHOLD && (
             <Alert
-              message={`Large dataset detected (${nodes.length} nodes). Using virtualized table for better performance.`}
+              message={t.nodesListView.largeDataset.replace('{count}', String(nodes.length))}
               type="info"
               showIcon
               style={{ marginBottom: 16 }}
@@ -62,7 +64,7 @@ export const NodesListView: React.FC<NodesListViewProps> = ({
                   type="text"
                   onClick={() => setUseVirtualization(false)}
                 >
-                  Use Standard Table
+                  {t.nodesListView.useStandardTable}
                 </Button>
               }
             />
@@ -114,7 +116,7 @@ export const NodesListView: React.FC<NodesListViewProps> = ({
   // Table columns configuration
   const columns: ColumnsType<NodeListItem> = [
     {
-      title: 'Status',
+      title: t.common.status,
       dataIndex: 'is_connected',
       key: 'status',
       width: 80,
@@ -134,7 +136,7 @@ export const NodesListView: React.FC<NodesListViewProps> = ({
       ),
     },
     {
-      title: 'Name',
+      title: t.common.name,
       dataIndex: 'name',
       key: 'name',
       width: 200,
@@ -151,7 +153,7 @@ export const NodesListView: React.FC<NodesListViewProps> = ({
       ),
     },
     {
-      title: 'Environment',
+      title: t.nodes.environment,
       dataIndex: 'environment',
       key: 'environment',
       width: 120,
@@ -165,7 +167,7 @@ export const NodesListView: React.FC<NodesListViewProps> = ({
       ),
     },
     {
-      title: 'Host:Port',
+      title: t.nodesListView.hostPort,
       key: 'hostPort',
       width: 180,
       responsive: ['lg'],
@@ -176,7 +178,7 @@ export const NodesListView: React.FC<NodesListViewProps> = ({
       ),
     },
     {
-      title: 'User',
+      title: t.nodesListView.user,
       dataIndex: 'username',
       key: 'username',
       width: 100,
@@ -192,7 +194,7 @@ export const NodesListView: React.FC<NodesListViewProps> = ({
       ),
     },
     {
-      title: 'Processes',
+      title: t.nodes.processes,
       dataIndex: 'process_count',
       key: 'process_count',
       width: 100,
@@ -207,7 +209,7 @@ export const NodesListView: React.FC<NodesListViewProps> = ({
       ),
     },
     {
-      title: 'Status',
+      title: t.nodesListView.connectionStatus,
       key: 'connectionStatus',
       width: 100,
       responsive: ['sm'],
@@ -216,18 +218,18 @@ export const NodesListView: React.FC<NodesListViewProps> = ({
           icon={record.is_connected ? <CheckCircleOutlined /> : <CloseCircleOutlined />}
           color={record.is_connected ? 'success' : 'error'}
         >
-          {record.is_connected ? 'Online' : 'Offline'}
+          {record.is_connected ? t.nodes.online : t.nodes.offline}
         </Tag>
       ),
     },
     {
-      title: 'Actions',
+      title: t.common.actions,
       key: 'actions',
       width: 120,
       align: 'center',
       render: (_, record) => (
         <Space size="small">
-          <Tooltip title="View Details">
+          <Tooltip title={t.nodesListView.viewDetails}>
             <Button
               type="text"
               size="small"
@@ -239,7 +241,7 @@ export const NodesListView: React.FC<NodesListViewProps> = ({
             />
           </Tooltip>
           {onRefreshNode && (
-            <Tooltip title="Refresh Node">
+            <Tooltip title={t.nodesListView.refreshNode}>
               <Button
                 type="text"
                 size="small"
@@ -283,7 +285,7 @@ export const NodesListView: React.FC<NodesListViewProps> = ({
         showSizeChanger: true,
         showQuickJumper: true,
         showTotal: (total, range) => 
-          `${range[0]}-${range[1]} of ${total} nodes`,
+          t.nodesListView.ofNodes.replace('{start}', String(range[0])).replace('{end}', String(range[1])).replace('{total}', String(total)),
         pageSizeOptions: ['10', '20', '50', '100'],
         defaultPageSize: 20,
       }}
@@ -298,8 +300,8 @@ export const NodesListView: React.FC<NodesListViewProps> = ({
       })}
       locale={{
         emptyText: searchQuery 
-          ? `No nodes found matching "${searchQuery}"`
-          : 'No nodes available'
+          ? t.nodesListView.noNodesMatching.replace('{query}', searchQuery)
+          : t.nodesListView.noNodesAvailable
       }}
     />
   );

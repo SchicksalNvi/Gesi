@@ -23,10 +23,12 @@ import dayjs, { Dayjs } from 'dayjs';
 import { activityLogsAPI } from '../../api/activityLogs';
 import type { ActivityLog, ActivityLogsFilters, PaginationInfo } from '../../types';
 import { useAutoRefresh } from '../../hooks/useAutoRefresh';
+import { useStore } from '../../store';
 
 const { RangePicker } = DatePicker;
 
 const Logs: React.FC = () => {
+  const { t } = useStore();
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -196,14 +198,14 @@ const Logs: React.FC = () => {
 
   const activityLogColumns: ColumnsType<ActivityLog> = [
     {
-      title: 'Timestamp',
+      title: t.logs.logTime,
       dataIndex: 'created_at',
       key: 'created_at',
       width: 180,
       render: (timestamp: string) => dayjs(timestamp).format('YYYY-MM-DD HH:mm:ss'),
     },
     {
-      title: 'Level',
+      title: t.logs.logLevel,
       dataIndex: 'level',
       key: 'level',
       width: 100,
@@ -214,14 +216,14 @@ const Logs: React.FC = () => {
       ),
     },
     {
-      title: 'User',
+      title: t.users.username,
       dataIndex: 'username',
       key: 'username',
       width: 120,
       render: (username: string) => username || 'system',
     },
     {
-      title: 'Action',
+      title: t.common.operation,
       dataIndex: 'action',
       key: 'action',
       width: 150,
@@ -232,7 +234,7 @@ const Logs: React.FC = () => {
       ),
     },
     {
-      title: 'Resource',
+      title: t.logs.logSource,
       dataIndex: 'resource',
       key: 'resource',
       width: 120,
@@ -245,13 +247,13 @@ const Logs: React.FC = () => {
       ellipsis: true,
     },
     {
-      title: 'Message',
+      title: t.logs.logMessage,
       dataIndex: 'message',
       key: 'message',
       ellipsis: true,
     },
     {
-      title: 'IP Address',
+      title: 'IP',
       dataIndex: 'ip_address',
       key: 'ip_address',
       width: 140,
@@ -271,7 +273,7 @@ const Logs: React.FC = () => {
   return (
     <div>
       <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h1 style={{ margin: 0 }}>Activity Logs</h1>
+        <h1 style={{ margin: 0 }}>{t.logs.activityLogs}</h1>
         <Space>
           <Button
             type={autoRefresh ? 'default' : 'dashed'}
@@ -284,7 +286,7 @@ const Logs: React.FC = () => {
             onClick={handleExport}
             disabled={loading}
           >
-            Export
+            {t.common.export}
           </Button>
           <Button
             danger
@@ -292,7 +294,7 @@ const Logs: React.FC = () => {
             onClick={handleClearLogs}
             disabled={loading}
           >
-            {hasFilters() ? 'Clear Filtered' : 'Clear All'}
+            {t.logs.clearLogs}
           </Button>
           <Button
             type="primary"
@@ -300,7 +302,7 @@ const Logs: React.FC = () => {
             onClick={() => loadLogs()}
             loading={loading}
           >
-            Refresh
+            {t.common.refresh}
           </Button>
         </Space>
       </div>
@@ -320,7 +322,7 @@ const Logs: React.FC = () => {
       <Card style={{ marginBottom: 16 }}>
         <Space wrap style={{ width: '100%' }}>
           <Input
-            placeholder="Search logs..."
+            placeholder={t.common.search + '...'}
             prefix={<SearchOutlined />}
             style={{ width: 300 }}
             value={searchText}
@@ -329,47 +331,47 @@ const Logs: React.FC = () => {
           />
           <Select
             style={{ width: 150 }}
-            placeholder="Level"
+            placeholder={t.logs.logLevel}
             value={levelFilter || undefined}
             onChange={setLevelFilter}
             allowClear
             options={[
-              { label: 'INFO', value: 'INFO' },
-              { label: 'WARNING', value: 'WARNING' },
-              { label: 'ERROR', value: 'ERROR' },
-              { label: 'DEBUG', value: 'DEBUG' },
+              { label: t.logs.info, value: 'INFO' },
+              { label: t.logs.warn, value: 'WARNING' },
+              { label: t.logs.error, value: 'ERROR' },
+              { label: t.logs.debug, value: 'DEBUG' },
             ]}
           />
           <Select
             style={{ width: 150 }}
-            placeholder="Action"
+            placeholder={t.common.operation}
             value={actionFilter || undefined}
             onChange={setActionFilter}
             allowClear
             options={[
-              { label: 'Start Process', value: 'start_process' },
-              { label: 'Stop Process', value: 'stop_process' },
-              { label: 'Restart Process', value: 'restart_process' },
+              { label: t.processes.start, value: 'start_process' },
+              { label: t.processes.stop, value: 'stop_process' },
+              { label: t.processes.restart, value: 'restart_process' },
               { label: 'Login', value: 'login' },
-              { label: 'Logout', value: 'logout' },
+              { label: t.nav.logout, value: 'logout' },
             ]}
           />
           <Select
             style={{ width: 150 }}
-            placeholder="Resource"
+            placeholder={t.logs.logSource}
             value={resourceFilter || undefined}
             onChange={setResourceFilter}
             allowClear
             options={[
-              { label: 'Process', value: 'process' },
-              { label: 'Node', value: 'node' },
-              { label: 'User', value: 'user' },
+              { label: t.nav.processes, value: 'process' },
+              { label: t.nav.nodes, value: 'node' },
+              { label: t.nav.users, value: 'user' },
               { label: 'Auth', value: 'auth' },
               { label: 'System', value: 'system' },
             ]}
           />
           <Input
-            placeholder="Username"
+            placeholder={t.users.username}
             style={{ width: 150 }}
             value={usernameFilter}
             onChange={(e) => setUsernameFilter(e.target.value)}
@@ -388,7 +390,7 @@ const Logs: React.FC = () => {
             onClick={handleSearch}
             loading={loading}
           >
-            Search
+            {t.common.search}
           </Button>
         </Space>
       </Card>
