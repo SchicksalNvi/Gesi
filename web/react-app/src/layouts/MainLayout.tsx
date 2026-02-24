@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { Layout, Menu, Avatar, Dropdown, Space } from 'antd';
+import { Layout, Menu, Avatar, Dropdown, Space, Button } from 'antd';
 import {
   DashboardOutlined,
   ClusterOutlined,
@@ -13,64 +13,71 @@ import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   RadarChartOutlined,
+  GlobalOutlined,
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 import { useStore } from '@/store';
 import { GesiLogo } from '@/components/GesiLogo';
+import type { Language } from '@/i18n';
 
 const { Header, Sider, Content } = Layout;
 
 export default function MainLayout() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, logout } = useStore();
+  const { user, logout, t, language, setLanguage } = useStore();
   const [collapsed, setCollapsed] = useState(false);
+
+  // Language switch handler
+  const handleLanguageSwitch = () => {
+    setLanguage(language === 'en' ? 'zh' : 'en');
+  };
 
   // Menu items - filter based on admin status
   const baseMenuItems: MenuProps['items'] = [
     {
       key: '/dashboard',
       icon: <DashboardOutlined />,
-      label: 'Dashboard',
+      label: t.nav.dashboard,
       onClick: () => navigate('/dashboard'),
     },
     {
       key: '/environments',
       icon: <AppstoreOutlined />,
-      label: 'Environments',
+      label: t.nav.environments,
       onClick: () => navigate('/environments'),
     },
     {
       key: '/nodes',
       icon: <ClusterOutlined />,
-      label: 'Nodes',
+      label: t.nav.nodes,
       onClick: () => navigate('/nodes'),
     },
     {
       key: '/discovery',
       icon: <RadarChartOutlined />,
-      label: 'Discovery',
+      label: t.nav.discovery,
       onClick: () => navigate('/discovery'),
     },
     {
       key: '/processes',
       icon: <AppstoreOutlined />,
-      label: 'Processes',
+      label: t.nav.processes,
       onClick: () => navigate('/processes'),
     },
     {
       key: 'alerts-menu',
       icon: <BellOutlined />,
-      label: 'Alerts',
+      label: t.nav.alerts,
       children: [
         {
           key: '/alerts',
-          label: 'Alert List',
+          label: t.nav.alertList,
           onClick: () => navigate('/alerts'),
         },
         {
           key: '/alerts/rules',
-          label: 'Alert Rules',
+          label: t.nav.alertRules,
           onClick: () => navigate('/alerts/rules'),
         },
       ],
@@ -78,13 +85,13 @@ export default function MainLayout() {
     {
       key: '/logs',
       icon: <FileTextOutlined />,
-      label: 'Logs',
+      label: t.nav.logs,
       onClick: () => navigate('/logs'),
     },
     {
       key: '/users',
       icon: <UserOutlined />,
-      label: 'Users',
+      label: t.nav.users,
       onClick: () => navigate('/users'),
     },
   ];
@@ -94,7 +101,7 @@ export default function MainLayout() {
     {
       key: '/settings',
       icon: <SettingOutlined />,
-      label: 'Settings',
+      label: t.nav.settings,
       onClick: () => navigate('/settings'),
     },
   ] : [];
@@ -106,7 +113,7 @@ export default function MainLayout() {
     {
       key: 'logout',
       icon: <LogoutOutlined />,
-      label: 'Logout',
+      label: t.nav.logout,
       onClick: () => {
         logout();
         navigate('/login');
@@ -179,6 +186,14 @@ export default function MainLayout() {
           </div>
           
           <Space size="large">
+            <Button
+              type="text"
+              icon={<GlobalOutlined />}
+              onClick={handleLanguageSwitch}
+              title={t.language.switchLanguage}
+            >
+              {t.language[language]}
+            </Button>
             <Dropdown menu={{ items: userMenuItems }} placement="bottomRight">
               <Space style={{ cursor: 'pointer' }}>
                 <Avatar icon={<UserOutlined />} />

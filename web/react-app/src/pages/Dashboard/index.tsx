@@ -15,7 +15,7 @@ import { Node } from '@/types';
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const { nodes, setNodes, systemStats, setSystemStats } = useStore();
+  const { nodes, setNodes, systemStats, setSystemStats, t } = useStore();
   const [loading, setLoading] = useState(false);
   const [activeAlerts, setActiveAlerts] = useState(0);
 
@@ -73,45 +73,45 @@ export default function Dashboard() {
   // Table columns
   const columns: ColumnsType<Node> = [
     {
-      title: 'Node Name',
+      title: t.nodes.nodeName,
       dataIndex: 'name',
       key: 'name',
       render: (text) => <a onClick={() => navigate(`/nodes/${text}`)}>{text}</a>,
     },
     {
-      title: 'Environment',
+      title: t.nodes.environment,
       dataIndex: 'environment',
       key: 'environment',
       render: (env) => <Tag color="blue">{env}</Tag>,
     },
     {
-      title: 'Host',
+      title: t.nodes.nodeHost,
       key: 'host',
       render: (_, record) => `${record.host}:${record.port}`,
     },
     {
-      title: 'Status',
+      title: t.common.status,
       dataIndex: 'is_connected',
       key: 'status',
       render: (connected) =>
         connected ? (
           <Tag icon={<CheckCircleOutlined />} color="success">
-            Online
+            {t.nodes.online}
           </Tag>
         ) : (
           <Tag icon={<CloseCircleOutlined />} color="error">
-            Offline
+            {t.nodes.offline}
           </Tag>
         ),
     },
     {
-      title: 'Processes',
+      title: t.nodes.processes,
       dataIndex: 'process_count',
       key: 'process_count',
       render: (count) => count || 0,
     },
     {
-      title: 'Action',
+      title: t.common.actions,
       key: 'action',
       render: (_, record) => (
         <Button
@@ -119,7 +119,7 @@ export default function Dashboard() {
           size="small"
           onClick={() => navigate(`/nodes/${record.name}`)}
         >
-          View Details
+          {t.nodes.viewDetails}
         </Button>
       ),
     },
@@ -132,7 +132,7 @@ export default function Dashboard() {
         <Col xs={24} sm={12} lg={6}>
           <Card>
             <Statistic
-              title="Total Nodes"
+              title={t.dashboard.totalNodes}
               value={totalNodes}
               prefix={null}
               valueStyle={{ color: '#1890ff' }}
@@ -142,7 +142,7 @@ export default function Dashboard() {
         <Col xs={24} sm={12} lg={6}>
           <Card>
             <Statistic
-              title="Online Nodes"
+              title={t.dashboard.onlineNodes}
               value={onlineNodes}
               prefix={<CheckCircleOutlined />}
               valueStyle={{ color: '#3f8600' }}
@@ -152,7 +152,7 @@ export default function Dashboard() {
         <Col xs={24} sm={12} lg={6}>
           <Card>
             <Statistic
-              title="Running Processes"
+              title={t.dashboard.runningProcesses}
               value={totalProcesses}
               prefix={<PlayCircleOutlined />}
               valueStyle={{ color: '#1890ff' }}
@@ -162,7 +162,7 @@ export default function Dashboard() {
         <Col xs={24} sm={12} lg={6}>
           <Card>
             <Statistic
-              title="Active Alerts"
+              title={t.alerts.title}
               value={activeAlerts}
               prefix={<BellOutlined />}
               valueStyle={{ color: activeAlerts > 0 ? '#cf1322' : '#999' }}
@@ -173,10 +173,10 @@ export default function Dashboard() {
 
       {/* Nodes Table */}
       <Card
-        title="Nodes Overview"
+        title={t.dashboard.nodeStatus}
         extra={
           <Button type="primary" onClick={loadNodes} loading={loading}>
-            Refresh
+            {t.common.refresh}
           </Button>
         }
       >

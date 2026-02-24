@@ -22,6 +22,7 @@ import {
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import type { ColumnsType } from 'antd/es/table';
+import { useStore } from '@/store';
 
 interface AlertRule {
   id: number;
@@ -42,6 +43,7 @@ interface AlertRule {
 
 const AlertRules: React.FC = () => {
   const navigate = useNavigate();
+  const { t } = useStore();
   const [rules, setRules] = useState<AlertRule[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
@@ -175,36 +177,36 @@ const AlertRules: React.FC = () => {
 
   const columns: ColumnsType<AlertRule> = [
     {
-      title: 'Name',
+      title: t.common.name,
       dataIndex: 'name',
       key: 'name',
       render: (name: string) => <strong>{name}</strong>,
     },
     {
-      title: 'Description',
+      title: t.common.description,
       dataIndex: 'description',
       key: 'description',
       ellipsis: true,
     },
     {
-      title: 'Metric',
+      title: t.alertRules.metric,
       dataIndex: 'metric',
       key: 'metric',
       render: (metric: string) => metric.replace(/_/g, ' ').toUpperCase(),
     },
     {
-      title: 'Condition',
+      title: t.alerts.condition,
       key: 'condition',
       render: (_, record: AlertRule) => `${record.condition} ${record.threshold}`,
     },
     {
-      title: 'Duration',
+      title: t.alertRules.duration,
       dataIndex: 'duration',
       key: 'duration',
-      render: (duration: number) => `${duration}s`,
+      render: (duration: number) => t.alertRules.durationSeconds.replace('{duration}', String(duration)),
     },
     {
-      title: 'Severity',
+      title: t.alerts.severity,
       dataIndex: 'severity',
       key: 'severity',
       render: (severity: string) => (
@@ -214,7 +216,7 @@ const AlertRules: React.FC = () => {
       ),
     },
     {
-      title: 'Status',
+      title: t.common.status,
       dataIndex: 'enabled',
       key: 'enabled',
       render: (enabled: boolean, record: AlertRule) => {
@@ -224,16 +226,15 @@ const AlertRules: React.FC = () => {
             checked={enabled}
             onChange={(checked) => handleToggle(record.id, checked)}
             disabled={isSystemRule}
-            title={isSystemRule ? 'System rules are always enabled' : 'Toggle rule status'}
           />
         );
       },
     },
     {
-      title: 'Actions',
+      title: t.common.actions,
       key: 'actions',
       render: (_, record: AlertRule) => {
-        const isSystemRule = record.id <= 2; // System rules have ID 1 and 2
+        const isSystemRule = record.id <= 2;
         return (
           <Space>
             <Button
@@ -241,15 +242,14 @@ const AlertRules: React.FC = () => {
               icon={<EditOutlined />}
               onClick={() => handleEdit(record)}
               disabled={isSystemRule}
-              title={isSystemRule ? 'System rules cannot be edited' : 'Edit rule'}
             >
-              Edit
+              {t.common.edit}
             </Button>
             <Popconfirm
-              title="Delete this rule?"
+              title={t.alerts.deleteRule + '?'}
               onConfirm={() => handleDelete(record.id)}
-              okText="Yes"
-              cancelText="No"
+              okText={t.common.yes}
+              cancelText={t.common.no}
               disabled={isSystemRule}
             >
               <Button
@@ -257,9 +257,8 @@ const AlertRules: React.FC = () => {
                 icon={<DeleteOutlined />}
                 danger
                 disabled={isSystemRule}
-                title={isSystemRule ? 'System rules cannot be deleted' : 'Delete rule'}
               >
-                Delete
+                {t.common.delete}
               </Button>
             </Popconfirm>
           </Space>
@@ -271,17 +270,17 @@ const AlertRules: React.FC = () => {
   return (
     <div>
       <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h1 style={{ margin: 0 }}>Alert Rules</h1>
+        <h1 style={{ margin: 0 }}>{t.alerts.alertRules}</h1>
         <Space>
           <Button onClick={() => navigate('/alerts')}>
-            Back to Alerts
+            {t.common.back}
           </Button>
           <Button
             icon={<ReloadOutlined />}
             onClick={loadRules}
             loading={loading}
           >
-            Refresh
+            {t.common.refresh}
           </Button>
         </Space>
       </div>
@@ -290,17 +289,17 @@ const AlertRules: React.FC = () => {
       <Card style={{ marginBottom: 16, backgroundColor: '#f0f5ff', borderColor: '#adc6ff' }}>
         <Space direction="vertical" size="small">
           <div style={{ fontWeight: 'bold', color: '#1890ff' }}>
-            ℹ️ System Alert Rules
+            ℹ️ {t.alertRules.systemAlertRules}
           </div>
           <div style={{ fontSize: '14px', color: '#595959' }}>
-            This system uses automatic alert rules for monitoring:
+            {t.alertRules.systemAlertDesc}
           </div>
           <ul style={{ margin: '8px 0', paddingLeft: '20px', fontSize: '14px', color: '#595959' }}>
-            <li><strong>Node Offline Alert</strong>: Automatically triggered when a node becomes unreachable</li>
-            <li><strong>Process Stopped Alert</strong>: Automatically triggered when a process stops unexpectedly</li>
+            <li><strong>{t.alertRules.nodeOfflineAlert}</strong>: {t.alertRules.nodeOfflineDesc}</li>
+            <li><strong>{t.alertRules.processStoppedAlert}</strong>: {t.alertRules.processStoppedDesc}</li>
           </ul>
           <div style={{ fontSize: '13px', color: '#8c8c8c', fontStyle: 'italic' }}>
-            System rules (ID 1-2) cannot be edited or deleted. Custom rules are not supported in this version.
+            {t.alertRules.systemRulesNote}
           </div>
         </Space>
       </Card>
@@ -314,14 +313,14 @@ const AlertRules: React.FC = () => {
           pagination={{
             pageSize: 10,
             showSizeChanger: true,
-            showTotal: (total) => `Total ${total} rules`,
+            showTotal: (total) => t.alertRules.totalRules.replace('{total}', String(total)),
           }}
         />
       </Card>
 
       {/* 创建/编辑 Modal */}
       <Modal
-        title={editingRule ? 'Edit Alert Rule' : 'Create Alert Rule'}
+        title={editingRule ? t.alertRules.editAlertRule : t.alertRules.createAlertRule}
         open={modalVisible}
         onOk={handleSubmit}
         onCancel={() => setModalVisible(false)}
@@ -340,86 +339,86 @@ const AlertRules: React.FC = () => {
         >
           <Form.Item
             name="name"
-            label="Rule Name"
-            rules={[{ required: true, message: 'Please enter rule name' }]}
+            label={t.alertRules.ruleName}
+            rules={[{ required: true, message: t.alertRules.enterRuleName }]}
           >
-            <Input placeholder="e.g., Node Offline Alert" />
+            <Input placeholder={t.alertRules.ruleNamePlaceholder} />
           </Form.Item>
 
           <Form.Item
             name="description"
-            label="Description"
+            label={t.common.description}
           >
-            <Input.TextArea rows={2} placeholder="Describe when this alert should trigger" />
+            <Input.TextArea rows={2} placeholder={t.alertRules.descriptionPlaceholder} />
           </Form.Item>
 
           <Form.Item
             name="metric"
-            label="Metric"
-            rules={[{ required: true, message: 'Please select metric' }]}
+            label={t.alertRules.metric}
+            rules={[{ required: true, message: t.alertRules.selectMetric }]}
           >
             <Select
               options={[
-                { label: 'Node Status', value: 'node_status' },
-                { label: 'Process Status', value: 'process_status' },
-                { label: 'CPU Usage', value: 'cpu' },
-                { label: 'Memory Usage', value: 'memory' },
-                { label: 'Disk Usage', value: 'disk' },
+                { label: t.alertRules.nodeStatus, value: 'node_status' },
+                { label: t.alertRules.processStatus, value: 'process_status' },
+                { label: t.alertRules.cpuUsage, value: 'cpu' },
+                { label: t.alertRules.memoryUsage, value: 'memory' },
+                { label: t.alertRules.diskUsage, value: 'disk' },
               ]}
             />
           </Form.Item>
 
           <Form.Item
             name="condition"
-            label="Condition"
-            rules={[{ required: true, message: 'Please select condition' }]}
+            label={t.alerts.condition}
+            rules={[{ required: true, message: t.alertRules.selectCondition }]}
           >
             <Select
               options={[
-                { label: 'Equal (==)', value: '==' },
-                { label: 'Not Equal (!=)', value: '!=' },
-                { label: 'Greater Than (>)', value: '>' },
-                { label: 'Greater or Equal (>=)', value: '>=' },
-                { label: 'Less Than (<)', value: '<' },
-                { label: 'Less or Equal (<=)', value: '<=' },
+                { label: t.alertRules.equal, value: '==' },
+                { label: t.alertRules.notEqual, value: '!=' },
+                { label: t.alertRules.greaterThan, value: '>' },
+                { label: t.alertRules.greaterOrEqual, value: '>=' },
+                { label: t.alertRules.lessThan, value: '<' },
+                { label: t.alertRules.lessOrEqual, value: '<=' },
               ]}
             />
           </Form.Item>
 
           <Form.Item
             name="threshold"
-            label="Threshold"
-            rules={[{ required: true, message: 'Please enter threshold' }]}
+            label={t.alerts.threshold}
+            rules={[{ required: true, message: t.alertRules.enterThreshold }]}
           >
             <InputNumber min={0} style={{ width: '100%' }} />
           </Form.Item>
 
           <Form.Item
             name="duration"
-            label="Duration (seconds)"
-            rules={[{ required: true, message: 'Please enter duration' }]}
+            label={`${t.alertRules.duration} (${t.common.time})`}
+            rules={[{ required: true, message: t.alertRules.enterDuration }]}
           >
             <InputNumber min={1} style={{ width: '100%' }} />
           </Form.Item>
 
           <Form.Item
             name="severity"
-            label="Severity"
-            rules={[{ required: true, message: 'Please select severity' }]}
+            label={t.alerts.severity}
+            rules={[{ required: true, message: t.alertRules.selectSeverity }]}
           >
             <Select
               options={[
-                { label: 'Low', value: 'low' },
-                { label: 'Medium', value: 'medium' },
-                { label: 'High', value: 'high' },
-                { label: 'Critical', value: 'critical' },
+                { label: t.alerts.low, value: 'low' },
+                { label: t.alerts.medium, value: 'medium' },
+                { label: t.alerts.high, value: 'high' },
+                { label: t.alerts.critical, value: 'critical' },
               ]}
             />
           </Form.Item>
 
           <Form.Item
             name="enabled"
-            label="Enabled"
+            label={t.common.enabled}
             valuePropName="checked"
           >
             <Switch />

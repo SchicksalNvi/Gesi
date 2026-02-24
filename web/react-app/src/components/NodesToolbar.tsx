@@ -10,6 +10,7 @@ import {
 import { ViewToggle, ViewMode } from './ViewToggle';
 import { SearchBox } from './SearchBox';
 import { FilterBar, NodeFilters } from './FilterBar';
+import { useStore } from '@/store';
 
 const { Text } = Typography;
 
@@ -64,6 +65,7 @@ export const NodesToolbar: React.FC<NodesToolbarProps> = ({
   loading = false,
   isMobile = false,
 }) => {
+  const { t } = useStore();
   const hasSelection = selectedNodes.length > 0;
   const isFiltered = filteredNodes !== totalNodes;
 
@@ -89,12 +91,12 @@ export const NodesToolbar: React.FC<NodesToolbarProps> = ({
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 8 }}>
             <div>
-              <h2 style={{ margin: 0, fontSize: 24 }}>Nodes</h2>
+              <h2 style={{ margin: 0, fontSize: 24 }}>{t.nodesToolbar.nodes}</h2>
               <Text type="secondary" style={{ fontSize: 14 }}>
                 {isFiltered ? (
-                  <>Showing {filteredNodes} of {totalNodes} nodes</>
+                  <>{t.nodesToolbar.showingOf.replace('{filtered}', String(filteredNodes)).replace('{total}', String(totalNodes))}</>
                 ) : (
-                  <>{totalNodes} nodes total</>
+                  <>{t.nodesToolbar.nodesTotal.replace('{total}', String(totalNodes))}</>
                 )}
               </Text>
             </div>
@@ -121,7 +123,7 @@ export const NodesToolbar: React.FC<NodesToolbarProps> = ({
             onClick={onRefreshAll}
             loading={loading}
           >
-            {isMobile ? '' : 'Refresh All'}
+            {isMobile ? '' : t.nodesToolbar.refreshAll}
           </Button>
         </div>
       </div>
@@ -139,7 +141,7 @@ export const NodesToolbar: React.FC<NodesToolbarProps> = ({
           <SearchBox
             value={searchQuery}
             onChange={onSearchChange}
-            placeholder="Search by name, host, environment..."
+            placeholder={t.nodesToolbar.searchPlaceholder}
             size={isMobile ? 'large' : 'middle'}
           />
         </div>
@@ -172,7 +174,7 @@ export const NodesToolbar: React.FC<NodesToolbarProps> = ({
               gap: 12,
             }}>
               <Text strong>
-                {selectedNodes.length} node{selectedNodes.length > 1 ? 's' : ''} selected
+                {t.nodesToolbar.nodesSelected.replace('{count}', String(selectedNodes.length))}
               </Text>
               
               <Space size="small" wrap>
@@ -181,28 +183,28 @@ export const NodesToolbar: React.FC<NodesToolbarProps> = ({
                   icon={<PlayCircleOutlined />}
                   onClick={() => handleBulkAction('start_all')}
                 >
-                  Start All Processes
+                  {t.nodesToolbar.startAllProcesses}
                 </Button>
                 <Button
                   size="small"
                   icon={<StopOutlined />}
                   onClick={() => handleBulkAction('stop_all')}
                 >
-                  Stop All Processes
+                  {t.nodesToolbar.stopAllProcesses}
                 </Button>
                 <Button
                   size="small"
                   icon={<SyncOutlined />}
                   onClick={() => handleBulkAction('restart_all')}
                 >
-                  Restart All Processes
+                  {t.nodesToolbar.restartAllProcesses}
                 </Button>
                 <Button
                   size="small"
                   icon={<ReloadOutlined />}
                   onClick={() => handleBulkAction('refresh_all')}
                 >
-                  Refresh Status
+                  {t.nodesToolbar.refreshStatus}
                 </Button>
                 <Divider type="vertical" />
                 <Button
@@ -211,7 +213,7 @@ export const NodesToolbar: React.FC<NodesToolbarProps> = ({
                   icon={<DeleteOutlined />}
                   onClick={() => handleBulkAction('delete_selected')}
                 >
-                  Remove Selected
+                  {t.nodesToolbar.removeSelected}
                 </Button>
               </Space>
             </div>

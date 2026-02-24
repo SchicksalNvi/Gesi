@@ -33,7 +33,7 @@ import { usersApi, User, CreateUserRequest } from '../../api/users';
 import { useStore } from '../../store';
 
 const Users: React.FC = () => {
-  const { user: currentUser } = useStore();
+  const { user: currentUser, t } = useStore();
   const isAdmin = currentUser?.is_admin ?? false;
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
@@ -202,7 +202,7 @@ const Users: React.FC = () => {
       
       await usersApi.resetPassword(selectedUser.id, values.new_password);
       
-      message.success('Password changed successfully');
+      message.success(t.users.passwordChanged);
       passwordForm.resetFields();
     } catch (error: any) {
       message.error(error.response?.data?.message || 'Failed to change password');
@@ -225,7 +225,7 @@ const Users: React.FC = () => {
         weekly_report: values.weekly_report,
       });
       
-      message.success('Notification settings updated');
+      message.success(t.users.notificationUpdated);
     } catch (error: any) {
       message.error(error.response?.data?.message || 'Failed to update notifications');
     } finally {
@@ -235,7 +235,7 @@ const Users: React.FC = () => {
 
   const columns: ColumnsType<User> = [
     {
-      title: 'User',
+      title: t.users.username,
       key: 'user',
       render: (_, record) => (
         <Space>
@@ -248,39 +248,39 @@ const Users: React.FC = () => {
       ),
     },
     {
-      title: 'Full Name',
+      title: t.common.name,
       dataIndex: 'full_name',
       key: 'full_name',
       render: (name) => name || '-',
     },
     {
-      title: 'Role',
+      title: t.users.role,
       dataIndex: 'is_admin',
       key: 'role',
       render: (isAdmin: boolean) => (
         <Tag color={isAdmin ? 'red' : 'blue'}>
-          {isAdmin ? 'Admin' : 'User'}
+          {isAdmin ? t.users.admin : t.users.user}
         </Tag>
       ),
     },
     {
-      title: 'Status',
+      title: t.common.status,
       dataIndex: 'is_active',
       key: 'status',
       render: (isActive: boolean) => (
         <Tag color={isActive ? 'green' : 'default'}>
-          {isActive ? 'Active' : 'Inactive'}
+          {isActive ? t.common.enabled : t.common.disabled}
         </Tag>
       ),
     },
     {
-      title: 'Last Login',
+      title: t.users.lastLogin,
       dataIndex: 'last_login',
       key: 'last_login',
-      render: (date) => date ? new Date(date).toLocaleString() : 'Never',
+      render: (date) => date ? new Date(date).toLocaleString() : t.users.never,
     },
     {
-      title: 'Actions',
+      title: t.common.actions,
       key: 'actions',
       render: (_, record) => (
         <Space>
@@ -289,19 +289,19 @@ const Users: React.FC = () => {
             icon={<SettingOutlined />}
             onClick={() => handleUserSettings(record)}
           >
-            Settings
+            {t.nav.settings}
           </Button>
           {isAdmin && (
             <Popconfirm
-              title="Delete user"
-              description="Are you sure you want to delete this user?"
+              title={t.users.deleteUser}
+              description={t.users.confirmDelete}
               onConfirm={() => handleDelete(record.id)}
-              okText="Yes"
-              cancelText="No"
+              okText={t.common.yes}
+              cancelText={t.common.no}
               disabled={record.is_admin}
             >
               <Button type="link" danger icon={<DeleteOutlined />} disabled={record.is_admin}>
-                Delete
+                {t.common.delete}
               </Button>
             </Popconfirm>
           )}
@@ -313,15 +313,15 @@ const Users: React.FC = () => {
   return (
     <div style={{ padding: '24px' }}>
       <Card
-        title="User Management"
+        title={t.users.title}
         extra={
           <Space>
             <Button icon={<ReloadOutlined />} onClick={loadUsers} loading={loading}>
-              Refresh
+              {t.common.refresh}
             </Button>
             {isAdmin && (
               <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>
-                Add User
+                {t.users.addUser}
               </Button>
             )}
           </Space>
@@ -337,7 +337,7 @@ const Users: React.FC = () => {
             pageSize: pageSize,
             total: total,
             showSizeChanger: true,
-            showTotal: (t) => `Total ${t} users`,
+            showTotal: (total) => `${t.common.total} ${total}`,
             onChange: (p, ps) => { setPage(p); setPageSize(ps); },
           }}
         />
@@ -345,7 +345,7 @@ const Users: React.FC = () => {
 
       {/* Create User Modal */}
       <Modal
-        title="Create User"
+        title={t.users.addUser}
         open={createModalVisible}
         onOk={handleCreateSubmit}
         onCancel={() => setCreateModalVisible(false)}
@@ -354,46 +354,46 @@ const Users: React.FC = () => {
         <Form form={createForm} layout="vertical" initialValues={{ is_admin: false }}>
           <Form.Item
             name="username"
-            label="Username"
+            label={t.users.username}
             rules={[
-              { required: true, message: 'Please enter username' },
-              { min: 3, max: 50, message: 'Username must be 3-50 characters' },
+              { required: true, message: t.login.usernameRequired },
+              { min: 3, max: 50, message: t.users.usernameLength },
             ]}
           >
-            <Input prefix={<UserOutlined />} placeholder="Username" />
+            <Input prefix={<UserOutlined />} placeholder={t.users.username} />
           </Form.Item>
           <Form.Item
             name="email"
-            label="Email"
+            label={t.users.email}
             rules={[
-              { required: true, message: 'Please enter email' },
-              { type: 'email', message: 'Please enter valid email' },
+              { required: true, message: t.users.pleaseEnterEmail },
+              { type: 'email', message: t.users.pleaseEnterValidEmail },
             ]}
           >
-            <Input prefix={<MailOutlined />} placeholder="Email" />
+            <Input prefix={<MailOutlined />} placeholder={t.users.email} />
           </Form.Item>
-          <Form.Item name="full_name" label="Full Name">
-            <Input placeholder="Full Name (optional)" />
+          <Form.Item name="full_name" label={t.users.fullName}>
+            <Input placeholder={t.users.fullName} />
           </Form.Item>
           <Form.Item
             name="password"
-            label="Password"
+            label={t.users.password}
             rules={[
-              { required: true, message: 'Please enter password' },
-              { min: 6, message: 'Password must be at least 6 characters' },
+              { required: true, message: t.login.passwordRequired },
+              { min: 6, message: t.users.passwordMinLength },
             ]}
           >
-            <Input.Password prefix={<LockOutlined />} placeholder="Password" />
+            <Input.Password prefix={<LockOutlined />} placeholder={t.users.password} />
           </Form.Item>
-          <Form.Item name="is_admin" label="Admin Role" valuePropName="checked">
-            <Switch checkedChildren="Admin" unCheckedChildren="User" />
+          <Form.Item name="is_admin" label={t.users.role} valuePropName="checked">
+            <Switch checkedChildren={t.users.admin} unCheckedChildren={t.users.user} />
           </Form.Item>
         </Form>
       </Modal>
 
       {/* User Settings Drawer */}
       <Drawer
-        title={`User Settings: ${selectedUser?.username || ''}`}
+        title={`${t.users.userSettings}: ${selectedUser?.username || ''}`}
         placement="right"
         width={520}
         onClose={() => setDrawerVisible(false)}
@@ -403,26 +403,26 @@ const Users: React.FC = () => {
           items={[
             {
               key: 'profile',
-              label: <span><UserOutlined /> Profile</span>,
+              label: <span><UserOutlined /> {t.users.profile}</span>,
               children: (
                 <Form form={profileForm} layout="vertical">
-                  <Form.Item name="username" label="Username">
+                  <Form.Item name="username" label={t.users.username}>
                     <Input prefix={<UserOutlined />} disabled />
                   </Form.Item>
                   <Form.Item
                     name="email"
-                    label="Email"
+                    label={t.users.email}
                     rules={[
-                      { required: true, message: 'Please enter email' },
-                      { type: 'email', message: 'Please enter valid email' },
+                      { required: true, message: t.users.pleaseEnterEmail },
+                      { type: 'email', message: t.users.pleaseEnterValidEmail },
                     ]}
                   >
                     <Input prefix={<MailOutlined />} />
                   </Form.Item>
-                  <Form.Item name="full_name" label="Full Name">
-                    <Input placeholder="Enter full name" />
+                  <Form.Item name="full_name" label={t.users.fullName}>
+                    <Input placeholder={t.users.enterFullName} />
                   </Form.Item>
-                  <Form.Item name="timezone" label="Timezone">
+                  <Form.Item name="timezone" label={t.settings.timezone}>
                     <Select
                       options={[
                         { label: 'UTC', value: 'UTC' },
@@ -437,17 +437,17 @@ const Users: React.FC = () => {
                   {isAdmin && (
                     <>
                       <Divider />
-                      <Form.Item name="is_admin" label="Admin Role" valuePropName="checked">
-                        <Switch checkedChildren="Admin" unCheckedChildren="User" />
+                      <Form.Item name="is_admin" label={t.users.adminRole} valuePropName="checked">
+                        <Switch checkedChildren={t.users.admin} unCheckedChildren={t.users.user} />
                       </Form.Item>
-                      <Form.Item name="is_active" label="Account Status" valuePropName="checked">
-                        <Switch checkedChildren="Active" unCheckedChildren="Inactive" />
+                      <Form.Item name="is_active" label={t.users.accountStatus} valuePropName="checked">
+                        <Switch checkedChildren={t.users.active} unCheckedChildren={t.users.inactive} />
                       </Form.Item>
                     </>
                   )}
                   <Form.Item>
                     <Button type="primary" icon={<SaveOutlined />} onClick={handleProfileUpdate} loading={saving}>
-                      Save Profile
+                      {t.users.saveProfile}
                     </Button>
                   </Form.Item>
                 </Form>
@@ -455,40 +455,40 @@ const Users: React.FC = () => {
             },
             {
               key: 'security',
-              label: <span><LockOutlined /> Security</span>,
+              label: <span><LockOutlined /> {t.users.security}</span>,
               children: (
                 <Form form={passwordForm} layout="vertical">
                   <Form.Item
                     name="new_password"
-                    label="New Password"
+                    label={t.users.newPassword}
                     rules={[
-                      { required: true, message: 'Please enter new password' },
-                      { min: 6, message: 'Password must be at least 6 characters' },
+                      { required: true, message: t.users.pleaseEnterNewPassword },
+                      { min: 6, message: t.users.passwordMinLength },
                     ]}
                   >
-                    <Input.Password prefix={<LockOutlined />} placeholder="Enter new password" />
+                    <Input.Password prefix={<LockOutlined />} placeholder={t.users.enterNewPassword} />
                   </Form.Item>
                   <Form.Item
                     name="confirm_password"
-                    label="Confirm Password"
+                    label={t.users.confirmPassword}
                     dependencies={['new_password']}
                     rules={[
-                      { required: true, message: 'Please confirm password' },
+                      { required: true, message: t.users.pleaseConfirmPassword },
                       ({ getFieldValue }) => ({
                         validator(_, value) {
                           if (!value || getFieldValue('new_password') === value) {
                             return Promise.resolve();
                           }
-                          return Promise.reject(new Error('Passwords do not match'));
+                          return Promise.reject(new Error(t.users.passwordMismatch));
                         },
                       }),
                     ]}
                   >
-                    <Input.Password prefix={<LockOutlined />} placeholder="Confirm new password" />
+                    <Input.Password prefix={<LockOutlined />} placeholder={t.users.confirmNewPassword} />
                   </Form.Item>
                   <Form.Item>
                     <Button type="primary" icon={<SaveOutlined />} onClick={handlePasswordChange} loading={saving}>
-                      Reset Password
+                      {t.users.resetPassword}
                     </Button>
                   </Form.Item>
                 </Form>
@@ -496,29 +496,29 @@ const Users: React.FC = () => {
             },
             {
               key: 'notifications',
-              label: <span><BellOutlined /> Notifications</span>,
+              label: <span><BellOutlined /> {t.users.notifications}</span>,
               children: (
                 <Form form={notificationForm} layout="vertical">
-                  <Form.Item name="email_notifications" label="Email Notifications" valuePropName="checked">
+                  <Form.Item name="email_notifications" label={t.users.emailNotifications} valuePropName="checked">
                     <Switch />
                   </Form.Item>
                   <Divider />
-                  <Form.Item name="process_alerts" label="Process Alerts" valuePropName="checked">
+                  <Form.Item name="process_alerts" label={t.users.processAlerts} valuePropName="checked">
                     <Switch />
                   </Form.Item>
-                  <Form.Item name="system_alerts" label="System Alerts" valuePropName="checked">
+                  <Form.Item name="system_alerts" label={t.users.systemAlerts} valuePropName="checked">
                     <Switch />
                   </Form.Item>
-                  <Form.Item name="node_status_changes" label="Node Status Changes" valuePropName="checked">
+                  <Form.Item name="node_status_changes" label={t.users.nodeStatusChanges} valuePropName="checked">
                     <Switch />
                   </Form.Item>
                   <Divider />
-                  <Form.Item name="weekly_report" label="Weekly Summary Report" valuePropName="checked">
+                  <Form.Item name="weekly_report" label={t.users.weeklyReport} valuePropName="checked">
                     <Switch />
                   </Form.Item>
                   <Form.Item>
                     <Button type="primary" icon={<SaveOutlined />} onClick={handleNotificationUpdate} loading={saving}>
-                      Save Preferences
+                      {t.users.savePreferences}
                     </Button>
                   </Form.Item>
                 </Form>

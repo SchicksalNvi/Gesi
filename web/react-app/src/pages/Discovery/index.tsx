@@ -42,6 +42,7 @@ import {
 } from '@/api/discovery';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { WebSocketMessage } from '@/types';
+import { useStore } from '@/store';
 
 const { Text, Title } = Typography;
 
@@ -95,6 +96,7 @@ const getErrorMessage = (error: any, fallback: string): string => {
 };
 
 export default function DiscoveryPage() {
+  const { t } = useStore();
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [tasks, setTasks] = useState<DiscoveryTask[]>([]);
@@ -255,19 +257,19 @@ export default function DiscoveryPage() {
       width: 60,
     },
     {
-      title: 'CIDR',
+      title: t.discovery.cidrRange,
       dataIndex: 'cidr',
       key: 'cidr',
       render: (cidr: string) => <Text code>{cidr}</Text>,
     },
     {
-      title: 'Port',
+      title: t.nodes.nodePort,
       dataIndex: 'port',
       key: 'port',
       width: 80,
     },
     {
-      title: 'Status',
+      title: t.common.status,
       dataIndex: 'status',
       key: 'status',
       width: 120,
@@ -294,29 +296,29 @@ export default function DiscoveryPage() {
       },
     },
     {
-      title: 'Created',
+      title: t.users.createdAt,
       dataIndex: 'created_at',
       key: 'created_at',
       width: 160,
       render: (date: string) => new Date(date).toLocaleString(),
     },
     {
-      title: 'Actions',
+      title: t.common.actions,
       key: 'actions',
       width: 150,
       render: (_, record) => (
         <Space>
-          <Tooltip title="View Details">
+          <Tooltip title={t.common.view}>
             <Button type="text" icon={<EyeOutlined />} onClick={() => handleViewTask(record)} />
           </Tooltip>
           {record.status === 'running' && (
-            <Tooltip title="Cancel">
+            <Tooltip title={t.common.cancel}>
               <Button type="text" danger icon={<StopOutlined />} onClick={() => handleCancelTask(record.id)} />
             </Tooltip>
           )}
           {['completed', 'cancelled', 'failed'].includes(record.status) && (
-            <Popconfirm title="Delete this task?" onConfirm={() => handleDeleteTask(record.id)}>
-              <Tooltip title="Delete">
+            <Popconfirm title={t.common.confirm + '?'} onConfirm={() => handleDeleteTask(record.id)}>
+              <Tooltip title={t.common.delete}>
                 <Button type="text" danger icon={<DeleteOutlined />} />
               </Tooltip>
             </Popconfirm>
@@ -387,7 +389,7 @@ export default function DiscoveryPage() {
   // New Discovery tab content
   const newDiscoveryContent = (
     <>
-      <Card title="Start Network Discovery" style={{ marginBottom: 24 }}>
+      <Card title={t.discovery.startScan} style={{ marginBottom: 24 }}>
         <Form
           form={form}
           layout="vertical"
@@ -396,7 +398,7 @@ export default function DiscoveryPage() {
         >
           <Form.Item
             name="cidr"
-            label="CIDR Range"
+            label={t.discovery.cidrRange}
             rules={[{ required: true, message: 'Please enter a CIDR range' }]}
             help={
               cidrValidation ? (
@@ -419,7 +421,7 @@ export default function DiscoveryPage() {
           <Space size="large" style={{ width: '100%' }}>
             <Form.Item
               name="port"
-              label="Supervisor Port"
+              label={t.nodes.nodePort}
               rules={[{ required: true, message: 'Please enter port' }]}
               style={{ width: 150 }}
             >
@@ -428,7 +430,7 @@ export default function DiscoveryPage() {
 
             <Form.Item
               name="username"
-              label="Username"
+              label={t.users.username}
               rules={[{ required: true, message: 'Please enter username' }]}
               style={{ width: 200 }}
             >
@@ -437,11 +439,11 @@ export default function DiscoveryPage() {
 
             <Form.Item
               name="password"
-              label="Password"
+              label={t.users.password}
               rules={[{ required: true, message: 'Please enter password' }]}
               style={{ width: 200 }}
             >
-              <Input.Password placeholder="Password" />
+              <Input.Password placeholder={t.users.password} />
             </Form.Item>
           </Space>
 
@@ -463,14 +465,14 @@ export default function DiscoveryPage() {
               icon={<SearchOutlined />}
               disabled={!cidrValidation?.valid}
             >
-              Start Discovery
+              {t.discovery.startScan}
             </Button>
           </Form.Item>
         </Form>
       </Card>
 
       {recentlyDiscovered.length > 0 && (
-        <Card title="Recently Discovered Nodes" size="small">
+        <Card title={t.discovery.discoveredNodes} size="small">
           <Space direction="vertical" style={{ width: '100%' }}>
             {recentlyDiscovered.map((node, index) => (
               <Alert
@@ -496,10 +498,10 @@ export default function DiscoveryPage() {
   // History tab content
   const historyContent = (
     <Card
-      title="Discovery Tasks"
+      title={t.discovery.scanHistory}
       extra={
         <Button icon={<ReloadOutlined />} onClick={loadTasks} loading={tasksLoading}>
-          Refresh
+          {t.common.refresh}
         </Button>
       }
     >
@@ -513,11 +515,11 @@ export default function DiscoveryPage() {
           pageSize: pagination.limit,
           total: pagination.total,
           showSizeChanger: true,
-          showTotal: (total) => `Total ${total} tasks`,
+          showTotal: (total) => `${t.common.total} ${total}`,
           onChange: (page, pageSize) => setPagination({ page, limit: pageSize, total: pagination.total }),
         }}
         locale={{
-          emptyText: <Empty description="No discovery tasks yet" />,
+          emptyText: <Empty description={t.common.noData} />,
         }}
       />
     </Card>
@@ -527,14 +529,14 @@ export default function DiscoveryPage() {
   const tabItems: TabsProps['items'] = [
     {
       key: 'new',
-      label: 'New Discovery',
+      label: t.discovery.startScan,
       children: newDiscoveryContent,
     },
     {
       key: 'history',
       label: (
         <Badge count={tasks.filter(t => t.status === 'running').length} offset={[10, 0]}>
-          Discovery History
+          {t.discovery.scanHistory}
         </Badge>
       ),
       children: historyContent,
@@ -544,7 +546,7 @@ export default function DiscoveryPage() {
   return (
     <div>
       <Title level={4} style={{ marginBottom: 24 }}>
-        <RadarChartOutlined /> Node Discovery
+        <RadarChartOutlined /> {t.discovery.title}
       </Title>
 
       <Tabs activeKey={activeTab} onChange={setActiveTab} items={tabItems} />

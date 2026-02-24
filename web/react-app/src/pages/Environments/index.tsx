@@ -5,10 +5,12 @@ import { useNavigate } from 'react-router-dom';
 import { environmentsApi } from '@/api/environments';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { Environment } from '@/types';
+import { useStore } from '@/store';
 import EnvironmentCard from './EnvironmentCard';
 
 export default function EnvironmentList() {
   const navigate = useNavigate();
+  const { t } = useStore();
   const [environments, setEnvironments] = useState<Environment[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -57,7 +59,7 @@ export default function EnvironmentList() {
         }}
       >
         <div>
-          <h2 style={{ margin: 0, fontSize: 24 }}>Environments</h2>
+          <h2 style={{ margin: 0, fontSize: 24 }}>{t.environments.title}</h2>
           <p style={{ color: '#666', marginTop: 8 }}>
             Manage nodes by environment
           </p>
@@ -68,14 +70,14 @@ export default function EnvironmentList() {
           onClick={loadEnvironments}
           loading={loading}
         >
-          Refresh
+          {t.common.refresh}
         </Button>
       </div>
 
       {environments.length === 0 ? (
         <Card>
           <Empty
-            description="No environments configured"
+            description={t.common.noData}
             image={Empty.PRESENTED_IMAGE_SIMPLE}
           >
             <p style={{ color: '#999' }}>

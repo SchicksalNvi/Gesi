@@ -22,12 +22,14 @@ import { environmentsApi } from '@/api/environments';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { EnvironmentDetail as EnvironmentDetailType, NodeDetail } from '@/types';
 import type { ColumnsType } from 'antd/es/table';
+import { useStore } from '@/store';
 
 type StatusFilter = 'all' | 'online' | 'offline';
 
 export default function EnvironmentDetail() {
   const { environmentName } = useParams<{ environmentName: string }>();
   const navigate = useNavigate();
+  const { t } = useStore();
   const [environment, setEnvironment] = useState<EnvironmentDetailType | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -92,7 +94,7 @@ export default function EnvironmentDetail() {
 
   const columns: ColumnsType<NodeDetail> = [
     {
-      title: 'Node Name',
+      title: t.nodes.nodeName,
       dataIndex: 'name',
       key: 'name',
       render: (name: string) => (
@@ -108,17 +110,17 @@ export default function EnvironmentDetail() {
       ),
     },
     {
-      title: 'Host',
+      title: t.nodeDetail.host,
       dataIndex: 'host',
       key: 'host',
     },
     {
-      title: 'Port',
+      title: t.nodeDetail.port,
       dataIndex: 'port',
       key: 'port',
     },
     {
-      title: 'Status',
+      title: t.common.status,
       dataIndex: 'is_connected',
       key: 'status',
       render: (isConnected: boolean) => (
@@ -126,18 +128,18 @@ export default function EnvironmentDetail() {
           icon={isConnected ? <CheckCircleOutlined /> : <CloseCircleOutlined />}
           color={isConnected ? 'success' : 'error'}
         >
-          {isConnected ? 'Online' : 'Offline'}
+          {isConnected ? t.nodes.online : t.nodes.offline}
         </Tag>
       ),
     },
     {
-      title: 'Processes',
+      title: t.nodes.processes,
       dataIndex: 'processes',
       key: 'processes',
       render: (count: number) => count || 0,
     },
     {
-      title: 'Last Ping',
+      title: t.nodeDetail.lastPing,
       dataIndex: 'last_ping',
       key: 'last_ping',
       render: (lastPing: string) => {
@@ -160,11 +162,11 @@ export default function EnvironmentDetail() {
     return (
       <Result
         status="404"
-        title="Environment Not Found"
-        subTitle={`The environment "${environmentName}" does not exist.`}
+        title={t.environmentDetail.envNotFound}
+        subTitle={t.environmentDetail.envNotExist.replace('{name}', environmentName || '')}
         extra={
           <Button type="primary" onClick={() => navigate('/environments')}>
-            Back to Environments
+            {t.environmentDetail.backToEnv}
           </Button>
         }
       />
@@ -191,14 +193,14 @@ export default function EnvironmentDetail() {
               icon={<ArrowLeftOutlined />}
               onClick={() => navigate('/environments')}
             >
-              Back
+              {t.common.back}
             </Button>
             <h2 style={{ margin: 0, fontSize: 24 }}>
-              Environment: {environment.name}
+              {t.nav.environments}: {environment.name}
             </h2>
           </Space>
           <p style={{ color: '#666', marginTop: 8, marginLeft: 40 }}>
-            {environment.members.length} {environment.members.length === 1 ? 'node' : 'nodes'} in this environment
+            {t.environmentDetail.nodesInEnv.replace('{count}', String(environment.members.length))}
           </p>
         </div>
         <Button
@@ -207,7 +209,7 @@ export default function EnvironmentDetail() {
           onClick={loadEnvironmentDetail}
           loading={loading}
         >
-          Refresh
+          {t.common.refresh}
         </Button>
       </div>
 
@@ -215,7 +217,7 @@ export default function EnvironmentDetail() {
         {environment.members.length === 0 ? (
           <div style={{ textAlign: 'center', padding: 40 }}>
             <p style={{ color: '#999', fontSize: 16 }}>
-              No nodes found in this environment
+              {t.environmentDetail.noNodesFound}
             </p>
           </div>
         ) : (
@@ -223,13 +225,13 @@ export default function EnvironmentDetail() {
             <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <Radio.Group value={statusFilter} onChange={handleStatusFilterChange}>
                 <Radio.Button value="all">
-                  All ({environment.members.length})
+                  {t.common.all} ({environment.members.length})
                 </Radio.Button>
                 <Radio.Button value="online">
-                  <CheckCircleOutlined style={{ color: '#52c41a' }} /> Online ({environment.members.filter(n => n.is_connected).length})
+                  <CheckCircleOutlined style={{ color: '#52c41a' }} /> {t.nodes.online} ({environment.members.filter(n => n.is_connected).length})
                 </Radio.Button>
                 <Radio.Button value="offline">
-                  <CloseCircleOutlined style={{ color: '#ff4d4f' }} /> Offline ({environment.members.filter(n => !n.is_connected).length})
+                  <CloseCircleOutlined style={{ color: '#ff4d4f' }} /> {t.nodes.offline} ({environment.members.filter(n => !n.is_connected).length})
                 </Radio.Button>
               </Radio.Group>
             </div>

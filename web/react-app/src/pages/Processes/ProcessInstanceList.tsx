@@ -16,6 +16,7 @@ import {
 import { ProcessInstance } from '@/types';
 import { nodesApi } from '@/api/nodes';
 import LogViewer from '@/components/LogViewer';
+import { useStore } from '@/store';
 
 interface ProcessInstanceListProps {
   instances: ProcessInstance[];
@@ -28,6 +29,7 @@ const ProcessInstanceList: React.FC<ProcessInstanceListProps> = ({
   processName,
   onRefresh,
 }) => {
+  const { t } = useStore();
   const [actionLoading, setActionLoading] = useState<Record<string, boolean>>({});
   const [logViewerVisible, setLogViewerVisible] = useState(false);
   const [selectedInstance, setSelectedInstance] = useState<ProcessInstance | null>(null);
@@ -87,7 +89,7 @@ const ProcessInstanceList: React.FC<ProcessInstanceListProps> = ({
 
   const columns = [
     {
-      title: 'Node',
+      title: t.processInstance.node,
       dataIndex: 'node_name',
       key: 'node_name',
       render: (name: string, record: ProcessInstance) => (
@@ -101,7 +103,7 @@ const ProcessInstanceList: React.FC<ProcessInstanceListProps> = ({
       ),
     },
     {
-      title: 'State',
+      title: t.processInstance.state,
       dataIndex: 'state_string',
       key: 'state_string',
       render: (state: string, record: ProcessInstance) => (
@@ -109,24 +111,24 @@ const ProcessInstanceList: React.FC<ProcessInstanceListProps> = ({
       ),
     },
     {
-      title: 'PID',
+      title: t.processes.pid,
       dataIndex: 'pid',
       key: 'pid',
       render: (pid: number) => pid || '-',
     },
     {
-      title: 'Uptime',
+      title: t.processes.uptime,
       dataIndex: 'uptime_human',
       key: 'uptime_human',
       render: (uptime: string) => uptime || '-',
     },
     {
-      title: 'Group',
+      title: t.processInstance.group,
       dataIndex: 'group',
       key: 'group',
     },
     {
-      title: 'Actions',
+      title: t.common.actions,
       key: 'actions',
       render: (_: any, record: ProcessInstance) => (
         <Space>
@@ -138,15 +140,15 @@ const ProcessInstanceList: React.FC<ProcessInstanceListProps> = ({
               onClick={() => handleInstanceAction(record, 'start')}
               loading={actionLoading[`${record.node_name}-${processName}-start`]}
             >
-              Start
+              {t.processes.start}
             </Button>
           )}
           {record.state === 20 && (
             <Popconfirm
-              title="Stop this process?"
+              title={t.nodeDetail.stopProcess}
               onConfirm={() => handleInstanceAction(record, 'stop')}
-              okText="Yes"
-              cancelText="No"
+              okText={t.common.yes}
+              cancelText={t.common.no}
             >
               <Button
                 size="small"
@@ -154,7 +156,7 @@ const ProcessInstanceList: React.FC<ProcessInstanceListProps> = ({
                 loading={actionLoading[`${record.node_name}-${processName}-stop`]}
                 danger
               >
-                Stop
+                {t.processes.stop}
               </Button>
             </Popconfirm>
           )}
@@ -164,14 +166,14 @@ const ProcessInstanceList: React.FC<ProcessInstanceListProps> = ({
             onClick={() => handleInstanceAction(record, 'restart')}
             loading={actionLoading[`${record.node_name}-${processName}-restart`]}
           >
-            Restart
+            {t.processes.restart}
           </Button>
           <Button
             size="small"
             icon={<FileTextOutlined />}
             onClick={() => handleViewLogs(record)}
           >
-            Logs
+            {t.logs.title}
           </Button>
         </Space>
       ),
