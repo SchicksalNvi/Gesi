@@ -12,8 +12,6 @@ import ProcessesPage from '@/pages/Processes';
 import EnvironmentList from '@/pages/Environments';
 import EnvironmentDetail from '@/pages/Environments/EnvironmentDetail';
 import UserList from '@/pages/Users';
-import AlertList from '@/pages/Alerts';
-import AlertRules from '@/pages/Alerts/AlertRules';
 import LogList from '@/pages/Logs';
 import Settings from '@/pages/Settings';
 import DiscoveryPage from '@/pages/Discovery';
@@ -112,8 +110,6 @@ function App() {
         <Route path="environments" element={<EnvironmentList />} />
         <Route path="environments/:environmentName" element={<EnvironmentDetail />} />
         <Route path="users" element={<UserList />} />
-        <Route path="alerts" element={<AlertList />} />
-        <Route path="alerts/rules" element={<AlertRules />} />
         <Route path="logs" element={<LogList />} />
         <Route path="discovery" element={<DiscoveryPage />} />
         <Route path="settings" element={<Settings />} />

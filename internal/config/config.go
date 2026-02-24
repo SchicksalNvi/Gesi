@@ -19,6 +19,15 @@ type Config struct {
 	Nodes            []NodeConfig             `mapstructure:"nodes"`
 	DeveloperTools   DeveloperToolsConfig     `mapstructure:"developer_tools"`
 	Performance      PerformanceConfig        `mapstructure:"performance"`
+	Metrics          MetricsConfig            `mapstructure:"metrics"`
+}
+
+// MetricsConfig Prometheus 指标暴露配置
+type MetricsConfig struct {
+	Enabled  bool   `mapstructure:"enabled"`
+	Path     string `mapstructure:"path"`
+	Username string `mapstructure:"username"`
+	Password string `mapstructure:"password"`
 }
 
 // AdminConfig 管理员配置
@@ -135,6 +144,11 @@ func Load(configPath string) (*Config, error) {
 	if !cfg.Performance.MemoryMonitoringEnabled && !cfg.Performance.MetricsCleanupEnabled {
 		cfg.Performance.MemoryMonitoringEnabled = true
 		cfg.Performance.MetricsCleanupEnabled = true
+	}
+
+	// Prometheus metrics 默认值
+	if cfg.Metrics.Path == "" {
+		cfg.Metrics.Path = "/metrics"
 	}
 
 	return &cfg, nil

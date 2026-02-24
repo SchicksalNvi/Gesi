@@ -22,6 +22,7 @@ import (
 	"go-cesi/internal/database"
 	"go-cesi/internal/logger"
 	"go-cesi/internal/loggers"
+	"go-cesi/internal/metrics"
 	"go-cesi/internal/middleware"
 	"go-cesi/internal/models"
 	"go-cesi/internal/services"
@@ -347,6 +348,26 @@ func main() {
 
 	// 设置API路由
 	api.SetupRoutes(router, db, supervisorService, hub)
+
+	// 设置 Prometheus metrics 端点
+	if appConfig.Metrics.Enabled {
+		promMetrics := metrics.NewPrometheusMetrics(supervisorService)
+		metricsPath := appConfig.Metrics.Path
+		if metricsPath == "" {
+			metricsPath = "/metrics"
+		}
+		
+		handler := promMetrics.Handler()
+		if appConfig.Metrics.Username != "" || appConfig.Metrics.Password != "" {
+			authMiddleware := metrics.NewBasicAuthMiddleware(appConfig.Metrics.Username, appConfig.Metrics.Password)
+			handler = authMiddleware.Wrap(handler)
+		}
+		
+		router.GET(metricsPath, gin.WrapF(handler))
+		logger.Info("Prometheus metrics endpoint enabled",
+			zap.String("path", metricsPath),
+			zap.Bool("auth_enabled", appConfig.Metrics.Username != ""))
+	}
 
 	// extractToken extracts JWT token from query parameter or Authorization header
 	extractToken := func(c *gin.Context) string {

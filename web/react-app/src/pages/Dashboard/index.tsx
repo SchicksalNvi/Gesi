@@ -4,7 +4,6 @@ import {
   CheckCircleOutlined,
   CloseCircleOutlined,
   PlayCircleOutlined,
-  BellOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { useNavigate } from 'react-router-dom';
@@ -17,12 +16,10 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const { nodes, setNodes, systemStats, setSystemStats, t } = useStore();
   const [loading, setLoading] = useState(false);
-  const [activeAlerts, setActiveAlerts] = useState(0);
 
   // Load initial data
   useEffect(() => {
     loadNodes();
-    loadAlertStats();
   }, []);
 
   const loadNodes = async () => {
@@ -34,22 +31,6 @@ export default function Dashboard() {
       console.error('Failed to load nodes:', error);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const loadAlertStats = async () => {
-    try {
-      const response = await fetch('/api/alerts/statistics?time_range=24h', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setActiveAlerts(data.active_alerts || 0);
-      }
-    } catch (error) {
-      console.error('Failed to load alert stats:', error);
     }
   };
 
@@ -152,20 +133,20 @@ export default function Dashboard() {
         <Col xs={24} sm={12} lg={6}>
           <Card>
             <Statistic
-              title={t.dashboard.runningProcesses}
-              value={totalProcesses}
-              prefix={<PlayCircleOutlined />}
-              valueStyle={{ color: '#1890ff' }}
+              title={t.dashboard.offlineNodes}
+              value={offlineNodes}
+              prefix={<CloseCircleOutlined />}
+              valueStyle={{ color: offlineNodes > 0 ? '#cf1322' : '#999' }}
             />
           </Card>
         </Col>
         <Col xs={24} sm={12} lg={6}>
           <Card>
             <Statistic
-              title={t.alerts.title}
-              value={activeAlerts}
-              prefix={<BellOutlined />}
-              valueStyle={{ color: activeAlerts > 0 ? '#cf1322' : '#999' }}
+              title={t.dashboard.runningProcesses}
+              value={totalProcesses}
+              prefix={<PlayCircleOutlined />}
+              valueStyle={{ color: '#1890ff' }}
             />
           </Card>
         </Col>

@@ -6,7 +6,6 @@ import {
   ClusterOutlined,
   AppstoreOutlined,
   UserOutlined,
-  BellOutlined,
   FileTextOutlined,
   SettingOutlined,
   LogoutOutlined,
@@ -64,23 +63,6 @@ export default function MainLayout() {
       icon: <AppstoreOutlined />,
       label: t.nav.processes,
       onClick: () => navigate('/processes'),
-    },
-    {
-      key: 'alerts-menu',
-      icon: <BellOutlined />,
-      label: t.nav.alerts,
-      children: [
-        {
-          key: '/alerts',
-          label: t.nav.alertList,
-          onClick: () => navigate('/alerts'),
-        },
-        {
-          key: '/alerts/rules',
-          label: t.nav.alertRules,
-          onClick: () => navigate('/alerts/rules'),
-        },
-      ],
     },
     {
       key: '/logs',
