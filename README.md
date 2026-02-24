@@ -1,6 +1,6 @@
-# Go-CESI
+# GESI
 
-Centralized Supervisor Interface - 多节点 Supervisor 进程管理系统
+Go Centralized Supervisor Interface - 多节点 Supervisor 进程管理系统
 
 ## 快速开始
 
@@ -34,7 +34,7 @@ http://localhost:8081
 
 ```
 config/
-├── config.toml      # 系统配置（端口、日志等）
+├── config.toml      # 系统配置（端口、日志、metrics等）
 ├── nodelist.toml    # Supervisor 节点列表
 └── .env             # 敏感配置（JWT_SECRET、密码等）
 ```
@@ -55,7 +55,100 @@ NODE_PASSWORD=supervisor-password
 - **节点发现** - CIDR 网段扫描自动发现节点
 - **用户管理** - 基于角色的访问控制 (RBAC)
 - **活动日志** - 操作审计追踪
-- **告警系统** - 进程异常告警
+- **Prometheus 指标** - 暴露监控指标供外部系统采集
+
+## Prometheus 监控指标
+
+GESI 支持暴露 Prometheus 格式的监控指标，可接入现有监控系统。
+
+### 启用配置
+
+在 `config/config.toml` 中添加：
+
+```toml
+[metrics]
+enabled = true
+path = "/metrics"
+username = "prometheus"  # 可选，Basic Auth 用户名
+password = "secret"      # 可选，Basic Auth 密码
+```
+
+### Prometheus 采集配置
+
+```yaml
+scrape_configs:
+  - job_name: 'gocesi'
+    static_configs:
+      - targets: ['localhost:8081']
+    metrics_path: /metrics
+    basic_auth:  # 如果启用了认证
+      username: prometheus
+      password: secret
+```
+
+### 指标列表
+
+| 指标名 | 类型 | 标签 | 说明 |
+|--------|------|------|------|
+| `gesi_node_up` | gauge | node, environment, host, port | 节点连接状态 (1=在线, 0=离线) |
+| `gesi_node_last_ping_timestamp_seconds` | gauge | node | 最后成功连接时间戳 |
+| `gesi_process_state` | gauge | node, process, group | 进程状态码 |
+| `gesi_process_up` | gauge | node, process, group | 进程运行状态 (1=运行中, 0=未运行) |
+| `gesi_process_pid` | gauge | node, process, group | 进程 PID |
+| `gesi_process_uptime_seconds` | gauge | node, process, group | 进程运行时长（秒） |
+| `gesi_process_start_timestamp_seconds` | gauge | node, process, group | 进程启动时间戳 |
+| `gesi_process_exit_status` | gauge | node, process, group | 进程退出状态码 |
+| `gesi_nodes_total` | gauge | environment (可选) | 配置的节点总数 |
+| `gesi_nodes_connected` | gauge | environment (可选) | 已连接节点数 |
+| `gesi_processes_total` | gauge | environment (可选) | 进程总数 |
+| `gesi_processes_running` | gauge | environment (可选) | 运行中进程数 |
+| `gesi_processes_stopped` | gauge | - | 已停止进程数 |
+| `gesi_processes_failed` | gauge | - | 失败进程数 (FATAL/EXITED) |
+| `gesi_info` | gauge | version | 构建信息 |
+
+### 进程状态码
+
+| 状态码 | 状态名 | 说明 |
+|--------|--------|------|
+| 0 | STOPPED | 已停止 |
+| 10 | STARTING | 启动中 |
+| 20 | RUNNING | 运行中 |
+| 30 | BACKOFF | 重试中 |
+| 40 | STOPPING | 停止中 |
+| 100 | EXITED | 已退出 |
+| 200 | FATAL | 致命错误 |
+| 1000 | UNKNOWN | 未知 |
+
+### 告警规则示例
+
+```yaml
+groups:
+  - name: gesi
+    rules:
+      - alert: NodeDown
+        expr: gesi_node_up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Node {{ $labels.node }} is down"
+          
+      - alert: ProcessDown
+        expr: gesi_process_up == 0
+        for: 30s
+        labels:
+          severity: warning
+        annotations:
+          summary: "Process {{ $labels.process }} on {{ $labels.node }} is not running"
+          
+      - alert: ProcessFailed
+        expr: gesi_process_state == 200
+        for: 0s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Process {{ $labels.process }} on {{ $labels.node }} has FATAL status"
+```
 
 ## 技术栈
 
@@ -76,6 +169,7 @@ NODE_PASSWORD=supervisor-password
 │   ├── services/            # 业务逻辑
 │   ├── repository/          # 数据访问
 │   ├── models/              # 数据模型
+│   ├── metrics/             # Prometheus 指标
 │   ├── supervisor/          # Supervisor XML-RPC 客户端
 │   └── websocket/           # WebSocket hub
 ├── web/react-app/           # React 前端
@@ -110,8 +204,8 @@ go test ./...
 | `/api/processes/*` | 进程控制 |
 | `/api/discovery/*` | 节点发现 |
 | `/api/users/*` | 用户管理 |
-| `/api/alerts/*` | 告警 |
 | `/api/activity-logs/*` | 活动日志 |
+| `/metrics` | Prometheus 指标 |
 | `/ws` | WebSocket |
 
 ## License
