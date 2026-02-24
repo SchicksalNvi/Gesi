@@ -379,6 +379,158 @@ func (api *SystemSettingsAPI) UpdateUserPreferences(c *gin.Context) {
 	}
 }
 
+// GetUserPreferencesByAdmin retrieves preferences for a specific user (admin or self)
+func (api *SystemSettingsAPI) GetUserPreferencesByAdmin(c *gin.Context) {
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+	
+	targetUserID := c.Param("userId")
+	if targetUserID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "User ID is required"})
+		return
+	}
+
+	// Check permission: admin can access any user, non-admin can only access self
+	var currentUser models.User
+	if err := api.db.Where("id = ?", userID).First(&currentUser).Error; err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not found"})
+		return
+	}
+	
+	if !currentUser.IsAdmin && userID != targetUserID {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Access denied"})
+		return
+	}
+	if targetUserID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "User ID is required"})
+		return
+	}
+
+	var preferences models.UserPreferences
+	result := api.db.Where("user_id = ?", targetUserID).First(&preferences)
+	if result.Error != nil {
+		if result.Error == gorm.ErrRecordNotFound {
+			// Return default preferences
+			preferences = models.UserPreferences{
+				UserID:             targetUserID,
+				Theme:              "light",
+				Language:           "en",
+				Timezone:           "UTC",
+				DateFormat:         "YYYY-MM-DD",
+				TimeFormat:         "HH:mm:ss",
+				PageSize:           20,
+				AutoRefresh:        true,
+				RefreshInterval:    30,
+				EmailNotifications: true,
+				ProcessAlerts:      true,
+				SystemAlerts:       true,
+				NodeStatusChanges:  false,
+				WeeklyReport:       false,
+			}
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch user preferences"})
+			return
+		}
+	}
+
+	c.JSON(http.StatusOK, preferences)
+}
+
+// UpdateUserPreferencesByAdmin updates preferences for a specific user (admin or self)
+func (api *SystemSettingsAPI) UpdateUserPreferencesByAdmin(c *gin.Context) {
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+	
+	targetUserID := c.Param("userId")
+	if targetUserID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "User ID is required"})
+		return
+	}
+
+	// Check permission: admin can access any user, non-admin can only access self
+	var currentUser models.User
+	if err := api.db.Where("id = ?", userID).First(&currentUser).Error; err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not found"})
+		return
+	}
+	
+	if !currentUser.IsAdmin && userID != targetUserID {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Access denied"})
+		return
+	}
+	if targetUserID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "User ID is required"})
+		return
+	}
+
+	var request models.UserPreferences
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	request.UserID = targetUserID
+
+	var preferences models.UserPreferences
+	result := api.db.Where("user_id = ?", targetUserID).First(&preferences)
+	if result.Error != nil {
+		if result.Error == gorm.ErrRecordNotFound {
+			result = api.db.Create(&request)
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch user preferences"})
+			return
+		}
+	} else {
+		// Update fields
+		if request.Theme != "" {
+			preferences.Theme = request.Theme
+		}
+		if request.Language != "" {
+			preferences.Language = request.Language
+		}
+		if request.Timezone != "" {
+			preferences.Timezone = request.Timezone
+		}
+		if request.DateFormat != "" {
+			preferences.DateFormat = request.DateFormat
+		}
+		if request.TimeFormat != "" {
+			preferences.TimeFormat = request.TimeFormat
+		}
+		if request.PageSize > 0 {
+			preferences.PageSize = request.PageSize
+		}
+		if request.RefreshInterval > 0 {
+			preferences.RefreshInterval = request.RefreshInterval
+		}
+		preferences.AutoRefresh = request.AutoRefresh
+		preferences.EmailNotifications = request.EmailNotifications
+		preferences.ProcessAlerts = request.ProcessAlerts
+		preferences.SystemAlerts = request.SystemAlerts
+		preferences.NodeStatusChanges = request.NodeStatusChanges
+		preferences.WeeklyReport = request.WeeklyReport
+		
+		result = api.db.Save(&preferences)
+	}
+
+	if result.Error != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save user preferences"})
+		return
+	}
+
+	if preferences.ID != "" {
+		c.JSON(http.StatusOK, preferences)
+	} else {
+		c.JSON(http.StatusOK, request)
+	}
+}
+
 // TestEmailConfiguration tests the email configuration
 func (api *SystemSettingsAPI) TestEmailConfiguration(c *gin.Context) {
 	var request struct {

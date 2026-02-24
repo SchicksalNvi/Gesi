@@ -12,28 +12,42 @@ import {
   Switch,
   Popconfirm,
   Avatar,
+  Drawer,
+  Tabs,
+  Divider,
+  Select,
 } from 'antd';
 import {
   PlusOutlined,
-  EditOutlined,
   DeleteOutlined,
   ReloadOutlined,
   UserOutlined,
   LockOutlined,
   MailOutlined,
+  SettingOutlined,
+  BellOutlined,
+  SaveOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
-import { usersApi, User, CreateUserRequest, UpdateUserRequest } from '../../api/users';
+import { usersApi, User, CreateUserRequest } from '../../api/users';
+import { useStore } from '../../store';
 
 const Users: React.FC = () => {
+  const { user: currentUser } = useStore();
+  const isAdmin = currentUser?.is_admin ?? false;
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [createModalVisible, setCreateModalVisible] = useState(false);
+  const [drawerVisible, setDrawerVisible] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
-  const [form] = Form.useForm();
+  const [saving, setSaving] = useState(false);
+  const [createForm] = Form.useForm();
+  const [profileForm] = Form.useForm();
+  const [passwordForm] = Form.useForm();
+  const [notificationForm] = Form.useForm();
 
   useEffect(() => {
     loadUsers();
@@ -42,10 +56,28 @@ const Users: React.FC = () => {
   const loadUsers = async () => {
     setLoading(true);
     try {
-      const response = await usersApi.getUsers(page, pageSize);
-      if (response?.data) {
-        setUsers(response.data.users || []);
-        setTotal(response.data.total || 0);
+      if (isAdmin) {
+        // Admin sees all users
+        const response = await usersApi.getUsers(page, pageSize);
+        if (response?.data) {
+          setUsers(response.data.users || []);
+          setTotal(response.data.total || 0);
+        }
+      } else {
+        // Non-admin only sees themselves
+        if (currentUser) {
+          setUsers([{
+            id: currentUser.id,
+            username: currentUser.username,
+            email: currentUser.email || '',
+            full_name: currentUser.full_name,
+            is_admin: currentUser.is_admin,
+            is_active: true,
+            created_at: '',
+            updated_at: '',
+          }]);
+          setTotal(1);
+        }
       }
     } catch (error) {
       console.error('Failed to load users:', error);
@@ -56,21 +88,51 @@ const Users: React.FC = () => {
   };
 
   const handleCreate = () => {
-    setEditingUser(null);
-    form.resetFields();
-    setModalVisible(true);
+    createForm.resetFields();
+    setCreateModalVisible(true);
   };
 
-  const handleEdit = (user: User) => {
-    setEditingUser(user);
-    form.setFieldsValue({
+  const handleUserSettings = async (user: User) => {
+    setSelectedUser(user);
+    setDrawerVisible(true);
+    
+    // Set basic user info first
+    profileForm.setFieldsValue({
       username: user.username,
       email: user.email,
-      full_name: user.full_name,
+      full_name: user.full_name || '',
       is_admin: user.is_admin,
       is_active: user.is_active,
+      timezone: 'UTC', // Default, will be overwritten
     });
-    setModalVisible(true);
+    passwordForm.resetFields();
+    
+    // Load user preferences from backend
+    try {
+      const prefs = await usersApi.getUserPreferences(user.id);
+      // Update profile form with timezone
+      profileForm.setFieldsValue({
+        timezone: prefs.timezone || 'UTC',
+      });
+      // Update notification form
+      notificationForm.setFieldsValue({
+        email_notifications: prefs.email_notifications ?? true,
+        process_alerts: prefs.process_alerts ?? true,
+        system_alerts: prefs.system_alerts ?? true,
+        node_status_changes: prefs.node_status_changes ?? false,
+        weekly_report: prefs.weekly_report ?? false,
+      });
+    } catch (error) {
+      console.error('Failed to load user preferences:', error);
+      // Set defaults if loading fails
+      notificationForm.setFieldsValue({
+        email_notifications: true,
+        process_alerts: true,
+        system_alerts: true,
+        node_status_changes: false,
+        weekly_report: false,
+      });
+    }
   };
 
   const handleDelete = async (userId: string) => {
@@ -83,48 +145,91 @@ const Users: React.FC = () => {
     }
   };
 
-  const handleToggleActive = async (userId: string, isActive: boolean) => {
+  const handleCreateSubmit = async () => {
     try {
-      await usersApi.toggleUserStatus(userId, isActive);
-      message.success(`User ${isActive ? 'activated' : 'deactivated'} successfully`);
+      const values = await createForm.validateFields();
+      const createData: CreateUserRequest = {
+        username: values.username,
+        email: values.email,
+        password: values.password,
+        full_name: values.full_name,
+        is_admin: values.is_admin || false,
+      };
+      await usersApi.createUser(createData);
+      message.success('User created successfully');
+      setCreateModalVisible(false);
       loadUsers();
     } catch (error: any) {
-      message.error(error.response?.data?.message || 'Failed to update user status');
+      message.error(error.response?.data?.message || 'Failed to create user');
     }
   };
 
-  const handleSubmit = async () => {
+  const handleProfileUpdate = async () => {
+    if (!selectedUser) return;
     try {
-      const values = await form.validateFields();
+      const values = await profileForm.validateFields();
+      setSaving(true);
       
-      if (editingUser) {
-        // 更新用户
-        const updateData: UpdateUserRequest = {
-          email: values.email,
-          full_name: values.full_name,
-          is_admin: values.is_admin,
-          is_active: values.is_active,
-        };
-        await usersApi.updateUser(editingUser.id, updateData);
-        message.success('User updated successfully');
-      } else {
-        // 创建用户
-        const createData: CreateUserRequest = {
-          username: values.username,
-          email: values.email,
-          password: values.password,
-          full_name: values.full_name,
-          is_admin: values.is_admin || false,
-        };
-        await usersApi.createUser(createData);
-        message.success('User created successfully');
-      }
+      // Update user basic info
+      await usersApi.updateUser(selectedUser.id, {
+        email: values.email,
+        full_name: values.full_name,
+        is_admin: values.is_admin,
+        is_active: values.is_active,
+      });
       
-      setModalVisible(false);
+      // Update timezone in user preferences
+      await usersApi.updateUserPreferences(selectedUser.id, {
+        timezone: values.timezone,
+      });
+      
+      message.success('User updated successfully');
       loadUsers();
+      // Update selectedUser to reflect changes
+      setSelectedUser({ ...selectedUser, ...values });
     } catch (error: any) {
-      console.error('Operation failed:', error);
-      message.error(error.response?.data?.message || 'Operation failed');
+      message.error(error.response?.data?.message || 'Failed to update user');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handlePasswordChange = async () => {
+    if (!selectedUser) return;
+    try {
+      const values = await passwordForm.validateFields();
+      setSaving(true);
+      
+      await usersApi.resetPassword(selectedUser.id, values.new_password);
+      
+      message.success('Password changed successfully');
+      passwordForm.resetFields();
+    } catch (error: any) {
+      message.error(error.response?.data?.message || 'Failed to change password');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleNotificationUpdate = async () => {
+    if (!selectedUser) return;
+    try {
+      const values = await notificationForm.validateFields();
+      setSaving(true);
+      
+      await usersApi.updateUserPreferences(selectedUser.id, {
+        email_notifications: values.email_notifications,
+        process_alerts: values.process_alerts,
+        system_alerts: values.system_alerts,
+        node_status_changes: values.node_status_changes,
+        weekly_report: values.weekly_report,
+      });
+      
+      message.success('Notification settings updated');
+    } catch (error: any) {
+      message.error(error.response?.data?.message || 'Failed to update notifications');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -162,13 +267,10 @@ const Users: React.FC = () => {
       title: 'Status',
       dataIndex: 'is_active',
       key: 'status',
-      render: (isActive: boolean, record) => (
-        <Switch
-          checked={isActive}
-          onChange={(checked) => handleToggleActive(record.id, checked)}
-          checkedChildren="Active"
-          unCheckedChildren="Inactive"
-        />
+      render: (isActive: boolean) => (
+        <Tag color={isActive ? 'green' : 'default'}>
+          {isActive ? 'Active' : 'Inactive'}
+        </Tag>
       ),
     },
     {
@@ -178,40 +280,31 @@ const Users: React.FC = () => {
       render: (date) => date ? new Date(date).toLocaleString() : 'Never',
     },
     {
-      title: 'Created',
-      dataIndex: 'created_at',
-      key: 'created_at',
-      render: (date) => new Date(date).toLocaleDateString(),
-    },
-    {
       title: 'Actions',
       key: 'actions',
       render: (_, record) => (
         <Space>
           <Button
             type="link"
-            icon={<EditOutlined />}
-            onClick={() => handleEdit(record)}
+            icon={<SettingOutlined />}
+            onClick={() => handleUserSettings(record)}
           >
-            Edit
+            Settings
           </Button>
-          <Popconfirm
-            title="Delete user"
-            description="Are you sure you want to delete this user?"
-            onConfirm={() => handleDelete(record.id)}
-            okText="Yes"
-            cancelText="No"
-            disabled={record.is_admin}
-          >
-            <Button
-              type="link"
-              danger
-              icon={<DeleteOutlined />}
+          {isAdmin && (
+            <Popconfirm
+              title="Delete user"
+              description="Are you sure you want to delete this user?"
+              onConfirm={() => handleDelete(record.id)}
+              okText="Yes"
+              cancelText="No"
               disabled={record.is_admin}
             >
-              Delete
-            </Button>
-          </Popconfirm>
+              <Button type="link" danger icon={<DeleteOutlined />} disabled={record.is_admin}>
+                Delete
+              </Button>
+            </Popconfirm>
+          )}
         </Space>
       ),
     },
@@ -223,20 +316,14 @@ const Users: React.FC = () => {
         title="User Management"
         extra={
           <Space>
-            <Button
-              icon={<ReloadOutlined />}
-              onClick={loadUsers}
-              loading={loading}
-            >
+            <Button icon={<ReloadOutlined />} onClick={loadUsers} loading={loading}>
               Refresh
             </Button>
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={handleCreate}
-            >
-              Add User
-            </Button>
+            {isAdmin && (
+              <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>
+                Add User
+              </Button>
+            )}
           </Space>
         }
       >
@@ -250,30 +337,21 @@ const Users: React.FC = () => {
             pageSize: pageSize,
             total: total,
             showSizeChanger: true,
-            showTotal: (total) => `Total ${total} users`,
-            onChange: (page, pageSize) => {
-              setPage(page);
-              setPageSize(pageSize);
-            },
+            showTotal: (t) => `Total ${t} users`,
+            onChange: (p, ps) => { setPage(p); setPageSize(ps); },
           }}
         />
       </Card>
 
+      {/* Create User Modal */}
       <Modal
-        title={editingUser ? 'Edit User' : 'Create User'}
-        open={modalVisible}
-        onOk={handleSubmit}
-        onCancel={() => setModalVisible(false)}
-        width={600}
+        title="Create User"
+        open={createModalVisible}
+        onOk={handleCreateSubmit}
+        onCancel={() => setCreateModalVisible(false)}
+        width={500}
       >
-        <Form
-          form={form}
-          layout="vertical"
-          initialValues={{
-            is_admin: false,
-            is_active: true,
-          }}
-        >
+        <Form form={createForm} layout="vertical" initialValues={{ is_admin: false }}>
           <Form.Item
             name="username"
             label="Username"
@@ -282,13 +360,8 @@ const Users: React.FC = () => {
               { min: 3, max: 50, message: 'Username must be 3-50 characters' },
             ]}
           >
-            <Input
-              prefix={<UserOutlined />}
-              placeholder="Username"
-              disabled={!!editingUser}
-            />
+            <Input prefix={<UserOutlined />} placeholder="Username" />
           </Form.Item>
-
           <Form.Item
             name="email"
             label="Email"
@@ -299,52 +372,161 @@ const Users: React.FC = () => {
           >
             <Input prefix={<MailOutlined />} placeholder="Email" />
           </Form.Item>
-
-          <Form.Item
-            name="full_name"
-            label="Full Name"
-          >
+          <Form.Item name="full_name" label="Full Name">
             <Input placeholder="Full Name (optional)" />
           </Form.Item>
-
-          {!editingUser && (
-            <Form.Item
-              name="password"
-              label="Password"
-              rules={[
-                { required: true, message: 'Please enter password' },
-                { min: 6, message: 'Password must be at least 6 characters' },
-              ]}
-            >
-              <Input.Password prefix={<LockOutlined />} placeholder="Password" />
-            </Form.Item>
-          )}
-
           <Form.Item
-            name="is_admin"
-            label="Role"
-            valuePropName="checked"
+            name="password"
+            label="Password"
+            rules={[
+              { required: true, message: 'Please enter password' },
+              { min: 6, message: 'Password must be at least 6 characters' },
+            ]}
           >
-            <Switch
-              checkedChildren="Admin"
-              unCheckedChildren="User"
-            />
+            <Input.Password prefix={<LockOutlined />} placeholder="Password" />
           </Form.Item>
-
-          {editingUser && (
-            <Form.Item
-              name="is_active"
-              label="Status"
-              valuePropName="checked"
-            >
-              <Switch
-                checkedChildren="Active"
-                unCheckedChildren="Inactive"
-              />
-            </Form.Item>
-          )}
+          <Form.Item name="is_admin" label="Admin Role" valuePropName="checked">
+            <Switch checkedChildren="Admin" unCheckedChildren="User" />
+          </Form.Item>
         </Form>
       </Modal>
+
+      {/* User Settings Drawer */}
+      <Drawer
+        title={`User Settings: ${selectedUser?.username || ''}`}
+        placement="right"
+        width={520}
+        onClose={() => setDrawerVisible(false)}
+        open={drawerVisible}
+      >
+        <Tabs
+          items={[
+            {
+              key: 'profile',
+              label: <span><UserOutlined /> Profile</span>,
+              children: (
+                <Form form={profileForm} layout="vertical">
+                  <Form.Item name="username" label="Username">
+                    <Input prefix={<UserOutlined />} disabled />
+                  </Form.Item>
+                  <Form.Item
+                    name="email"
+                    label="Email"
+                    rules={[
+                      { required: true, message: 'Please enter email' },
+                      { type: 'email', message: 'Please enter valid email' },
+                    ]}
+                  >
+                    <Input prefix={<MailOutlined />} />
+                  </Form.Item>
+                  <Form.Item name="full_name" label="Full Name">
+                    <Input placeholder="Enter full name" />
+                  </Form.Item>
+                  <Form.Item name="timezone" label="Timezone">
+                    <Select
+                      options={[
+                        { label: 'UTC', value: 'UTC' },
+                        { label: 'America/New_York', value: 'America/New_York' },
+                        { label: 'America/Los_Angeles', value: 'America/Los_Angeles' },
+                        { label: 'Europe/London', value: 'Europe/London' },
+                        { label: 'Asia/Shanghai', value: 'Asia/Shanghai' },
+                        { label: 'Asia/Tokyo', value: 'Asia/Tokyo' },
+                      ]}
+                    />
+                  </Form.Item>
+                  {isAdmin && (
+                    <>
+                      <Divider />
+                      <Form.Item name="is_admin" label="Admin Role" valuePropName="checked">
+                        <Switch checkedChildren="Admin" unCheckedChildren="User" />
+                      </Form.Item>
+                      <Form.Item name="is_active" label="Account Status" valuePropName="checked">
+                        <Switch checkedChildren="Active" unCheckedChildren="Inactive" />
+                      </Form.Item>
+                    </>
+                  )}
+                  <Form.Item>
+                    <Button type="primary" icon={<SaveOutlined />} onClick={handleProfileUpdate} loading={saving}>
+                      Save Profile
+                    </Button>
+                  </Form.Item>
+                </Form>
+              ),
+            },
+            {
+              key: 'security',
+              label: <span><LockOutlined /> Security</span>,
+              children: (
+                <Form form={passwordForm} layout="vertical">
+                  <Form.Item
+                    name="new_password"
+                    label="New Password"
+                    rules={[
+                      { required: true, message: 'Please enter new password' },
+                      { min: 6, message: 'Password must be at least 6 characters' },
+                    ]}
+                  >
+                    <Input.Password prefix={<LockOutlined />} placeholder="Enter new password" />
+                  </Form.Item>
+                  <Form.Item
+                    name="confirm_password"
+                    label="Confirm Password"
+                    dependencies={['new_password']}
+                    rules={[
+                      { required: true, message: 'Please confirm password' },
+                      ({ getFieldValue }) => ({
+                        validator(_, value) {
+                          if (!value || getFieldValue('new_password') === value) {
+                            return Promise.resolve();
+                          }
+                          return Promise.reject(new Error('Passwords do not match'));
+                        },
+                      }),
+                    ]}
+                  >
+                    <Input.Password prefix={<LockOutlined />} placeholder="Confirm new password" />
+                  </Form.Item>
+                  <Form.Item>
+                    <Button type="primary" icon={<SaveOutlined />} onClick={handlePasswordChange} loading={saving}>
+                      Reset Password
+                    </Button>
+                  </Form.Item>
+                </Form>
+              ),
+            },
+            {
+              key: 'notifications',
+              label: <span><BellOutlined /> Notifications</span>,
+              children: (
+                <Form form={notificationForm} layout="vertical">
+                  <Form.Item name="email_notifications" label="Email Notifications" valuePropName="checked">
+                    <Switch />
+                  </Form.Item>
+                  <Divider />
+                  <Form.Item name="process_alerts" label="Process Alerts" valuePropName="checked">
+                    <Switch />
+                  </Form.Item>
+                  <Form.Item name="system_alerts" label="System Alerts" valuePropName="checked">
+                    <Switch />
+                  </Form.Item>
+                  <Form.Item name="node_status_changes" label="Node Status Changes" valuePropName="checked">
+                    <Switch />
+                  </Form.Item>
+                  <Divider />
+                  <Form.Item name="weekly_report" label="Weekly Summary Report" valuePropName="checked">
+                    <Switch />
+                  </Form.Item>
+                  <Form.Item>
+                    <Button type="primary" icon={<SaveOutlined />} onClick={handleNotificationUpdate} loading={saving}>
+                      Save Preferences
+                    </Button>
+                  </Form.Item>
+                </Form>
+              ),
+            },
+          ]}
+        />
+      </Drawer>
     </div>
   );
 };

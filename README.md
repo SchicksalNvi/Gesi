@@ -4,119 +4,115 @@ Centralized Supervisor Interface - 多节点 Supervisor 进程管理系统
 
 ## 快速开始
 
-### 一键部署（推荐）
-
 ```bash
-# 完整部署：环境检查 + 编译 + 配置 + 启动
-./deploy.sh deploy
-
-# 部署并重置数据库
-./deploy.sh deploy --reset-db
-
-# 仅编译后端（跳过前端）
-./deploy.sh deploy --skip-frontend
-```
-
-### 分步操作
-
-```bash
-# 检查环境
-./deploy.sh check-env
-
 # 编译
-./deploy.sh build              # 编译前后端
-./deploy.sh build-backend      # 仅编译后端
-./deploy.sh build-frontend     # 仅编译前端
+./gesi.sh build
 
-# 启动/停止
-./deploy.sh start              # 启动应用
-./deploy.sh stop               # 停止应用
-./deploy.sh restart            # 重启应用
+# 启动
+./gesi.sh start
 
-# 配置和数据库
-./deploy.sh init-config        # 初始化配置
-./deploy.sh reset-db           # 重置数据库
+# 访问
+http://localhost:8081
 ```
 
-访问 http://localhost:8081
+默认账号：`admin` / 见 `config/.env` 中的 `ADMIN_PASSWORD`
 
-默认账号：`admin` / 见 `.env` 中的 `ADMIN_PASSWORD`
+## 管理命令
+
+```bash
+./gesi.sh build           # 编译前后端
+./gesi.sh build-backend   # 仅编译后端
+./gesi.sh build-frontend  # 仅编译前端
+./gesi.sh start           # 后台启动
+./gesi.sh stop            # 停止
+./gesi.sh restart         # 重启
+./gesi.sh status          # 查看状态
+./gesi.sh run             # 前台运行（开发用）
+```
 
 ## 配置
 
-### 新配置结构（推荐）
-
 ```
 config/
-├── config.toml          # 系统配置
-├── nodelist.toml        # 节点配置
-├── .env                 # 环境变量
-└── .env.example         # 环境变量示例
+├── config.toml      # 系统配置（端口、日志等）
+├── nodelist.toml    # Supervisor 节点列表
+└── .env             # 敏感配置（JWT_SECRET、密码等）
 ```
 
-### 传统配置（向后兼容）
+### 环境变量 (config/.env)
 
-```
-config.toml              # 包含所有配置
-.env                     # 环境变量（根目录）
-```
-
-### 环境变量
-
-推荐将环境变量文件放在 `config/.env`，应用会自动检测：
-1. 优先加载 `config/.env`
-2. 回退到根目录 `.env`（向后兼容）
-
-部署脚本会自动检测配置格式并提供迁移建议。
-
-## 架构
-
-```
-cmd/main.go              # 入口
-internal/
-  ├── api/               # HTTP handlers
-  ├── services/          # 业务逻辑
-  ├── repository/        # 数据访问
-  ├── models/            # 数据模型
-  └── supervisor/        # Supervisor 集成
-web/
-  └── react-app/         # React 前端源码
-      └── dist/          # 构建产物
+```bash
+JWT_SECRET=your-secret-key
+ADMIN_PASSWORD=admin123
+NODE_PASSWORD=supervisor-password
 ```
 
 ## 功能
 
-- 多节点管理
-- 进程控制（启动/停止/重启）
-- 实时状态监控（WebSocket）
-- 用户管理（RBAC）
-- 活动日志
-- 告警系统
+- **节点管理** - 多 Supervisor 节点集中管理
+- **进程控制** - 启动/停止/重启进程
+- **实时监控** - WebSocket 推送状态变化
+- **节点发现** - CIDR 网段扫描自动发现节点
+- **用户管理** - 基于角色的访问控制 (RBAC)
+- **活动日志** - 操作审计追踪
+- **告警系统** - 进程异常告警
 
 ## 技术栈
 
-- 后端：Go + Gin + GORM + SQLite
-- 前端：React + TypeScript + Ant Design
-- 实时：WebSocket
-- 认证：JWT
+| 层 | 技术 |
+|---|---|
+| 后端 | Go 1.24 + Gin + GORM |
+| 前端 | React 18 + TypeScript + Ant Design |
+| 数据库 | SQLite |
+| 实时 | WebSocket |
+| 认证 | JWT |
+
+## 项目结构
+
+```
+├── cmd/main.go              # 入口
+├── internal/
+│   ├── api/                 # HTTP handlers
+│   ├── services/            # 业务逻辑
+│   ├── repository/          # 数据访问
+│   ├── models/              # 数据模型
+│   ├── supervisor/          # Supervisor XML-RPC 客户端
+│   └── websocket/           # WebSocket hub
+├── web/react-app/           # React 前端
+│   ├── src/
+│   └── dist/                # 构建产物
+├── config/                  # 配置文件
+├── data/                    # SQLite 数据库
+└── logs/                    # 日志文件
+```
 
 ## 开发
 
 ```bash
-# 后端
+# 后端（热重载需要 air）
 go run cmd/main.go
 
-# 前端（开发模式）
-cd web/react-app
-npm run dev
+# 前端开发服务器
+cd web/react-app && npm run dev
+
+# 运行测试
+go test ./...
 ```
 
-## 数据库
+## API
 
-```bash
-# 重置数据库
-./reset-db.sh
-```
+主要端点：
+
+| 路径 | 说明 |
+|---|---|
+| `/api/auth/*` | 认证 |
+| `/api/nodes/*` | 节点管理 |
+| `/api/processes/*` | 进程控制 |
+| `/api/discovery/*` | 节点发现 |
+| `/api/users/*` | 用户管理 |
+| `/api/alerts/*` | 告警 |
+| `/api/activity-logs/*` | 活动日志 |
+| `/ws` | WebSocket |
 
 ## License
 

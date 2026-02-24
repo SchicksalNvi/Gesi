@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { Layout, Menu, Avatar, Dropdown, Space, Badge } from 'antd';
+import { Layout, Menu, Avatar, Dropdown, Space } from 'antd';
 import {
   DashboardOutlined,
   ClusterOutlined,
@@ -26,8 +26,8 @@ export default function MainLayout() {
   const { user, logout } = useStore();
   const [collapsed, setCollapsed] = useState(false);
 
-  // Menu items
-  const menuItems: MenuProps['items'] = [
+  // Menu items - filter based on admin status
+  const baseMenuItems: MenuProps['items'] = [
     {
       key: '/dashboard',
       icon: <DashboardOutlined />,
@@ -87,25 +87,22 @@ export default function MainLayout() {
       label: 'Users',
       onClick: () => navigate('/users'),
     },
+  ];
+
+  // Admin-only menu items
+  const adminMenuItems: MenuProps['items'] = user?.is_admin ? [
     {
       key: '/settings',
       icon: <SettingOutlined />,
       label: 'Settings',
       onClick: () => navigate('/settings'),
     },
-  ];
+  ] : [];
+
+  const menuItems = [...baseMenuItems, ...adminMenuItems];
 
   // User dropdown menu
   const userMenuItems: MenuProps['items'] = [
-    {
-      key: 'settings',
-      icon: <SettingOutlined />,
-      label: 'Settings',
-      onClick: () => navigate('/settings'),
-    },
-    {
-      type: 'divider',
-    },
     {
       key: 'logout',
       icon: <LogoutOutlined />,
@@ -182,10 +179,6 @@ export default function MainLayout() {
           </div>
           
           <Space size="large">
-            <Badge count={0} showZero={false}>
-              <BellOutlined style={{ fontSize: 18, cursor: 'pointer' }} />
-            </Badge>
-            
             <Dropdown menu={{ items: userMenuItems }} placement="bottomRight">
               <Space style={{ cursor: 'pointer' }}>
                 <Avatar icon={<UserOutlined />} />

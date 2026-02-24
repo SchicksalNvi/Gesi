@@ -3,6 +3,7 @@ package auth
 import (
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"go-cesi/internal/models"
@@ -61,6 +62,10 @@ func (s *AuthService) Login(c *gin.Context) {
 		})
 		return
 	}
+
+	// 更新最后登录时间
+	now := time.Now()
+	s.db.Model(&user).Update("last_login", now)
 
 	// 设置Cookie
 	c.SetCookie("token", token, 3600*24, "/", "", false, true)

@@ -67,4 +67,27 @@ export const usersApi = {
   toggleUserStatus: async (id: string, isActive: boolean): Promise<{ status: string; message: string }> => {
     return client.patch(`/users/${id}/toggle`, { is_active: isActive });
   },
+
+  resetPassword: async (id: string, newPassword: string): Promise<{ status: string; message: string }> => {
+    return client.put(`/users/${id}/password`, { new_password: newPassword });
+  },
+
+  getUserPreferences: async (userId: string): Promise<UserPreferencesData> => {
+    return client.get(`/system-settings/users/${userId}/preferences`);
+  },
+
+  updateUserPreferences: async (userId: string, data: UserPreferencesData): Promise<UserPreferencesData> => {
+    return client.put(`/system-settings/users/${userId}/preferences`, data);
+  },
 };
+
+export interface UserPreferencesData {
+  timezone?: string;
+  theme?: string;
+  language?: string;
+  email_notifications?: boolean;
+  process_alerts?: boolean;
+  system_alerts?: boolean;
+  node_status_changes?: boolean;
+  weekly_report?: boolean;
+}

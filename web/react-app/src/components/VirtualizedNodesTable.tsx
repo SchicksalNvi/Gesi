@@ -343,14 +343,14 @@ export const VirtualizedNodesTable: React.FC<VirtualizedNodesTableProps> = ({
   return (
     <div style={{ border: '1px solid #f0f0f0', borderRadius: 6 }}>
       <Header />
-      <ReactWindow.FixedSizeList
+      <ReactWindow.List
         height={height - HEADER_HEIGHT}
         itemCount={tableData.length}
         itemSize={ROW_HEIGHT}
         width="100%"
       >
         {Row}
-      </ReactWindow.FixedSizeList>
+      </ReactWindow.List>
       
       {/* Footer with pagination info */}
       <div style={{ 

@@ -371,9 +371,13 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB, service *supervisor.SupervisorServi
 			systemSettingsGroup.DELETE("/:key", systemSettingsHandler.DeleteSystemSetting)
 			systemSettingsGroup.POST("/reset", systemSettingsHandler.ResetToDefaults)
 
-			// 用户偏好设置
+			// 用户偏好设置（当前用户）
 			systemSettingsGroup.GET("/user-preferences", systemSettingsHandler.GetUserPreferences)
 			systemSettingsGroup.PUT("/user-preferences", systemSettingsHandler.UpdateUserPreferences)
+
+			// 管理员管理其他用户偏好
+			systemSettingsGroup.GET("/users/:userId/preferences", systemSettingsHandler.GetUserPreferencesByAdmin)
+			systemSettingsGroup.PUT("/users/:userId/preferences", systemSettingsHandler.UpdateUserPreferencesByAdmin)
 
 			// 邮件配置测试
 			systemSettingsGroup.POST("/test-email", systemSettingsHandler.TestEmailConfiguration)
