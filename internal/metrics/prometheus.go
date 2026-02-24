@@ -212,6 +212,18 @@ func (p *PrometheusMetrics) collectProcessMetrics(sb *strings.Builder) {
 	}
 }
 
+// 构建信息 - 从环境变量或编译时注入获取版本
+func (p *PrometheusMetrics) getVersion() string {
+	// 可通过 -ldflags "-X go-cesi/internal/metrics.Version=x.x.x" 注入
+	if Version != "" {
+		return Version
+	}
+	return "dev"
+}
+
+// Version 版本号，可通过编译时注入
+var Version = ""
+
 // collectSummaryMetrics 收集汇总指标
 func (p *PrometheusMetrics) collectSummaryMetrics(sb *strings.Builder) {
 	nodes := p.supervisorService.GetAllNodes()
@@ -291,7 +303,7 @@ func (p *PrometheusMetrics) collectSummaryMetrics(sb *strings.Builder) {
 	}
 
 	// 构建信息
-	sb.WriteString("gesi_info{version=\"1.0.0\"} 1\n")
+	sb.WriteString(fmt.Sprintf("gesi_info{version=\"%s\"} 1\n", p.getVersion()))
 }
 
 // escapeLabel 转义 Prometheus label 值中的特殊字符

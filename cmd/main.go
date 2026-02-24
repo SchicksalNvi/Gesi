@@ -276,6 +276,13 @@ func main() {
 	// 设置活动日志记录器到 supervisor
 	supervisorService.SetActivityLogger(activityLogService)
 
+	// 设置 WebSocket AllowedOrigins（从配置文件加载）
+	if len(appConfig.WebSocket.AllowedOrigins) > 0 {
+		websocket.SetAllowedOrigins(appConfig.WebSocket.AllowedOrigins)
+		logger.Info("WebSocket allowed origins configured from config.toml",
+			zap.Strings("origins", appConfig.WebSocket.AllowedOrigins))
+	}
+
 	// 初始化WebSocket Hub
 	hub := websocket.NewHub(supervisorService)
 	go hub.Run()
@@ -332,9 +339,15 @@ func main() {
 	// 设置Gin路由
 	router := gin.Default()
 
-	// 配置CORS
+	// 配置CORS（从配置文件加载，如果未配置则使用默认值）
 	corsConfig := cors.DefaultConfig()
-	corsConfig.AllowOrigins = []string{"http://localhost:3000", "http://127.0.0.1:3000"}
+	if len(appConfig.CORS.AllowedOrigins) > 0 {
+		corsConfig.AllowOrigins = appConfig.CORS.AllowedOrigins
+		logger.Info("CORS allowed origins configured from config.toml",
+			zap.Strings("origins", appConfig.CORS.AllowedOrigins))
+	} else {
+		corsConfig.AllowOrigins = []string{"http://localhost:3000", "http://127.0.0.1:3000"}
+	}
 	corsConfig.AllowMethods = []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}
 	corsConfig.AllowHeaders = []string{"Origin", "Content-Type", "Accept", "Authorization"}
 	corsConfig.AllowCredentials = true

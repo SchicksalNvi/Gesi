@@ -3,16 +3,17 @@ package api
 import (
 	"bufio"
 	"encoding/json"
-	"log"
 	"net/http"
 	"os"
 	"strconv"
 	"strings"
 
+	"go-cesi/internal/logger"
 	"go-cesi/internal/models"
 	"go-cesi/internal/services"
 
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
@@ -67,7 +68,7 @@ func (a *LogsAPI) GetLogs(c *gin.Context) {
 	// Open log file
 	file, err := os.Open("logs/activity.log")
 	if err != nil {
-		log.Printf("Failed to open log file for user %s: %v", user.Username, err)
+		logger.Error("Failed to open log file", zap.String("username", user.Username), zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  "error",
 			"message": "Failed to open log file",
@@ -117,7 +118,7 @@ func (a *LogsAPI) GetLogs(c *gin.Context) {
 	}
 
 	if err := scanner.Err(); err != nil {
-		log.Printf("Failed to read log file for user %s: %v", user.Username, err)
+		logger.Error("Failed to read log file", zap.String("username", user.Username), zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  "error",
 			"message": "Failed to read log file",
@@ -125,7 +126,7 @@ func (a *LogsAPI) GetLogs(c *gin.Context) {
 		return
 	}
 
-	log.Printf("Logs accessed by user %s, count: %d", user.Username, len(logs))
+	logger.Debug("Logs accessed", zap.String("username", user.Username), zap.Int("count", len(logs)))
 
 	c.JSON(http.StatusOK, gin.H{
 		"status": "success",

@@ -92,15 +92,6 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB, service *supervisor.SupervisorServi
 			userGroup.PATCH("/:id/toggle", userHandler.ToggleUserStatus)
 		}
 
-		// Keep legacy user API for profile management
-		userGroup2 := apiGroup.Group("/users-legacy")
-		{
-			userGroup2.GET("", userAPI.ListUsers)
-			userGroup2.POST("", userAPI.CreateUser)
-			userGroup2.DELETE("/:username", userAPI.DeleteUser)
-			userGroup2.PUT("/:username/password", userAPI.ChangePassword)
-		}
-
 		// Profile management API
 		profileGroup := apiGroup.Group("/profile")
 		{

@@ -18,6 +18,22 @@ func NewAuthService(db *gorm.DB) *AuthService {
 	return &AuthService{db: db}
 }
 
+// isSecureRequest 检查请求是否通过 HTTPS
+func isSecureRequest(c *gin.Context) bool {
+	// 检查 X-Forwarded-Proto（反向代理场景）
+	if proto := c.GetHeader("X-Forwarded-Proto"); proto == "https" {
+		return true
+	}
+	// 检查请求 scheme
+	return c.Request.TLS != nil
+}
+
+// setCookie 设置 Cookie，自动根据请求协议设置 Secure 标志
+func (s *AuthService) setCookie(c *gin.Context, name, value string, maxAge int) {
+	secure := isSecureRequest(c)
+	c.SetCookie(name, value, maxAge, "/", "", secure, true)
+}
+
 func (s *AuthService) Login(c *gin.Context) {
 	type loginRequest struct {
 		Username string `json:"username" binding:"required"`
@@ -67,8 +83,8 @@ func (s *AuthService) Login(c *gin.Context) {
 	now := time.Now()
 	s.db.Model(&user).Update("last_login", now)
 
-	// 设置Cookie
-	c.SetCookie("token", token, 3600*24, "/", "", false, true)
+	// 设置Cookie（自动检测 HTTPS 并设置 Secure 标志）
+	s.setCookie(c, "token", token, 3600*24)
 
 	c.JSON(http.StatusOK, gin.H{
 		"status":  "success",
@@ -90,8 +106,8 @@ func (s *AuthService) Login(c *gin.Context) {
 }
 
 func (s *AuthService) Logout(c *gin.Context) {
-	// 清除Cookie
-	c.SetCookie("token", "", -1, "/", "", false, true)
+	// 清除Cookie（自动检测 HTTPS 并设置 Secure 标志）
+	s.setCookie(c, "token", "", -1)
 
 	c.JSON(http.StatusOK, gin.H{
 		"status":  "success",

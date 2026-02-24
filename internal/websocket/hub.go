@@ -33,18 +33,34 @@ type WebSocketConfig struct {
 	MaxViolations     int           // 最大违规次数
 }
 
+// globalAllowedOrigins 全局配置的允许来源（从 config.toml 加载）
+var globalAllowedOrigins []string
+
+// SetAllowedOrigins 设置全局允许的来源（从配置文件加载时调用）
+func SetAllowedOrigins(origins []string) {
+	globalAllowedOrigins = origins
+}
+
 // GetDefaultWebSocketConfig 获取默认WebSocket配置
 func GetDefaultWebSocketConfig() *WebSocketConfig {
-	allowedOrigins := []string{
-		"http://localhost:3000",
-		"http://localhost:8081",
-		"http://127.0.0.1:3000",
-		"http://127.0.0.1:8081",
+	// 优先级：config.toml > 环境变量 > 默认值
+	allowedOrigins := globalAllowedOrigins
+	
+	// 如果配置文件未设置，尝试环境变量
+	if len(allowedOrigins) == 0 {
+		if origins := os.Getenv("WEBSOCKET_ALLOWED_ORIGINS"); origins != "" {
+			allowedOrigins = strings.Split(origins, ",")
+		}
 	}
-
-	// 从环境变量读取允许的来源
-	if origins := os.Getenv("WEBSOCKET_ALLOWED_ORIGINS"); origins != "" {
-		allowedOrigins = strings.Split(origins, ",")
+	
+	// 如果都未设置，使用默认值
+	if len(allowedOrigins) == 0 {
+		allowedOrigins = []string{
+			"http://localhost:3000",
+			"http://localhost:8081",
+			"http://127.0.0.1:3000",
+			"http://127.0.0.1:8081",
+		}
 	}
 
 	return &WebSocketConfig{
@@ -160,14 +176,8 @@ type LogStreamMessage struct {
 }
 
 // LogEntry represents a single log entry
-type LogEntry struct {
-	Timestamp   time.Time `json:"timestamp"`
-	Level       string    `json:"level"`
-	Message     string    `json:"message"`
-	Source      string    `json:"source"`
-	ProcessName string    `json:"process_name"`
-	NodeName    string    `json:"node_name"`
-}
+// Deprecated: 使用 supervisor.LogEntry 代替，此定义保留仅为向后兼容
+type LogEntry = supervisor.LogEntry
 
 type SystemStatsMessage struct {
 	TotalNodes       int       `json:"total_nodes"`

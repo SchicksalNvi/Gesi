@@ -76,6 +76,7 @@ func (h *AlertHandler) CreateAlertRule(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
 		return
 	}
+	userIDStr, _ := userID.(string)
 
 	rule := &models.AlertRule{
 		Name:        req.Name,
@@ -89,7 +90,7 @@ func (h *AlertHandler) CreateAlertRule(c *gin.Context) {
 		NodeID:      req.NodeID,
 		ProcessName: req.ProcessName,
 		Tags:        req.Tags,
-		CreatedBy:   userID.(uint),
+		CreatedBy:   userIDStr,
 	}
 
 	err := h.alertService.CreateAlertRule(rule)
@@ -411,9 +412,8 @@ func (h *AlertHandler) CreateNotificationChannel(c *gin.Context) {
 		return
 	}
 
-	userID, exists := c.Get("user_id")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+	userIDStr, ok := validateUserAuthString(c)
+	if !ok {
 		return
 	}
 
@@ -423,7 +423,7 @@ func (h *AlertHandler) CreateNotificationChannel(c *gin.Context) {
 		Config:      req.Config,
 		Enabled:     req.Enabled,
 		Description: req.Description,
-		CreatedBy:   userID.(uint),
+		CreatedBy:   userIDStr,
 	}
 
 	err := h.alertService.CreateNotificationChannel(channel)

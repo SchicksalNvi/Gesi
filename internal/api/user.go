@@ -106,10 +106,6 @@ func (u *UserAPI) CreateUser(c *gin.Context) {
 		return
 	}
 	
-	// 清理输入
-	req.Username = validation.SanitizeInput(req.Username)
-	req.Password = validation.SanitizeInput(req.Password)
-
 	// 检查用户名是否已存在
 	var existingUser models.User
 	if err := u.db.Where("username = ?", req.Username).First(&existingUser).Error; err == nil {
