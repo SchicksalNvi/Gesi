@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"go-cesi/internal/models"
+	"superview/internal/models"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )

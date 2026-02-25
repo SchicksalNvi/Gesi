@@ -7,9 +7,9 @@ import (
 	"sync"
 	"time"
 
-	"go-cesi/internal/services"
-	"go-cesi/internal/supervisor"
-	"go-cesi/internal/validation"
+	"superview/internal/services"
+	"superview/internal/supervisor"
+	"superview/internal/validation"
 
 	"github.com/gin-gonic/gin"
 )

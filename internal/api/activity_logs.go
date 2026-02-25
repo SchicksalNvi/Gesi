@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"time"
 
-	"go-cesi/internal/services"
-	"go-cesi/internal/validation"
+	"superview/internal/services"
+	"superview/internal/validation"
 
 	"github.com/gin-gonic/gin"
 )

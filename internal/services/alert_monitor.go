@@ -7,9 +7,9 @@ import (
 	"sync"
 	"time"
 
-	"go-cesi/internal/logger"
-	"go-cesi/internal/models"
-	"go-cesi/internal/supervisor"
+	"superview/internal/logger"
+	"superview/internal/models"
+	"superview/internal/supervisor"
 	"go.uber.org/zap"
 )
 

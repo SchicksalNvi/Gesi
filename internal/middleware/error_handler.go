@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"runtime/debug"
 
-	"go-cesi/internal/errors"
-	"go-cesi/internal/logger"
+	"superview/internal/errors"
+	"superview/internal/logger"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"

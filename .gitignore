@@ -1,6 +1,5 @@
 # Binaries
-go-cesi
-cesi
+superview
 main
 *.exe
 *.dll
@@ -24,6 +23,7 @@ server.log
 data/*.db
 data/*.db-shm
 data/*.db-wal
+internal/database/data/
 
 # Environment
 .env

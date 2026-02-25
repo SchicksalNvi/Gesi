@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"go-cesi/internal/models"
+	"superview/internal/models"
 	"go.uber.org/zap"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -80,7 +80,7 @@ func InitDBWithConfig(config *DatabaseConfig) error {
 	}
 
 	// 连接SQLite数据库
-	dbPath := filepath.Join(dataDir, "cesi.db")
+	dbPath := filepath.Join(dataDir, "superview.db")
 	dsn := fmt.Sprintf("%s?cache=shared&mode=rwc&_journal_mode=WAL&_synchronous=NORMAL&_foreign_keys=1", dbPath)
 	db, err := gorm.Open(sqlite.Open(dsn), gormConfig)
 	if err != nil {

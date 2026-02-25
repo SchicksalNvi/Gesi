@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"go-cesi/internal/models"
+	"superview/internal/models"
 	"gorm.io/gorm"
 )
 

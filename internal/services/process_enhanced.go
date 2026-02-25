@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"github.com/robfig/cron/v3"
-	"go-cesi/internal/logger"
-	"go-cesi/internal/models"
+	"superview/internal/logger"
+	"superview/internal/models"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )

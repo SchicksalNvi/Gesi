@@ -5,9 +5,9 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"go-cesi/internal/models"
-	"go-cesi/internal/repository"
-	"go-cesi/internal/services"
+	"superview/internal/models"
+	"superview/internal/repository"
+	"superview/internal/services"
 	"gorm.io/gorm"
 )
 

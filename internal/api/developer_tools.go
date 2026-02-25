@@ -13,12 +13,12 @@ import (
 	"syscall"
 	"time"
 
-	"go-cesi/internal/config"
-	"go-cesi/internal/database"
-	"go-cesi/internal/middleware"
-	"go-cesi/internal/supervisor"
-	"go-cesi/internal/utils"
-	"go-cesi/internal/validation"
+	"superview/internal/config"
+	"superview/internal/database"
+	"superview/internal/middleware"
+	"superview/internal/supervisor"
+	"superview/internal/utils"
+	"superview/internal/validation"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"

@@ -8,9 +8,9 @@ import (
 	"strconv"
 	"strings"
 
-	"go-cesi/internal/logger"
-	"go-cesi/internal/models"
-	"go-cesi/internal/services"
+	"superview/internal/logger"
+	"superview/internal/models"
+	"superview/internal/services"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"

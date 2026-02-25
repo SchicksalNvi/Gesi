@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"go-cesi/internal/models"
-	"go-cesi/internal/utils"
+	"superview/internal/models"
+	"superview/internal/utils"
 
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"

@@ -3,7 +3,7 @@ package api
 import (
 	"net/http"
 
-	"go-cesi/internal/errors"
+	"superview/internal/errors"
 
 	"github.com/gin-gonic/gin"
 )

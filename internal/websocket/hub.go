@@ -13,9 +13,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
-	"go-cesi/internal/config"
-	"go-cesi/internal/logger"
-	"go-cesi/internal/supervisor"
+	"superview/internal/config"
+	"superview/internal/logger"
+	"superview/internal/supervisor"
 	"go.uber.org/zap"
 	"golang.org/x/time/rate"
 )

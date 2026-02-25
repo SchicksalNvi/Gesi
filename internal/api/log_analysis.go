@@ -7,9 +7,9 @@ import (
 	"strconv"
 	"time"
 
-	"go-cesi/internal/models"
-	"go-cesi/internal/services"
-	"go-cesi/internal/validation"
+	"superview/internal/models"
+	"superview/internal/services"
+	"superview/internal/validation"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"

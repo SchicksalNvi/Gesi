@@ -1,11 +1,11 @@
 package api
 
 import (
-	"go-cesi/internal/auth"
-	"go-cesi/internal/middleware"
-	"go-cesi/internal/repository"
-	"go-cesi/internal/services"
-	"go-cesi/internal/supervisor"
+	"superview/internal/auth"
+	"superview/internal/middleware"
+	"superview/internal/repository"
+	"superview/internal/services"
+	"superview/internal/supervisor"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"

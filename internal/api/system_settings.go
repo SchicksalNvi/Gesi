@@ -9,7 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
-	"go-cesi/internal/models"
+	"superview/internal/models"
 )
 
 // SystemSettingsAPI handles system settings related operations

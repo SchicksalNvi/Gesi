@@ -1,10 +1,10 @@
 #!/bin/bash
 set -euo pipefail
 
-# Go-CESI 管理脚本
-# 用法: ./gesi.sh [build|start|stop|restart|status]
+# Superview 管理脚本
+# 用法: ./superview.sh [build|start|stop|restart|status]
 
-readonly APP_NAME="go-cesi"
+readonly APP_NAME="superview"
 readonly PID_FILE="pids/backend.pid"
 readonly FRONTEND_DIR="web/react-app"
 
@@ -71,7 +71,7 @@ start() {
     fi
     
     if [ ! -f "$APP_NAME" ]; then
-        log_error "Binary not found. Run './gesi.sh build' first."
+        log_error "Binary not found. Run './superview.sh build' first."
         return 1
     fi
     
@@ -140,7 +140,7 @@ status() {
 # 前台运行（开发用）
 run() {
     if [ ! -f "$APP_NAME" ]; then
-        log_error "Binary not found. Run './gesi.sh build' first."
+        log_error "Binary not found. Run './superview.sh build' first."
         return 1
     fi
     
@@ -152,7 +152,7 @@ run() {
 # 帮助
 show_help() {
     cat << EOF
-Go-CESI 管理脚本
+Superview 管理脚本
 
 用法: $0 <command>
 

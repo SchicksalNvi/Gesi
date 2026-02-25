@@ -5,7 +5,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"go-cesi/internal/validation"
+	"superview/internal/validation"
 )
 
 // ValidationMiddleware 输入验证中间件

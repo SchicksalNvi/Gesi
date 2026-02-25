@@ -7,8 +7,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
-	"go-cesi/internal/models"
-	"go-cesi/internal/services"
+	"superview/internal/models"
+	"superview/internal/services"
 )
 
 type RoleHandler struct {

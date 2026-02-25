@@ -3,7 +3,7 @@ package api
 import (
 	"strconv"
 
-	appErrors "go-cesi/internal/errors"
+	appErrors "superview/internal/errors"
 
 	"github.com/gin-gonic/gin"
 )

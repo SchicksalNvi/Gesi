@@ -10,7 +10,7 @@ import (
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"
 	"github.com/leanovate/gopter/prop"
-	"go-cesi/internal/errors"
+	"superview/internal/errors"
 )
 
 // 属性 15：响应格式统一

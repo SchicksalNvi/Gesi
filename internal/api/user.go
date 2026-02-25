@@ -4,8 +4,8 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"go-cesi/internal/models"
-	"go-cesi/internal/validation"
+	"superview/internal/models"
+	"superview/internal/validation"
 	"gorm.io/gorm"
 )
 

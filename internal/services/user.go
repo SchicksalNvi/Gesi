@@ -1,10 +1,10 @@
 package services
 
 import (
-	"go-cesi/internal/errors"
-	"go-cesi/internal/logger"
-	"go-cesi/internal/models"
-	"go-cesi/internal/repository"
+	"superview/internal/errors"
+	"superview/internal/logger"
+	"superview/internal/models"
+	"superview/internal/repository"
 	"golang.org/x/crypto/bcrypt"
 	"time"
 

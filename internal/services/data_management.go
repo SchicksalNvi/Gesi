@@ -13,8 +13,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"go-cesi/internal/database"
-	"go-cesi/internal/models"
+	"superview/internal/database"
+	"superview/internal/models"
 	"gorm.io/gorm"
 )
 
@@ -500,7 +500,7 @@ func (s *DataManagementService) createFullBackup(backupFilePath string) error {
 	defer zipWriter.Close()
 
 	// 备份数据库文件
-	if err := s.addFileToZip(zipWriter, "data/cesi.db", "cesi.db"); err != nil {
+	if err := s.addFileToZip(zipWriter, "data/superview.db", "superview.db"); err != nil {
 		return fmt.Errorf("failed to backup database: %v", err)
 	}
 

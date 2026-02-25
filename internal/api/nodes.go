@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"strconv"
 
-	"go-cesi/internal/supervisor"
-	"go-cesi/internal/validation"
+	"superview/internal/supervisor"
+	"superview/internal/validation"
 
 	"github.com/gin-gonic/gin"
 )

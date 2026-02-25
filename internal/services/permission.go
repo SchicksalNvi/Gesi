@@ -7,7 +7,7 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
-	"go-cesi/internal/models"
+	"superview/internal/models"
 )
 
 type PermissionService struct {

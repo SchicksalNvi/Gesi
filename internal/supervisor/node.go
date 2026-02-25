@@ -2,13 +2,13 @@ package supervisor
 
 import (
 	"fmt"
-	"go-cesi/internal/errors"
-	"go-cesi/internal/logger"
+	"superview/internal/errors"
+	"superview/internal/logger"
 	"strings"
 	"sync"
 	"time"
 
-	"go-cesi/internal/supervisor/xmlrpc"
+	"superview/internal/supervisor/xmlrpc"
 	"go.uber.org/zap"
 )
 
@@ -523,13 +523,21 @@ func (n *Node) Serialize() map[string]interface{} {
 	n.mu.RLock()
 	defer n.mu.RUnlock()
 	
+	runningCount := 0
+	for _, p := range n.Processes {
+		if p.State == 20 { // RUNNING state
+			runningCount++
+		}
+	}
+	
 	return map[string]interface{}{
-		"name":          n.Name,
-		"environment":   n.Environment,
-		"is_connected":  n.IsConnected,
-		"host":          n.Host,
-		"port":          n.Port,
-		"process_count": len(n.Processes),
+		"name":           n.Name,
+		"environment":    n.Environment,
+		"is_connected":   n.IsConnected,
+		"host":           n.Host,
+		"port":           n.Port,
+		"process_count":  len(n.Processes),
+		"running_count":  runningCount,
 	}
 }
 

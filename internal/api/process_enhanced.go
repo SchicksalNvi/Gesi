@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"time"
 
-	"go-cesi/internal/models"
-	"go-cesi/internal/services"
+	"superview/internal/models"
+	"superview/internal/services"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
