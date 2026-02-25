@@ -89,6 +89,7 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB, service *supervisor.SupervisorServi
 			userGroup.GET("/:id", userHandler.GetUserByID)
 			userGroup.PUT("/:id", userHandler.UpdateUser)
 			userGroup.DELETE("/:id", userHandler.DeleteUser)
+			userGroup.PUT("/:id/password", userHandler.ResetPassword)
 			userGroup.PATCH("/:id/toggle", userHandler.ToggleUserStatus)
 		}
 

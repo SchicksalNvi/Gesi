@@ -45,7 +45,7 @@ cookies.txt
 
 # IDE
 .vscode/
-.kiro/
+#.kiro/
 .idea/
 *.iml
 

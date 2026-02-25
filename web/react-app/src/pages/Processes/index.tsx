@@ -21,12 +21,12 @@ import {
   PlayCircleOutlined,
   StopOutlined,
   InfoCircleOutlined,
-  DownOutlined,
 } from '@ant-design/icons';
 import { processesApi } from '@/api/processes';
 import { AggregatedProcess, BatchOperationResult } from '@/types';
 import ProcessInstanceList from './ProcessInstanceList';
 import { useWebSocket } from '@/hooks/useWebSocket';
+import { useAutoRefresh } from '@/hooks/useAutoRefresh';
 import { useStore } from '@/store';
 
 const { Search } = Input;
@@ -39,6 +39,32 @@ const ProcessesPage: React.FC = () => {
   const [searchText, setSearchText] = useState('');
   const [actionLoading, setActionLoading] = useState<Record<string, boolean>>({});
 
+  // function declaration — hoisted, avoids TDZ in minified bundle
+  async function loadProcesses() {
+    setLoading(true);
+    try {
+      const response = await processesApi.getAggregated();
+      setProcesses(response.processes || []);
+    } catch (error) {
+      console.error('Failed to load processes:', error);
+      message.error('Failed to load processes');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function filterProcesses() {
+    if (!searchText.trim()) {
+      setFilteredProcesses(processes);
+      return;
+    }
+
+    const filtered = processes.filter((proc) =>
+      proc.name.toLowerCase().includes(searchText.toLowerCase())
+    );
+    setFilteredProcesses(filtered);
+  };
+
   useEffect(() => {
     loadProcesses();
   }, []);
@@ -50,42 +76,18 @@ const ProcessesPage: React.FC = () => {
   // WebSocket 实时更新
   useWebSocket({
     onMessage: (message) => {
-      // 监听进程状态变化事件
       if (
         message.type === 'process_status_change' ||
         message.type === 'node_status_change' ||
         message.type === 'nodes_update'
       ) {
-        // 进程状态变化时重新加载数据
         loadProcesses();
       }
     },
   });
 
-  const loadProcesses = async () => {
-    setLoading(true);
-    try {
-      const response = await processesApi.getAggregated();
-      setProcesses(response.processes || []);
-    } catch (error) {
-      console.error('Failed to load processes:', error);
-      message.error('Failed to load processes');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const filterProcesses = () => {
-    if (!searchText.trim()) {
-      setFilteredProcesses(processes);
-      return;
-    }
-
-    const filtered = processes.filter((proc) =>
-      proc.name.toLowerCase().includes(searchText.toLowerCase())
-    );
-    setFilteredProcesses(filtered);
-  };
+  // Auto refresh
+  useAutoRefresh(loadProcesses);
 
   const handleSearch = (value: string) => {
     setSearchText(value);

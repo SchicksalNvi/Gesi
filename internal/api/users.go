@@ -256,3 +256,51 @@ func (h *UserHandler) GetUserByID(c *gin.Context) {
 		"data":   user,
 	})
 }
+
+// ResetPassword 管理员重置用户密码
+func (h *UserHandler) ResetPassword(c *gin.Context) {
+	id := c.Param("id")
+
+	var req struct {
+		NewPassword string `json:"new_password" binding:"required,min=6"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  "error",
+			"message": "Invalid request: " + err.Error(),
+		})
+		return
+	}
+
+	user, err := h.userService.GetUserByID(id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"status":  "error",
+			"message": "User not found",
+		})
+		return
+	}
+
+	if err := user.SetPassword(req.NewPassword); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "error",
+			"message": "Failed to hash password",
+		})
+		return
+	}
+
+	if err := h.userService.UpdateUser(user); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "error",
+			"message": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"status":  "success",
+		"message": "Password reset successfully",
+	})
+}
+

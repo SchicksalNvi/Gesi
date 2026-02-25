@@ -2,8 +2,6 @@ import React, { useMemo, useState } from 'react';
 import { Table, Tag, Button, Space, Tooltip, Typography, Alert } from 'antd';
 import type { ColumnsType, TableProps } from 'antd/es/table';
 import {
-  CheckCircleOutlined,
-  CloseCircleOutlined,
   EyeOutlined,
   ReloadOutlined,
 } from '@ant-design/icons';
@@ -139,7 +137,8 @@ export const NodesListView: React.FC<NodesListViewProps> = ({
       title: t.common.name,
       dataIndex: 'name',
       key: 'name',
-      width: 200,
+      width: 140,
+      align: 'center',
       sorter: (a, b) => a.name.localeCompare(b.name),
       sortOrder: sortedInfo.columnKey === 'name' ? sortedInfo.order : null,
       render: (name: string) => (
@@ -157,6 +156,7 @@ export const NodesListView: React.FC<NodesListViewProps> = ({
       dataIndex: 'environment',
       key: 'environment',
       width: 120,
+      align: 'center',
       responsive: ['md'],
       sorter: (a, b) => a.environment.localeCompare(b.environment),
       sortOrder: sortedInfo.columnKey === 'environment' ? sortedInfo.order : null,
@@ -169,28 +169,13 @@ export const NodesListView: React.FC<NodesListViewProps> = ({
     {
       title: t.nodesListView.hostPort,
       key: 'hostPort',
-      width: 180,
+      width: 200,
+      align: 'center',
       responsive: ['lg'],
       render: (_, record) => (
-        <Text code style={{ fontSize: 12 }}>
+        <Text style={{ fontSize: 14 }}>
           {highlightText(`${record.host}:${record.port}`, searchQuery)}
         </Text>
-      ),
-    },
-    {
-      title: t.nodesListView.user,
-      dataIndex: 'username',
-      key: 'username',
-      width: 100,
-      responsive: ['xl'],
-      render: (username: string) => (
-        username ? (
-          <Text type="secondary" style={{ fontSize: 12 }}>
-            {highlightText(username, searchQuery)}
-          </Text>
-        ) : (
-          <Text type="secondary" style={{ fontSize: 12 }}>-</Text>
-        )
       ),
     },
     {
@@ -202,24 +187,25 @@ export const NodesListView: React.FC<NodesListViewProps> = ({
       responsive: ['md'],
       sorter: (a, b) => (a.process_count || 0) - (b.process_count || 0),
       sortOrder: sortedInfo.columnKey === 'process_count' ? sortedInfo.order : null,
-      render: (count: number) => (
-        <Tag color={count > 0 ? 'blue' : 'default'}>
-          {count || 0}
-        </Tag>
+      render: (count: number, record) => (
+        <span style={{ fontWeight: 500, color: '#1890ff' }}>
+          {record.is_connected ? (count || 0) : '-'}
+        </span>
       ),
     },
     {
-      title: t.nodesListView.connectionStatus,
-      key: 'connectionStatus',
+      title: t.dashboard.runningProcesses,
+      dataIndex: 'running_count',
+      key: 'running_count',
       width: 100,
-      responsive: ['sm'],
-      render: (_, record) => (
-        <Tag
-          icon={record.is_connected ? <CheckCircleOutlined /> : <CloseCircleOutlined />}
-          color={record.is_connected ? 'success' : 'error'}
-        >
-          {record.is_connected ? t.nodes.online : t.nodes.offline}
-        </Tag>
+      align: 'center',
+      responsive: ['md'],
+      sorter: (a, b) => (a.running_count || 0) - (b.running_count || 0),
+      sortOrder: sortedInfo.columnKey === 'running_count' ? sortedInfo.order : null,
+      render: (count: number, record) => (
+        <span style={{ fontWeight: 500, color: '#52c41a' }}>
+          {record.is_connected ? (count || 0) : '-'}
+        </span>
       ),
     },
     {

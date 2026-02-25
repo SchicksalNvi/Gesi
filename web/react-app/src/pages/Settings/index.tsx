@@ -33,24 +33,24 @@ const Settings: React.FC = () => {
         const wsEnabled = settings.enable_websocket !== 'false';
         systemForm.setFieldsValue({
           refresh_interval: parseInt(settings.refresh_interval) || 30,
-          process_refresh_interval: parseInt(settings.process_refresh_interval) || 5,
           log_retention_days: parseInt(settings.log_retention_days) || 30,
           max_concurrent_connections: parseInt(settings.max_concurrent_connections) || 100,
           enable_websocket: wsEnabled,
-          enable_activity_logging: settings.enable_activity_logging !== 'false',
+          auto_refresh: settings.enable_activity_logging !== 'false',
         });
-        // Sync WebSocket setting to store
-        const { setWebsocketEnabled } = useStore.getState();
+        // Sync settings to store
+        const { setWebsocketEnabled, setAutoRefreshEnabled, setRefreshInterval } = useStore.getState();
         setWebsocketEnabled(wsEnabled);
+        setAutoRefreshEnabled(settings.enable_activity_logging !== 'false');
+        setRefreshInterval(parseInt(settings.refresh_interval) || 30);
       } catch (error) {
         console.error('Failed to load system settings:', error);
         systemForm.setFieldsValue({
           refresh_interval: 30,
-          process_refresh_interval: 5,
           log_retention_days: 30,
           max_concurrent_connections: 100,
           enable_websocket: true,
-          enable_activity_logging: true,
+          auto_refresh: true,
         });
       }
     };
@@ -67,18 +67,19 @@ const Settings: React.FC = () => {
       
       const systemSettings: Partial<SystemSettings> = {
         refresh_interval: values.refresh_interval,
-        process_refresh_interval: values.process_refresh_interval,
         log_retention_days: values.log_retention_days,
         max_concurrent_connections: values.max_concurrent_connections,
         enable_websocket: values.enable_websocket,
-        enable_activity_logging: values.enable_activity_logging,
+        enable_activity_logging: values.auto_refresh,
       };
       
       await settingsApi.updateSystemSettings(systemSettings);
       
-      // Update local store for WebSocket setting
-      const { setWebsocketEnabled } = useStore.getState();
+      // Update local store
+      const { setWebsocketEnabled, setAutoRefreshEnabled, setRefreshInterval } = useStore.getState();
       setWebsocketEnabled(values.enable_websocket);
+      setAutoRefreshEnabled(values.auto_refresh);
+      setRefreshInterval(values.refresh_interval);
       
       message.success(t.settings.systemSettingsUpdated);
     } catch (error: any) {
@@ -121,11 +122,10 @@ const Settings: React.FC = () => {
           style={{ maxWidth: 600 }}
           initialValues={{
             refresh_interval: 30,
-            process_refresh_interval: 5,
             log_retention_days: 30,
             max_concurrent_connections: 100,
             enable_websocket: true,
-            enable_activity_logging: true,
+            auto_refresh: true,
           }}
         >
           <Form.Item
@@ -135,15 +135,6 @@ const Settings: React.FC = () => {
             rules={[{ required: true }]}
           >
             <InputNumber min={5} max={300} style={{ width: '100%' }} />
-          </Form.Item>
-
-          <Form.Item
-            name="process_refresh_interval"
-            label={t.settings.processRefreshInterval + ' (seconds)'}
-            help={t.settings.processRefreshHelp}
-            rules={[{ required: true }]}
-          >
-            <InputNumber min={1} max={300} style={{ width: '100%' }} />
           </Form.Item>
 
           <Form.Item
@@ -168,15 +159,16 @@ const Settings: React.FC = () => {
             name="enable_websocket"
             label={t.settings.websocketEnabled}
             valuePropName="checked"
-            help={t.settings.processRefreshHelp}
+            help={t.settings.websocketHelp}
           >
             <Switch />
           </Form.Item>
 
           <Form.Item
-            name="enable_activity_logging"
-            label={t.settings.enableActivityLogging}
+            name="auto_refresh"
+            label={t.settings.autoRefresh}
             valuePropName="checked"
+            help={t.settings.autoRefreshHelp}
           >
             <Switch />
           </Form.Item>
