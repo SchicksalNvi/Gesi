@@ -4,7 +4,7 @@ import (
 	"testing"
 	"testing/quick"
 
-	"go-cesi/internal/supervisor"
+	"superview/internal/supervisor"
 )
 
 // Feature: process-aggregation, Property 1: 聚合完整性

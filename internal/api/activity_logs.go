@@ -5,8 +5,9 @@ import (
 	"strconv"
 	"time"
 
-	"go-cesi/internal/services"
-	"go-cesi/internal/validation"
+	"superview/internal/models"
+	"superview/internal/services"
+	"superview/internal/validation"
 
 	"github.com/gin-gonic/gin"
 )
@@ -181,6 +182,17 @@ func (a *ActivityLogsAPI) GetLogStatistics(c *gin.Context) {
 
 // CleanOldLogs 清理旧日志（管理员功能）
 func (a *ActivityLogsAPI) CleanOldLogs(c *gin.Context) {
+	user, exists := c.Get("user")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"status": "error", "message": "Unauthorized"})
+		return
+	}
+	currentUser, ok := user.(*models.User)
+	if !ok || !currentUser.IsAdmin {
+		c.JSON(http.StatusForbidden, gin.H{"status": "error", "message": "Admin access required"})
+		return
+	}
+
 	validator := validation.NewValidator()
 	days, _ := strconv.Atoi(c.DefaultQuery("days", "90"))
 
@@ -229,6 +241,17 @@ func (a *ActivityLogsAPI) CleanOldLogs(c *gin.Context) {
 
 // DeleteLogs 按条件删除日志（管理员功能）
 func (a *ActivityLogsAPI) DeleteLogs(c *gin.Context) {
+	user, exists := c.Get("user")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"status": "error", "message": "Unauthorized"})
+		return
+	}
+	currentUser, ok := user.(*models.User)
+	if !ok || !currentUser.IsAdmin {
+		c.JSON(http.StatusForbidden, gin.H{"status": "error", "message": "Admin access required"})
+		return
+	}
+
 	// 获取过滤参数
 	filters := map[string]interface{}{
 		"level":      c.Query("level"),

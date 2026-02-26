@@ -4,7 +4,7 @@ import { Form, Input, Button, Card, message, Space } from 'antd';
 import { UserOutlined, LockOutlined } from '@ant-design/icons';
 import { authApi } from '@/api/auth';
 import { useStore } from '@/store';
-import { GesiLogo } from '@/components/GesiLogo';
+import { SuperviewLogo } from '@/components/SuperviewLogo';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -55,7 +55,7 @@ export default function Login() {
       >
         <Space direction="vertical" size="large" style={{ width: '100%' }}>
           <div style={{ textAlign: 'center' }}>
-            <GesiLogo size={64} collapsed={false} centered />
+            <SuperviewLogo size={64} collapsed={false} centered />
             <p style={{ color: '#666', marginTop: 16 }}>
               Supervisor Management Platform
             </p>

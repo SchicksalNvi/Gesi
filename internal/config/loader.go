@@ -157,7 +157,11 @@ func (l *ConfigLoader) MergeNodes(mainNodes, nodeListNodes []NodeConfig) []NodeC
 
 // expandEnvVars 展开配置中的环境变量
 func (l *ConfigLoader) expandEnvVars(cfg *Config) {
-	// 展开管理员密码
+	// 展开管理员配置
+	cfg.Admin.Username = os.ExpandEnv(cfg.Admin.Username)
+	cfg.Admin.Password = os.ExpandEnv(cfg.Admin.Password)
+	cfg.Admin.Email = os.ExpandEnv(cfg.Admin.Email)
+	cfg.AdminUsername = os.ExpandEnv(cfg.AdminUsername)
 	cfg.AdminPassword = os.ExpandEnv(cfg.AdminPassword)
 
 	// 展开数据库路径
@@ -165,6 +169,10 @@ func (l *ConfigLoader) expandEnvVars(cfg *Config) {
 
 	// 展开活动日志路径
 	cfg.ActivityLog = os.ExpandEnv(cfg.ActivityLog)
+
+	// 展开 Metrics 配置
+	cfg.Metrics.Username = os.ExpandEnv(cfg.Metrics.Username)
+	cfg.Metrics.Password = os.ExpandEnv(cfg.Metrics.Password)
 
 	// 展开节点配置中的环境变量
 	for i := range cfg.Nodes {

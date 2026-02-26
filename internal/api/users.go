@@ -1,27 +1,33 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"go-cesi/internal/models"
-	"go-cesi/internal/repository"
-	"go-cesi/internal/services"
+	"superview/internal/models"
+	"superview/internal/repository"
+	"superview/internal/services"
 	"gorm.io/gorm"
 )
 
 type UserHandler struct {
-	db          *gorm.DB
-	userService *services.UserService
+	db                 *gorm.DB
+	userService        *services.UserService
+	activityLogService *services.ActivityLogService
 }
 
-func NewUserHandler(db *gorm.DB) *UserHandler {
+func NewUserHandler(db *gorm.DB, activityLogService ...*services.ActivityLogService) *UserHandler {
 	repo := repository.NewRepository(db)
-	return &UserHandler{
+	h := &UserHandler{
 		db:          db,
 		userService: services.NewUserService(repo),
 	}
+	if len(activityLogService) > 0 {
+		h.activityLogService = activityLogService[0]
+	}
+	return h
 }
 
 // GetUsers 获取用户列表
@@ -104,6 +110,11 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 		"message": "User created successfully",
 		"data":    user,
 	})
+
+	if h.activityLogService != nil {
+		msg := fmt.Sprintf("Created user %s", user.Username)
+		h.activityLogService.LogWithContext(c, "INFO", "create_user", "user", user.Username, msg, nil)
+	}
 }
 
 // UpdateUser 更新用户
@@ -192,6 +203,11 @@ func (h *UserHandler) DeleteUser(c *gin.Context) {
 		return
 	}
 
+	if h.activityLogService != nil {
+		msg := fmt.Sprintf("Deleted user %s", user.Username)
+		h.activityLogService.LogWithContext(c, "WARNING", "delete_user", "user", user.Username, msg, nil)
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"status":  "success",
 		"message": "User deleted successfully",
@@ -233,6 +249,15 @@ func (h *UserHandler) ToggleUserStatus(c *gin.Context) {
 		"status":  "success",
 		"message": "User status updated successfully",
 	})
+
+	if h.activityLogService != nil {
+		action := "activate"
+		if !req.IsActive {
+			action = "deactivate"
+		}
+		msg := fmt.Sprintf("User %s %sd", id, action)
+		h.activityLogService.LogWithContext(c, "INFO", action+"_user", "user", id, msg, nil)
+	}
 }
 
 // GetUserByID 获取单个用户
@@ -256,3 +281,56 @@ func (h *UserHandler) GetUserByID(c *gin.Context) {
 		"data":   user,
 	})
 }
+
+// ResetPassword 管理员重置用户密码
+func (h *UserHandler) ResetPassword(c *gin.Context) {
+	id := c.Param("id")
+
+	var req struct {
+		NewPassword string `json:"new_password" binding:"required,min=6"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  "error",
+			"message": "Invalid request: " + err.Error(),
+		})
+		return
+	}
+
+	user, err := h.userService.GetUserByID(id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"status":  "error",
+			"message": "User not found",
+		})
+		return
+	}
+
+	if err := user.SetPassword(req.NewPassword); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "error",
+			"message": "Failed to hash password",
+		})
+		return
+	}
+
+	if err := h.userService.UpdateUser(user); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "error",
+			"message": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"status":  "success",
+		"message": "Password reset successfully",
+	})
+
+	if h.activityLogService != nil {
+		msg := fmt.Sprintf("Reset password for user %s", user.Username)
+		h.activityLogService.LogWithContext(c, "WARNING", "change_password", "user", user.Username, msg, nil)
+	}
+}
+

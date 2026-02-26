@@ -1,10 +1,9 @@
-module go-cesi
+module superview
 
 go 1.24.1
 
 require (
 	github.com/fsnotify/fsnotify v1.8.0
-	github.com/gammazero/workerpool v1.1.3
 	github.com/gin-contrib/cors v1.7.6
 	github.com/gin-gonic/gin v1.10.1
 	github.com/golang-jwt/jwt/v4 v4.5.0
@@ -29,7 +28,6 @@ require (
 	github.com/cloudwego/base64x v0.1.5 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.9 // indirect
-	github.com/gammazero/deque v0.2.0 // indirect
 	github.com/gin-contrib/sse v1.1.0 // indirect
 	github.com/go-playground/locales v0.14.1 // indirect
 	github.com/go-playground/universal-translator v0.18.1 // indirect

@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"strconv"
 
-	"go-cesi/internal/errors"
-	"go-cesi/internal/services"
-	"go-cesi/internal/utils"
+	"superview/internal/errors"
+	"superview/internal/services"
+	"superview/internal/utils"
 
 	"github.com/gin-gonic/gin"
 )

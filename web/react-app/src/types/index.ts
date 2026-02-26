@@ -15,6 +15,7 @@ export interface Node {
   username?: string;
   is_connected: boolean;
   process_count?: number;
+  running_count?: number;
   last_ping?: string;
 }
 

@@ -20,6 +20,8 @@ type Config struct {
 	DeveloperTools   DeveloperToolsConfig     `mapstructure:"developer_tools"`
 	Performance      PerformanceConfig        `mapstructure:"performance"`
 	Metrics          MetricsConfig            `mapstructure:"metrics"`
+	WebSocket        WebSocketConfig          `mapstructure:"websocket"`
+	CORS             CORSConfig               `mapstructure:"cors"`
 }
 
 // MetricsConfig Prometheus 指标暴露配置
@@ -66,6 +68,16 @@ type PerformanceConfig struct {
 	// Scalability settings - simple and direct
 	MaxConcurrentConnections   int           `toml:"max_concurrent_connections" json:"max_concurrent_connections"`
 	MaxWebSocketConnections    int           `toml:"max_websocket_connections" json:"max_websocket_connections"`
+}
+
+// WebSocketConfig WebSocket 配置
+type WebSocketConfig struct {
+	AllowedOrigins []string `mapstructure:"allowed_origins" toml:"allowed_origins" json:"allowed_origins"`
+}
+
+// CORSConfig CORS 配置
+type CORSConfig struct {
+	AllowedOrigins []string `mapstructure:"allowed_origins" toml:"allowed_origins" json:"allowed_origins"`
 }
 
 type NodeConfig struct {

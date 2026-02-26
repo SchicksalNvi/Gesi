@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"go-cesi/internal/supervisor"
+	"superview/internal/supervisor"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

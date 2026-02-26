@@ -6,8 +6,8 @@ import (
 	"runtime"
 	"time"
 
-	"go-cesi/internal/logger"
-	"go-cesi/internal/supervisor"
+	"superview/internal/logger"
+	"superview/internal/supervisor"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"

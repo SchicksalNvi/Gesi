@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { nodesApi } from '@/api/nodes';
 import { useStore } from '@/store';
 import { useWebSocket } from '@/hooks/useWebSocket';
+import { useAutoRefresh } from '@/hooks/useAutoRefresh';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { useNodeFiltering } from '@/hooks/useNodeFiltering';
 import { useIsMobile } from '@/hooks/useResponsive';
@@ -43,11 +44,8 @@ function NodeList() {
     filters
   );
 
-  useEffect(() => {
-    loadNodes();
-  }, []);
-
-  const loadNodes = async () => {
+  // Load nodes
+  async function loadNodes() {
     setLoading(true);
     try {
       const response = await nodesApi.getNodes();
@@ -58,7 +56,11 @@ function NodeList() {
     } finally {
       setLoading(false);
     }
-  };
+  }
+
+  useEffect(() => {
+    loadNodes();
+  }, []);
 
   // WebSocket real-time updates
   useWebSocket({
@@ -68,6 +70,9 @@ function NodeList() {
       }
     },
   });
+
+  // Auto refresh
+  useAutoRefresh(loadNodes);
 
   const handleBulkAction = async (action: BulkAction) => {
     const nodeIds = action.nodeIds;

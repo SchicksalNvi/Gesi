@@ -7,7 +7,7 @@ import (
 	"testing/quick"
 	"time"
 
-	"go-cesi/internal/models"
+	"superview/internal/models"
 )
 
 // Property 2: Filter Application Correctness

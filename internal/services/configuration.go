@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"go-cesi/internal/models"
+	"superview/internal/models"
 	"gorm.io/gorm"
 )
 
@@ -823,8 +823,8 @@ func (s *ConfigurationService) InitializeSystemConfigurations() error {
 	defaultConfigs := []models.Configuration{
 		{
 			Key:          "system.name",
-			Value:        "Go-CESI",
-			DefaultValue: "Go-CESI",
+			Value:        "Superview",
+			DefaultValue: "Superview",
 			Description:  "系统名称",
 			Category:     models.ConfigCategorySystem,
 			Type:         models.ConfigTypeString,

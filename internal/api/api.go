@@ -1,11 +1,11 @@
 package api
 
 import (
-	"go-cesi/internal/auth"
-	"go-cesi/internal/middleware"
-	"go-cesi/internal/repository"
-	"go-cesi/internal/services"
-	"go-cesi/internal/supervisor"
+	"superview/internal/auth"
+	"superview/internal/middleware"
+	"superview/internal/repository"
+	"superview/internal/services"
+	"superview/internal/supervisor"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -21,21 +21,21 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB, service *supervisor.SupervisorServi
 	// 添加性能监控中间件
 	r.Use(middleware.PerformanceMiddleware())
 
-	authService := auth.NewAuthService(db)
-	nodesAPI := NewNodesAPI(service)
-	userAPI := NewUserAPI(db)
-	environmentsAPI := NewEnvironmentsAPI(service)
-	groupsAPI := NewGroupsAPI(service)
 	activityLogService := services.NewActivityLogService(db)
+	authService := auth.NewAuthService(db, activityLogService)
+	nodesAPI := NewNodesAPI(service, activityLogService)
+	userAPI := NewUserAPI(db, activityLogService)
+	environmentsAPI := NewEnvironmentsAPI(service)
+	groupsAPI := NewGroupsAPI(service, activityLogService)
 	processesAPI := NewProcessesAPI(service, activityLogService)
 	activityLogsAPI := NewActivityLogsAPI(activityLogService)
 	healthAPI := NewHealthAPI(db, service)
 	logManagementAPI := NewLogManagementAPI()
 
-	roleHandler := NewRoleHandler(db)
-	processEnhancedHandler := NewProcessEnhancedHandler(db)
-	configurationHandler := NewConfigurationHandler(db)
-	logAnalysisHandler := NewLogAnalysisHandler(db)
+	roleHandler := NewRoleHandler(db, activityLogService)
+	processEnhancedHandler := NewProcessEnhancedHandler(db, activityLogService)
+	configurationHandler := NewConfigurationHandler(db, activityLogService)
+	logAnalysisHandler := NewLogAnalysisHandler(db, activityLogService)
 
 	// Discovery service and API
 	// Requirements: 9.3, 9.4 - Authentication required for all discovery endpoints
@@ -81,7 +81,7 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB, service *supervisor.SupervisorServi
 		}
 
 		// User management API
-		userHandler := NewUserHandler(db)
+		userHandler := NewUserHandler(db, activityLogService)
 		userGroup := apiGroup.Group("/users")
 		{
 			userGroup.GET("", userHandler.GetUsers)
@@ -89,16 +89,8 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB, service *supervisor.SupervisorServi
 			userGroup.GET("/:id", userHandler.GetUserByID)
 			userGroup.PUT("/:id", userHandler.UpdateUser)
 			userGroup.DELETE("/:id", userHandler.DeleteUser)
+			userGroup.PUT("/:id/password", userHandler.ResetPassword)
 			userGroup.PATCH("/:id/toggle", userHandler.ToggleUserStatus)
-		}
-
-		// Keep legacy user API for profile management
-		userGroup2 := apiGroup.Group("/users-legacy")
-		{
-			userGroup2.GET("", userAPI.ListUsers)
-			userGroup2.POST("", userAPI.CreateUser)
-			userGroup2.DELETE("/:username", userAPI.DeleteUser)
-			userGroup2.PUT("/:username/password", userAPI.ChangePassword)
 		}
 
 		// Profile management API
@@ -170,7 +162,7 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB, service *supervisor.SupervisorServi
 		}
 
 		// Alerts API
-		alertHandler := NewAlertHandler(db, hub)
+		alertHandler := NewAlertHandler(db, hub, activityLogService)
 		alertsGroup := apiGroup.Group("/alerts")
 		{
 			// Alert rules management
@@ -340,7 +332,7 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB, service *supervisor.SupervisorServi
 		}
 
 		// Data Management API
-		dataManagementHandler := NewDataManagementAPI()
+		dataManagementHandler := NewDataManagementAPI(activityLogService)
 		dataManagementGroup := apiGroup.Group("/data-management")
 		{
 			// 数据导出
@@ -360,7 +352,7 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB, service *supervisor.SupervisorServi
 		}
 
 		// System Settings API
-		systemSettingsHandler := NewSystemSettingsAPI(db)
+		systemSettingsHandler := NewSystemSettingsAPI(db, activityLogService)
 		systemSettingsGroup := apiGroup.Group("/system-settings")
 		{
 			// 系统设置管理

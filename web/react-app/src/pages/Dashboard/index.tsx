@@ -10,6 +10,7 @@ import { useNavigate } from 'react-router-dom';
 import { nodesApi } from '@/api/nodes';
 import { useStore } from '@/store';
 import { useWebSocket } from '@/hooks/useWebSocket';
+import { useAutoRefresh } from '@/hooks/useAutoRefresh';
 import { Node } from '@/types';
 
 export default function Dashboard() {
@@ -18,11 +19,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(false);
 
   // Load initial data
-  useEffect(() => {
-    loadNodes();
-  }, []);
-
-  const loadNodes = async () => {
+  async function loadNodes() {
     setLoading(true);
     try {
       const response = await nodesApi.getNodes();
@@ -32,7 +29,11 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }
+
+  useEffect(() => {
+    loadNodes();
+  }, []);
 
   // WebSocket real-time updates
   useWebSocket({
@@ -44,6 +45,9 @@ export default function Dashboard() {
       }
     },
   });
+
+  // Auto refresh
+  useAutoRefresh(loadNodes);
 
   // Calculate stats
   const totalNodes = nodes.length;

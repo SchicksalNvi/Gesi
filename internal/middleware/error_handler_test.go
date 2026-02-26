@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	appErrors "go-cesi/internal/errors"
+	appErrors "superview/internal/errors"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"

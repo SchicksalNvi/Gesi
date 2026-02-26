@@ -6,9 +6,9 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-	"go-cesi/internal/config"
-	"go-cesi/internal/errors"
-	"go-cesi/internal/logger"
+	"superview/internal/config"
+	"superview/internal/errors"
+	"superview/internal/logger"
 	"go.uber.org/zap"
 )
 

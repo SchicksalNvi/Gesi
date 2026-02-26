@@ -10,10 +10,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"go-cesi/internal/logger"
-	"go-cesi/internal/models"
-	"go-cesi/internal/supervisor/xmlrpc"
-	"go-cesi/internal/utils"
+	"superview/internal/logger"
+	"superview/internal/models"
+	"superview/internal/supervisor/xmlrpc"
+	"superview/internal/utils"
 
 	"go.uber.org/zap"
 )

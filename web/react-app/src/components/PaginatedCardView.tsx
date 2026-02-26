@@ -2,7 +2,6 @@ import React, { useState, useMemo } from 'react';
 import { Row, Col, Pagination, Card, Tag, Button, Space, Alert } from 'antd';
 import {
   CheckCircleOutlined,
-  CloseCircleOutlined,
   EyeOutlined,
 } from '@ant-design/icons';
 import { Node } from '@/types';
@@ -152,10 +151,7 @@ function NodeCard({
   return (
     <Card
       hoverable
-      style={{
-        height: '100%',
-        cursor: 'pointer',
-      }}
+      style={{ height: '100%', cursor: 'pointer' }}
       onClick={onView}
     >
       <Space direction="vertical" size="middle" style={{ width: '100%' }}>
@@ -184,14 +180,19 @@ function NodeCard({
               </Tag>
             </div>
           </div>
-          <div
-            style={{
-              width: 12,
-              height: 12,
-              borderRadius: '50%',
-              background: isOnline ? '#52c41a' : '#ff4d4f',
-            }}
-          />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div
+              style={{
+                width: 10,
+                height: 10,
+                borderRadius: '50%',
+                background: isOnline ? '#52c41a' : '#ff4d4f',
+              }}
+            />
+            <span style={{ fontSize: 12, color: isOnline ? '#52c41a' : '#ff4d4f', fontWeight: 500 }}>
+              {isOnline ? t.nodes.online : t.nodes.offline}
+            </span>
+          </div>
         </div>
 
         {/* Info */}
@@ -210,30 +211,21 @@ function NodeCard({
         <div
           style={{
             display: 'flex',
-            justifyContent: 'space-between',
             paddingTop: 16,
             borderTop: '1px solid #f0f0f0',
           }}
         >
-          <div style={{ textAlign: 'center', flex: 1 }}>
-            <div style={{ fontSize: 24, fontWeight: 'bold', color: '#1890ff' }}>
-              {node.process_count || 0}
-            </div>
+          <div style={{ flex: 1, textAlign: 'center' }}>
             <div style={{ fontSize: 12, color: '#999' }}>{t.nodes.processes}</div>
+            <div style={{ fontSize: 22, fontWeight: 'bold', color: '#1890ff' }}>
+              {isOnline ? (node.process_count || 0) : '-'}
+            </div>
           </div>
-          <div
-            style={{
-              textAlign: 'center',
-              flex: 1,
-              borderLeft: '1px solid #f0f0f0',
-            }}
-          >
-            <Tag
-              icon={isOnline ? <CheckCircleOutlined /> : <CloseCircleOutlined />}
-              color={isOnline ? 'success' : 'error'}
-            >
-              {isOnline ? t.nodes.online : t.nodes.offline}
-            </Tag>
+          <div style={{ flex: 1, textAlign: 'center', borderLeft: '1px solid #f0f0f0' }}>
+            <div style={{ fontSize: 12, color: '#999' }}>{t.dashboard.runningProcesses}</div>
+            <div style={{ fontSize: 22, fontWeight: 'bold', color: '#52c41a' }}>
+              {isOnline ? (node.running_count || 0) : '-'}
+            </div>
           </div>
         </div>
 

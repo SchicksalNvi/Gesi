@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"go-cesi/internal/models"
+	"superview/internal/models"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -25,7 +25,7 @@ func main() {
 		log.Fatalf("Failed to get current directory: %v", err)
 	}
 
-	dbPath := filepath.Join(cwd, "data", "cesi.db")
+	dbPath := filepath.Join(cwd, "data", "superview.db")
 	fmt.Printf("Connecting to database: %s\n", dbPath)
 	db, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
 	if err != nil {

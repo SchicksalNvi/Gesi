@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"go-cesi/internal/models"
+	"superview/internal/models"
 
 	"github.com/stretchr/testify/assert"
 	"gorm.io/driver/sqlite"

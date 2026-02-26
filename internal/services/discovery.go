@@ -4,11 +4,11 @@ import (
 	"context"
 	"sync"
 
-	"go-cesi/internal/errors"
-	"go-cesi/internal/logger"
-	"go-cesi/internal/models"
-	"go-cesi/internal/repository"
-	"go-cesi/internal/utils"
+	"superview/internal/errors"
+	"superview/internal/logger"
+	"superview/internal/models"
+	"superview/internal/repository"
+	"superview/internal/utils"
 
 	"go.uber.org/zap"
 	"gorm.io/gorm"

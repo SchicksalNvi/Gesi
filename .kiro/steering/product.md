@@ -1,6 +1,6 @@
-# Go-CESI Product Overview
+# Superview Product Overview
 
-Go-CESI (Centralized Supervisor Interface) is a modern web-based management interface for multiple Supervisor instances with real-time monitoring capabilities.
+Superview (Centralized Supervisor Interface) is a modern web-based management interface for multiple Supervisor instances with real-time monitoring capabilities.
 
 ## Core Purpose
 

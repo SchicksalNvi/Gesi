@@ -13,10 +13,10 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"go-cesi/internal/auth"
-	"go-cesi/internal/models"
-	"go-cesi/internal/repository"
-	"go-cesi/internal/services"
+	"superview/internal/auth"
+	"superview/internal/models"
+	"superview/internal/repository"
+	"superview/internal/services"
 
 	"github.com/gin-gonic/gin"
 	"github.com/leanovate/gopter"

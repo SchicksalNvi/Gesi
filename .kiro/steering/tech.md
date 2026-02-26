@@ -17,14 +17,13 @@
 ## Frontend
 
 - **Framework**: React 18.2.0
-- **UI Library**: Bootstrap 5.2.0 + React-Bootstrap 2.5.0
-- **Routing**: React Router DOM v6.3.0
-- **HTTP Client**: Axios 0.27.2
-- **Charts**: Recharts 2.5.0
-- **Icons**: Bootstrap Icons 1.9.1 + Lucide React 0.526.0
-- **Date Handling**: Moment.js 2.29.4
-- **Notifications**: Sonner 1.4.0
-- **Build Tool**: Create React App (react-scripts 5.0.1)
+- **Language**: TypeScript 5.3
+- **UI Library**: Ant Design 5.x
+- **Routing**: React Router DOM v6
+- **HTTP Client**: Axios
+- **Charts**: ECharts
+- **State Management**: Zustand
+- **Build Tool**: Vite 5.x
 
 ## Common Commands
 
@@ -34,12 +33,10 @@
 # Start backend (development)
 go run cmd/main.go
 
-# Start React dev server (optional for frontend development)
-cd web/react-app && npm start
+# Start React dev server
+cd web/react-app && npm run dev
 
-# Build React frontend
-./build-react.sh
-# or manually:
+# Build frontend
 cd web/react-app && npm install && npm run build
 ```
 
@@ -47,10 +44,14 @@ cd web/react-app && npm install && npm run build
 
 ```bash
 # Build Go binary
-go build -o go-cesi cmd/main.go
+go build -o superview cmd/main.go
 
 # Run production server
-./go-cesi
+./superview
+
+# Or use management script
+./superview.sh build
+./superview.sh start
 ```
 
 ### Database
@@ -62,8 +63,9 @@ go run cmd/main.go create-admin --username admin --password pass123 --email admi
 
 ### Configuration
 
-- Main config: `config.toml` (TOML format)
-- Environment variables: `.env` file
+- Main config: `config/config.toml` (TOML format)
+- Node list: `config/nodelist.toml`
+- Environment variables: `config/.env`
 - Required env vars: `JWT_SECRET`, `ADMIN_PASSWORD`, `NODE_PASSWORD`
 - Config hot-reload: Send `SIGHUP` signal to process
 
@@ -78,12 +80,6 @@ go mod download
 
 # Tidy Go modules
 go mod tidy
-
-# Verify admin password
-go run tools/verify_admin_password.go
-
-# Dump users
-go run tools/dump_users.go
 ```
 
 ## Architecture Patterns

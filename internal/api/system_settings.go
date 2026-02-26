@@ -9,22 +9,23 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
-	"github.com/gammazero/workerpool"
-	"go-cesi/internal/models"
+	"superview/internal/models"
+	"superview/internal/services"
 )
 
 // SystemSettingsAPI handles system settings related operations
 type SystemSettingsAPI struct {
-	db *gorm.DB
-	workerPool *workerpool.WorkerPool
+	db                 *gorm.DB
+	activityLogService *services.ActivityLogService
 }
 
 // NewSystemSettingsAPI creates a new SystemSettingsAPI instance
-func NewSystemSettingsAPI(db *gorm.DB) *SystemSettingsAPI {
-	return &SystemSettingsAPI{
-		db: db,
-		workerPool: workerpool.New(10),
+func NewSystemSettingsAPI(db *gorm.DB, activityLogService ...*services.ActivityLogService) *SystemSettingsAPI {
+	api := &SystemSettingsAPI{db: db}
+	if len(activityLogService) > 0 {
+		api.activityLogService = activityLogService[0]
 	}
+	return api
 }
 
 // GetSystemSettings retrieves all system settings
@@ -134,6 +135,11 @@ func (api *SystemSettingsAPI) UpdateSystemSetting(c *gin.Context) {
 		return
 	}
 
+	if api.activityLogService != nil {
+		msg := fmt.Sprintf("Updated system setting: %s", key)
+		api.activityLogService.LogWithContext(c, "INFO", "update_setting", "system_setting", key, msg, nil)
+	}
+
 	c.JSON(http.StatusOK, setting)
 }
 
@@ -220,6 +226,11 @@ func (api *SystemSettingsAPI) UpdateMultipleSettings(c *gin.Context) {
 		return
 	}
 
+	if api.activityLogService != nil {
+		msg := fmt.Sprintf("Updated %d system settings", len(request.Settings))
+		api.activityLogService.LogWithContext(c, "INFO", "update_settings_batch", "system_setting", "batch", msg, nil)
+	}
+
 	c.JSON(http.StatusOK, gin.H{"message": "Settings updated successfully"})
 }
 
@@ -240,6 +251,11 @@ func (api *SystemSettingsAPI) DeleteSystemSetting(c *gin.Context) {
 	if result.RowsAffected == 0 {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Setting not found"})
 		return
+	}
+
+	if api.activityLogService != nil {
+		msg := fmt.Sprintf("Deleted system setting: %s", key)
+		api.activityLogService.LogWithContext(c, "WARNING", "delete_setting", "system_setting", key, msg, nil)
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Setting deleted successfully"})
@@ -564,7 +580,7 @@ func (api *SystemSettingsAPI) TestEmailConfiguration(c *gin.Context) {
 	}
 
 	// Test email sending in background
-	api.workerPool.Submit(func() {
+	go func() {
 		// Real SMTP email sending implementation
 		// For now, we'll simulate a more realistic test
 		// In production, use net/smtp or gomail library
@@ -575,7 +591,7 @@ func (api *SystemSettingsAPI) TestEmailConfiguration(c *gin.Context) {
 		// Log the test attempt
 		fmt.Printf("Email test attempted to %s using SMTP %s:%s\n", 
 			request.TestEmail, emailConfig["smtp_host"], emailConfig["smtp_port"])
-	})
+	}()
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Test email configuration validated for " + request.TestEmail,
@@ -638,6 +654,15 @@ func (api *SystemSettingsAPI) ResetToDefaults(c *gin.Context) {
 	if err := tx.Commit().Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit settings reset"})
 		return
+	}
+
+	if api.activityLogService != nil {
+		target := "all"
+		if category != "" {
+			target = category
+		}
+		msg := fmt.Sprintf("Reset system settings to defaults: %s", target)
+		api.activityLogService.LogWithContext(c, "WARNING", "reset_settings", "system_setting", target, msg, nil)
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Settings reset to defaults successfully"})

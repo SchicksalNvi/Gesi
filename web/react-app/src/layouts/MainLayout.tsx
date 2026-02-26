@@ -16,7 +16,7 @@ import {
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 import { useStore } from '@/store';
-import { GesiLogo } from '@/components/GesiLogo';
+import { SuperviewLogo } from '@/components/SuperviewLogo';
 import type { Language } from '@/i18n';
 
 const { Header, Sider, Content } = Layout;
@@ -53,16 +53,16 @@ export default function MainLayout() {
       onClick: () => navigate('/nodes'),
     },
     {
-      key: '/discovery',
-      icon: <RadarChartOutlined />,
-      label: t.nav.discovery,
-      onClick: () => navigate('/discovery'),
-    },
-    {
       key: '/processes',
       icon: <AppstoreOutlined />,
       label: t.nav.processes,
       onClick: () => navigate('/processes'),
+    },
+    {
+      key: '/discovery',
+      icon: <RadarChartOutlined />,
+      label: t.nav.discovery,
+      onClick: () => navigate('/discovery'),
     },
     {
       key: '/logs',
@@ -132,7 +132,7 @@ export default function MainLayout() {
           }}
           onClick={() => navigate('/dashboard')}
         >
-          <GesiLogo size={36} collapsed={collapsed} textColor="#fff" />
+          <SuperviewLogo size={36} collapsed={collapsed} textColor="#fff" />
         </div>
         <Menu
           theme="dark"

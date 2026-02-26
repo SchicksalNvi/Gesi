@@ -3,8 +3,8 @@ package repository
 import (
 	"fmt"
 
-	"go-cesi/internal/errors"
-	"go-cesi/internal/models"
+	"superview/internal/errors"
+	"superview/internal/models"
 
 	"gorm.io/gorm"
 )

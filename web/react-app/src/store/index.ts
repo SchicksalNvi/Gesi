@@ -24,6 +24,10 @@ interface AppState {
   // System settings state
   websocketEnabled: boolean;
   setWebsocketEnabled: (enabled: boolean) => void;
+  autoRefreshEnabled: boolean;
+  setAutoRefreshEnabled: (enabled: boolean) => void;
+  refreshInterval: number;
+  setRefreshInterval: (interval: number) => void;
 
   // Nodes state
   nodes: Node[];
@@ -93,6 +97,16 @@ export const useStore = create<AppState>((set, get) => ({
   setWebsocketEnabled: (enabled) => {
     localStorage.setItem('websocketEnabled', String(enabled));
     set({ websocketEnabled: enabled });
+  },
+  autoRefreshEnabled: localStorage.getItem('autoRefreshEnabled') !== 'false',
+  setAutoRefreshEnabled: (enabled) => {
+    localStorage.setItem('autoRefreshEnabled', String(enabled));
+    set({ autoRefreshEnabled: enabled });
+  },
+  refreshInterval: parseInt(localStorage.getItem('refreshInterval') || '30', 10),
+  setRefreshInterval: (interval) => {
+    localStorage.setItem('refreshInterval', String(interval));
+    set({ refreshInterval: interval });
   },
 
   // Nodes state
