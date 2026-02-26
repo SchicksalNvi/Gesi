@@ -7,9 +7,9 @@ import (
 	"strconv"
 	"time"
 
-	"go-cesi/internal/models"
-	"go-cesi/internal/services"
-	"go-cesi/internal/validation"
+	"superview/internal/models"
+	"superview/internal/services"
+	"superview/internal/validation"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -17,18 +17,23 @@ import (
 
 // ConfigurationHandler 配置管理处理器
 type ConfigurationHandler struct {
-	service   *services.ConfigurationService
-	db        *gorm.DB
-	validator *validation.Validator
+	service            *services.ConfigurationService
+	db                 *gorm.DB
+	validator          *validation.Validator
+	activityLogService *services.ActivityLogService
 }
 
 // NewConfigurationHandler 创建配置管理处理器实例
-func NewConfigurationHandler(db *gorm.DB) *ConfigurationHandler {
-	return &ConfigurationHandler{
+func NewConfigurationHandler(db *gorm.DB, activityLogService ...*services.ActivityLogService) *ConfigurationHandler {
+	h := &ConfigurationHandler{
 		service:   services.NewConfigurationService(db),
 		db:        db,
 		validator: validation.NewValidator(),
 	}
+	if len(activityLogService) > 0 {
+		h.activityLogService = activityLogService[0]
+	}
+	return h
 }
 
 // getUserWithPermissions 获取用户信息并检查权限
@@ -135,6 +140,11 @@ func (h *ConfigurationHandler) CreateConfiguration(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, config)
+
+	if h.activityLogService != nil {
+		msg := fmt.Sprintf("Created configuration: %s", config.Key)
+		h.activityLogService.LogWithContext(c, "INFO", "create_configuration", "configuration", config.Key, msg, nil)
+	}
 }
 
 // GetConfigurations 获取配置列表
@@ -261,6 +271,11 @@ func (h *ConfigurationHandler) UpdateConfiguration(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Configuration updated successfully"})
+
+	if h.activityLogService != nil {
+		msg := fmt.Sprintf("Updated configuration ID: %d", id)
+		h.activityLogService.LogWithContext(c, "INFO", "update_configuration", "configuration", fmt.Sprintf("%d", id), msg, nil)
+	}
 }
 
 // DeleteConfiguration 删除配置
@@ -281,6 +296,11 @@ func (h *ConfigurationHandler) DeleteConfiguration(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
+	}
+
+	if h.activityLogService != nil {
+		msg := fmt.Sprintf("Deleted configuration ID: %d", id)
+		h.activityLogService.LogWithContext(c, "WARNING", "delete_configuration", "configuration", fmt.Sprintf("%d", id), msg, nil)
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Configuration deleted successfully"})
@@ -327,6 +347,11 @@ func (h *ConfigurationHandler) CreateEnvironmentVariable(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, envVar)
+
+	if h.activityLogService != nil {
+		msg := fmt.Sprintf("Created environment variable: %s", envVar.Name)
+		h.activityLogService.LogWithContext(c, "INFO", "create_env_var", "env_var", envVar.Name, msg, nil)
+	}
 }
 
 // GetEnvironmentVariables 获取环境变量列表
@@ -434,6 +459,11 @@ func (h *ConfigurationHandler) UpdateEnvironmentVariable(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Environment variable updated successfully"})
+
+	if h.activityLogService != nil {
+		msg := fmt.Sprintf("Updated environment variable ID: %d", id)
+		h.activityLogService.LogWithContext(c, "INFO", "update_env_var", "env_var", fmt.Sprintf("%d", id), msg, nil)
+	}
 }
 
 // DeleteEnvironmentVariable 删除环境变量
@@ -454,6 +484,11 @@ func (h *ConfigurationHandler) DeleteEnvironmentVariable(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
+	}
+
+	if h.activityLogService != nil {
+		msg := fmt.Sprintf("Deleted environment variable ID: %d", id)
+		h.activityLogService.LogWithContext(c, "WARNING", "delete_env_var", "env_var", fmt.Sprintf("%d", id), msg, nil)
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Environment variable deleted successfully"})
@@ -502,6 +537,11 @@ func (h *ConfigurationHandler) CreateBackup(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, backup)
+
+	if h.activityLogService != nil {
+		msg := fmt.Sprintf("Created configuration backup: %s", backup.Name)
+		h.activityLogService.LogWithContext(c, "INFO", "create_backup", "config_backup", backup.Name, msg, nil)
+	}
 }
 
 // GetBackups 获取备份列表
@@ -615,6 +655,11 @@ func (h *ConfigurationHandler) RestoreBackup(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Backup restored successfully"})
+
+	if h.activityLogService != nil {
+		msg := fmt.Sprintf("Restored configuration backup ID: %d", id)
+		h.activityLogService.LogWithContext(c, "WARNING", "restore_backup", "config_backup", fmt.Sprintf("%d", id), msg, nil)
+	}
 }
 
 // DeleteBackup 删除备份
@@ -635,6 +680,11 @@ func (h *ConfigurationHandler) DeleteBackup(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
+	}
+
+	if h.activityLogService != nil {
+		msg := fmt.Sprintf("Deleted configuration backup ID: %d", id)
+		h.activityLogService.LogWithContext(c, "WARNING", "delete_backup", "config_backup", fmt.Sprintf("%d", id), msg, nil)
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Backup deleted successfully"})
@@ -717,6 +767,10 @@ func (h *ConfigurationHandler) ImportConfigurations(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Configurations imported successfully"})
+
+	if h.activityLogService != nil {
+		h.activityLogService.LogWithContext(c, "INFO", "import_configurations", "configuration", "batch", "Imported configurations", nil)
+	}
 }
 
 // GetConfigurationHistory 获取配置变更历史

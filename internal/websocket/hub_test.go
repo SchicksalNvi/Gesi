@@ -10,7 +10,7 @@ import (
 	"github.com/leanovate/gopter/gen"
 	"github.com/leanovate/gopter/prop"
 	"github.com/stretchr/testify/assert"
-	"go-cesi/internal/supervisor"
+	"superview/internal/supervisor"
 )
 
 // Feature: concurrent-safety-fixes, Property 1: WebSocket Hub Race-Free Operations

@@ -1,8 +1,8 @@
 package repository
 
 import (
-	"go-cesi/internal/errors"
-	"go-cesi/internal/models"
+	"superview/internal/errors"
+	"superview/internal/models"
 	"gorm.io/gorm"
 )
 

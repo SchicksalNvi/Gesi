@@ -6,7 +6,7 @@ import (
 	"sync"
 	"testing"
 	"time"
-	"go-cesi/internal/config"
+	"superview/internal/config"
 )
 
 func TestSupervisorServiceScalability(t *testing.T) {

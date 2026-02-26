@@ -7,9 +7,9 @@ import (
 	"sync"
 	"time"
 
-	"go-cesi/internal/services"
-	"go-cesi/internal/supervisor"
-	"go-cesi/internal/validation"
+	"superview/internal/services"
+	"superview/internal/supervisor"
+	"superview/internal/validation"
 
 	"github.com/gin-gonic/gin"
 )
@@ -153,9 +153,6 @@ func (api *ProcessesAPI) BatchStartProcess(c *gin.Context) {
 		return
 	}
 
-	// 清理输入
-	processName = validation.SanitizeInput(processName)
-
 	// 执行批量操作
 	result := api.batchOperation(processName, "start")
 
@@ -190,9 +187,6 @@ func (api *ProcessesAPI) BatchStopProcess(c *gin.Context) {
 		return
 	}
 
-	// 清理输入
-	processName = validation.SanitizeInput(processName)
-
 	// 执行批量操作
 	result := api.batchOperation(processName, "stop")
 
@@ -226,9 +220,6 @@ func (api *ProcessesAPI) BatchRestartProcess(c *gin.Context) {
 		})
 		return
 	}
-
-	// 清理输入
-	processName = validation.SanitizeInput(processName)
 
 	// 执行批量操作
 	result := api.batchOperation(processName, "restart")

@@ -1,26 +1,32 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
-	"go-cesi/internal/models"
-	"go-cesi/internal/services"
+	"superview/internal/models"
+	"superview/internal/services"
 )
 
 type RoleHandler struct {
-	roleService       *services.RoleService
-	permissionService *services.PermissionService
+	roleService        *services.RoleService
+	permissionService  *services.PermissionService
+	activityLogService *services.ActivityLogService
 }
 
-func NewRoleHandler(db *gorm.DB) *RoleHandler {
-	return &RoleHandler{
+func NewRoleHandler(db *gorm.DB, activityLogService ...*services.ActivityLogService) *RoleHandler {
+	h := &RoleHandler{
 		roleService:       services.NewRoleService(db),
 		permissionService: services.NewPermissionService(db),
 	}
+	if len(activityLogService) > 0 {
+		h.activityLogService = activityLogService[0]
+	}
+	return h
 }
 
 // CreateRole 创建角色
@@ -60,6 +66,11 @@ func (h *RoleHandler) CreateRole(c *gin.Context) {
 	}
 	
 	c.JSON(http.StatusCreated, role)
+
+	if h.activityLogService != nil {
+		msg := fmt.Sprintf("Created role: %s", role.Name)
+		h.activityLogService.LogWithContext(c, "INFO", "create_role", "role", role.Name, msg, nil)
+	}
 }
 
 // GetRoles 获取角色列表
@@ -197,6 +208,11 @@ func (h *RoleHandler) UpdateRole(c *gin.Context) {
 	}
 	
 	c.JSON(http.StatusOK, role)
+
+	if h.activityLogService != nil {
+		msg := fmt.Sprintf("Updated role: %s", role.Name)
+		h.activityLogService.LogWithContext(c, "INFO", "update_role", "role", id, msg, nil)
+	}
 }
 
 // DeleteRole 删除角色
@@ -231,6 +247,11 @@ func (h *RoleHandler) DeleteRole(c *gin.Context) {
 	}
 	
 	c.JSON(http.StatusOK, SuccessResponse{Message: "角色删除成功"})
+
+	if h.activityLogService != nil {
+		msg := fmt.Sprintf("Deleted role ID: %s", id)
+		h.activityLogService.LogWithContext(c, "WARNING", "delete_role", "role", id, msg, nil)
+	}
 }
 
 // AssignPermissions 为角色分配权限
@@ -273,6 +294,11 @@ func (h *RoleHandler) AssignPermissions(c *gin.Context) {
 	}
 	
 	c.JSON(http.StatusOK, SuccessResponse{Message: "权限分配成功"})
+
+	if h.activityLogService != nil {
+		msg := fmt.Sprintf("Assigned %d permissions to role %s", len(permissionIDs), id)
+		h.activityLogService.LogWithContext(c, "INFO", "assign_permissions", "role", id, msg, nil)
+	}
 }
 
 // AssignRoleToUser 为用户分配角色
@@ -310,6 +336,11 @@ func (h *RoleHandler) AssignRoleToUser(c *gin.Context) {
 	}
 	
 	c.JSON(http.StatusOK, SuccessResponse{Message: "角色分配成功"})
+
+	if h.activityLogService != nil {
+		msg := fmt.Sprintf("Assigned role %s to user %s", roleID, userID)
+		h.activityLogService.LogWithContext(c, "INFO", "assign_role", "role", roleID, msg, nil)
+	}
 }
 
 // RemoveRoleFromUser 移除用户角色
@@ -345,6 +376,11 @@ func (h *RoleHandler) RemoveRoleFromUser(c *gin.Context) {
 	}
 	
 	c.JSON(http.StatusOK, SuccessResponse{Message: "角色移除成功"})
+
+	if h.activityLogService != nil {
+		msg := fmt.Sprintf("Removed role %s from user %s", roleID, userID)
+		h.activityLogService.LogWithContext(c, "WARNING", "remove_role", "role", roleID, msg, nil)
+	}
 }
 
 // GetPermissions 获取权限列表

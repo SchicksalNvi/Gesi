@@ -16,18 +16,18 @@ import (
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 
-	"go-cesi/internal/api"
-	"go-cesi/internal/auth"
-	"go-cesi/internal/config"
-	"go-cesi/internal/database"
-	"go-cesi/internal/logger"
-	"go-cesi/internal/loggers"
-	"go-cesi/internal/metrics"
-	"go-cesi/internal/middleware"
-	"go-cesi/internal/models"
-	"go-cesi/internal/services"
-	"go-cesi/internal/supervisor"
-	"go-cesi/internal/websocket"
+	"superview/internal/api"
+	"superview/internal/auth"
+	"superview/internal/config"
+	"superview/internal/database"
+	"superview/internal/logger"
+	"superview/internal/loggers"
+	"superview/internal/metrics"
+	"superview/internal/middleware"
+	"superview/internal/models"
+	"superview/internal/services"
+	"superview/internal/supervisor"
+	"superview/internal/websocket"
 
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
@@ -53,35 +53,32 @@ type Config struct {
 	} `mapstructure:"nodes"`
 }
 
-// 创建管理员用户
-func createAdminUser(db *gorm.DB, config *Config) error {
-	// 检查是否已存在管理员用户
+// ensureAdminUser 确保管理员用户存在（仅首次初始化时创建，之后数据库为唯一真相源）
+func ensureAdminUser(db *gorm.DB, config *Config) error {
 	var count int64
 	if err := db.Model(&models.User{}).Where("is_admin = ?", true).Count(&count).Error; err != nil {
 		return fmt.Errorf("failed to check admin user: %v", err)
 	}
 
-	// 如果没有管理员用户，创建一个默认的管理员用户
-	if count == 0 {
-		adminUser := models.User{
-			Username: config.Admin.Username,
-			Email:    config.Admin.Email,
-			IsAdmin:  true,
-		}
-		logger.Info("Creating admin user", zap.String("username", config.Admin.Username))
-		if err := adminUser.SetPassword(config.Admin.Password); err != nil {
-			return fmt.Errorf("failed to set admin password: %v", err)
-		}
-		logger.Info("Initial admin account created",
-			zap.String("username", config.Admin.Username),
-			zap.String("email", config.Admin.Email))
-
-		if err := db.Create(&adminUser).Error; err != nil {
-			return fmt.Errorf("failed to create admin user: %v", err)
-		}
-		logger.Info("Default admin user created successfully")
+	// 已存在管理员，不覆盖数据库（用户可能通过 Web UI 修改过）
+	if count > 0 {
+		return nil
 	}
 
+	adminUser := models.User{
+		Username: config.Admin.Username,
+		Email:    config.Admin.Email,
+		IsAdmin:  true,
+	}
+	if err := adminUser.SetPassword(config.Admin.Password); err != nil {
+		return fmt.Errorf("failed to set admin password: %v", err)
+	}
+	if err := db.Create(&adminUser).Error; err != nil {
+		return fmt.Errorf("failed to create admin user: %v", err)
+	}
+	logger.Info("Default admin user created (seed from config)",
+		zap.String("username", config.Admin.Username),
+		zap.String("email", config.Admin.Email))
 	return nil
 }
 
@@ -244,9 +241,9 @@ func main() {
 	}
 	db := database.DB
 
-	// 创建管理员用户
-	if err := createAdminUser(db, nodeConfig); err != nil {
-		logger.Fatal("Failed to create admin user", zap.Error(err))
+	// 确保管理员用户存在（仅首次 seed）
+	if err := ensureAdminUser(db, nodeConfig); err != nil {
+		logger.Fatal("Failed to ensure admin user", zap.Error(err))
 	}
 
 	// 启动性能监控
@@ -275,6 +272,13 @@ func main() {
 	
 	// 设置活动日志记录器到 supervisor
 	supervisorService.SetActivityLogger(activityLogService)
+
+	// 设置 WebSocket AllowedOrigins（从配置文件加载）
+	if len(appConfig.WebSocket.AllowedOrigins) > 0 {
+		websocket.SetAllowedOrigins(appConfig.WebSocket.AllowedOrigins)
+		logger.Info("WebSocket allowed origins configured from config.toml",
+			zap.Strings("origins", appConfig.WebSocket.AllowedOrigins))
+	}
 
 	// 初始化WebSocket Hub
 	hub := websocket.NewHub(supervisorService)
@@ -332,9 +336,15 @@ func main() {
 	// 设置Gin路由
 	router := gin.Default()
 
-	// 配置CORS
+	// 配置CORS（从配置文件加载，如果未配置则使用默认值）
 	corsConfig := cors.DefaultConfig()
-	corsConfig.AllowOrigins = []string{"http://localhost:3000", "http://127.0.0.1:3000"}
+	if len(appConfig.CORS.AllowedOrigins) > 0 {
+		corsConfig.AllowOrigins = appConfig.CORS.AllowedOrigins
+		logger.Info("CORS allowed origins configured from config.toml",
+			zap.Strings("origins", appConfig.CORS.AllowedOrigins))
+	} else {
+		corsConfig.AllowOrigins = []string{"http://localhost:3000", "http://127.0.0.1:3000"}
+	}
 	corsConfig.AllowMethods = []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}
 	corsConfig.AllowHeaders = []string{"Origin", "Content-Type", "Accept", "Authorization"}
 	corsConfig.AllowCredentials = true
@@ -473,13 +483,8 @@ func main() {
 				}
 			}
 
-			// 更新admin配置
-			if newConfig.Admin.Username != nodeConfig.Admin.Username ||
-				newConfig.Admin.Password != nodeConfig.Admin.Password {
-				if err := updateAdminUser(db, newConfig); err != nil {
-					logger.Error("Failed to update admin user", zap.Error(err))
-				}
-			}
+			// 更新admin配置已移除：数据库为管理员信息的唯一真相源
+			// 管理员密码/email 应通过 Web UI 或 CLI 修改，不通过热重载覆盖
 
 			nodeConfig = newConfig
 			logger.Info("Configuration reloaded successfully")
@@ -541,32 +546,6 @@ func main() {
 	logger.Info("Database connection closed")
 
 	logger.Info("Server exited")
-}
-
-func updateAdminUser(db *gorm.DB, config *Config) error {
-	adminUser := models.User{
-		Username: config.Admin.Username,
-		Email:    config.Admin.Email,
-		IsAdmin:  true,
-	}
-	if err := adminUser.SetPassword(config.Admin.Password); err != nil {
-		return fmt.Errorf("failed to set admin password: %v", err)
-	}
-
-	// 更新或创建admin用户
-	var existingUser models.User
-	if err := db.Where("is_admin = ?", true).First(&existingUser).Error; err == nil {
-		// 更新现有admin
-		if err := db.Model(&existingUser).Updates(&adminUser).Error; err != nil {
-			return fmt.Errorf("failed to update admin user: %v", err)
-		}
-	} else {
-		// 创建新admin
-		if err := db.Create(&adminUser).Error; err != nil {
-			return fmt.Errorf("failed to create admin user: %v", err)
-		}
-	}
-	return nil
 }
 
 func loadConfig() (*Config, error) {

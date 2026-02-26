@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"go-cesi/internal/logger"
+	"superview/internal/logger"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )

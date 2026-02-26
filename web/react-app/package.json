@@ -1,7 +1,7 @@
 {
-  "name": "go-cesi-react",
+  "name": "superview",
   "version": "2.0.0",
-  "description": "Go-CESI Modern React Frontend",
+  "description": "Superview Modern React Frontend",
   "type": "module",
   "scripts": {
     "dev": "vite",

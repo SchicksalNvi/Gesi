@@ -2,13 +2,13 @@ package supervisor
 
 import (
 	"fmt"
-	"go-cesi/internal/errors"
-	"go-cesi/internal/logger"
+	"superview/internal/errors"
+	"superview/internal/logger"
 	"strings"
 	"sync"
 	"time"
 
-	"go-cesi/internal/supervisor/xmlrpc"
+	"superview/internal/supervisor/xmlrpc"
 	"go.uber.org/zap"
 )
 
@@ -59,21 +59,20 @@ type Node struct {
 
 // Process 表示一个进程 - 符合 Supervisor API 规范
 type Process struct {
-	Name           string        `json:"name"`           // 进程名称
-	Group          string        `json:"group"`          // 进程组名称
-	State          int           `json:"state"`          // 状态码
-	StateString    string        `json:"state_string"`   // 状态名称
-	StartTime      time.Time     `json:"start_time"`     // 启动时间
-	StopTime       time.Time     `json:"stop_time"`      // 停止时间
-	PID            int           `json:"pid"`            // 进程 PID
-	ExitStatus     int           `json:"exit_status"`    // 退出状态码
-	Logfile        string        `json:"logfile"`        // 日志文件 (已弃用)
-	StdoutLogfile  string        `json:"stdout_logfile"` // stdout 日志文件
-	StderrLogfile  string        `json:"stderr_logfile"` // stderr 日志文件
-	Uptime         time.Duration `json:"uptime"`         // 运行时间
-	UptimeHuman    string        `json:"uptime_human"`   // 人类可读的运行时间
-	SpawnErr       string        `json:"spawn_err"`      // 启动错误
-	Now            time.Time     `json:"now"`            // 当前时间
+	Name          string        `json:"name"`           // 进程名称
+	Group         string        `json:"group"`          // 进程组名称
+	State         int           `json:"state"`          // 状态码
+	StateString   string        `json:"state_string"`   // 状态名称
+	StartTime     time.Time     `json:"start_time"`     // 启动时间
+	StopTime      time.Time     `json:"stop_time"`      // 停止时间
+	PID           int           `json:"pid"`            // 进程 PID
+	ExitStatus    int           `json:"exit_status"`    // 退出状态码
+	StdoutLogfile string        `json:"stdout_logfile"` // stdout 日志文件
+	StderrLogfile string        `json:"stderr_logfile"` // stderr 日志文件
+	Uptime        time.Duration `json:"uptime"`         // 运行时间
+	UptimeHuman   string        `json:"uptime_human"`   // 人类可读的运行时间
+	SpawnErr      string        `json:"spawn_err"`      // 启动错误
+	Now           time.Time     `json:"now"`            // 当前时间
 }
 
 type LogEntry struct {
@@ -524,13 +523,21 @@ func (n *Node) Serialize() map[string]interface{} {
 	n.mu.RLock()
 	defer n.mu.RUnlock()
 	
+	runningCount := 0
+	for _, p := range n.Processes {
+		if p.State == 20 { // RUNNING state
+			runningCount++
+		}
+	}
+	
 	return map[string]interface{}{
-		"name":          n.Name,
-		"environment":   n.Environment,
-		"is_connected":  n.IsConnected,
-		"host":          n.Host,
-		"port":          n.Port,
-		"process_count": len(n.Processes),
+		"name":           n.Name,
+		"environment":    n.Environment,
+		"is_connected":   n.IsConnected,
+		"host":           n.Host,
+		"port":           n.Port,
+		"process_count":  len(n.Processes),
+		"running_count":  runningCount,
 	}
 }
 
@@ -547,14 +554,13 @@ func (n *Node) SerializeProcesses() []map[string]interface{} {
 			"state_string":   p.StateString,
 			"start_time":     p.StartTime,
 			"stop_time":      p.StopTime,
-			"pid":           p.PID,
-			"exit_status":   p.ExitStatus,
-			"logfile":       p.Logfile,
+			"pid":            p.PID,
+			"exit_status":    p.ExitStatus,
 			"stdout_logfile": p.StdoutLogfile,
 			"stderr_logfile": p.StderrLogfile,
-			"uptime":        p.Uptime.Seconds(),
-			"uptime_human":  formatDuration(p.Uptime),
-			"now":           p.Now,
+			"uptime":         p.Uptime.Seconds(),
+			"uptime_human":   formatDuration(p.Uptime),
+			"now":            p.Now,
 		})
 	}
 	return processes

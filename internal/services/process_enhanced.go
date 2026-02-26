@@ -2,11 +2,12 @@ package services
 
 import (
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/robfig/cron/v3"
-	"go-cesi/internal/models"
+	"superview/internal/logger"
+	"superview/internal/models"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
@@ -50,7 +51,7 @@ func (s *ProcessEnhancedService) StartScheduler() error {
 
 	s.cronJob.Start()
 	s.scheduler.running = true
-	log.Println("Task scheduler started")
+	logger.Info("Task scheduler started")
 	return nil
 }
 
@@ -59,7 +60,7 @@ func (s *ProcessEnhancedService) StopScheduler() {
 	if s.scheduler.running {
 		s.cronJob.Stop()
 		s.scheduler.running = false
-		log.Println("Task scheduler stopped")
+		logger.Info("Task scheduler stopped")
 	}
 }
 
@@ -76,7 +77,7 @@ func (s *ProcessEnhancedService) loadScheduledTasks() error {
 			s.executeScheduledTask(&task)
 		})
 		if err != nil {
-			log.Printf("Failed to add cron job for task %d: %v", task.ID, err)
+			logger.Error("Failed to add cron job for task", zap.Uint("task_id", task.ID), zap.Error(err))
 		}
 	}
 
@@ -386,7 +387,7 @@ func (s *ProcessEnhancedService) executeScheduledTask(task *models.ScheduledTask
 
 	err := s.db.Create(execution).Error
 	if err != nil {
-		log.Printf("Failed to create task execution record: %v", err)
+		logger.Error("Failed to create task execution record", zap.Error(err))
 		return
 	}
 
@@ -425,7 +426,7 @@ func (s *ProcessEnhancedService) executeScheduledTask(task *models.ScheduledTask
 	task.NextRun = &nextRun
 	s.db.Save(task)
 
-	log.Printf("Task %d (%s) executed with status: %s", task.ID, task.Name, status)
+	logger.Info("Task executed", zap.Uint("task_id", task.ID), zap.String("task_name", task.Name), zap.String("status", status))
 }
 
 // executeStartTask 执行启动任务

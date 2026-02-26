@@ -6,8 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"go-cesi/internal/models"
-	"go-cesi/internal/services"
+	"superview/internal/models"
+	"superview/internal/services"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"

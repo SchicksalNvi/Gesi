@@ -2,8 +2,8 @@ package websocket
 
 import (
 	"testing"
-	"go-cesi/internal/config"
-	"go-cesi/internal/supervisor"
+	"superview/internal/config"
+	"superview/internal/supervisor"
 )
 
 func TestWebSocketScalability(t *testing.T) {

@@ -1,7 +1,7 @@
 package repository
 
 import (
-	"go-cesi/internal/models"
+	"superview/internal/models"
 	"gorm.io/gorm"
 )
 

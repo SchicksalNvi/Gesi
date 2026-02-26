@@ -1,19 +1,26 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 
-	"go-cesi/internal/supervisor"
+	"superview/internal/services"
+	"superview/internal/supervisor"
 
 	"github.com/gin-gonic/gin"
 )
 
 type GroupsAPI struct {
-	service *supervisor.SupervisorService
+	service            *supervisor.SupervisorService
+	activityLogService *services.ActivityLogService
 }
 
-func NewGroupsAPI(service *supervisor.SupervisorService) *GroupsAPI {
-	return &GroupsAPI{service: service}
+func NewGroupsAPI(service *supervisor.SupervisorService, activityLogService ...*services.ActivityLogService) *GroupsAPI {
+	api := &GroupsAPI{service: service}
+	if len(activityLogService) > 0 {
+		api.activityLogService = activityLogService[0]
+	}
+	return api
 }
 
 // GetGroups 获取所有进程分组
@@ -59,6 +66,11 @@ func (g *GroupsAPI) StartGroupProcesses(c *gin.Context) {
 		return
 	}
 
+	if g.activityLogService != nil {
+		msg := fmt.Sprintf("Started all processes in group %s", groupName)
+		g.activityLogService.LogWithContext(c, "INFO", "start_group", "group", groupName, msg, nil)
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"status":  "success",
 		"message": "Group processes started successfully",
@@ -79,6 +91,11 @@ func (g *GroupsAPI) StopGroupProcesses(c *gin.Context) {
 		return
 	}
 
+	if g.activityLogService != nil {
+		msg := fmt.Sprintf("Stopped all processes in group %s", groupName)
+		g.activityLogService.LogWithContext(c, "INFO", "stop_group", "group", groupName, msg, nil)
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"status":  "success",
 		"message": "Group processes stopped successfully",
@@ -97,6 +114,11 @@ func (g *GroupsAPI) RestartGroupProcesses(c *gin.Context) {
 			"message": err.Error(),
 		})
 		return
+	}
+
+	if g.activityLogService != nil {
+		msg := fmt.Sprintf("Restarted all processes in group %s", groupName)
+		g.activityLogService.LogWithContext(c, "INFO", "restart_group", "group", groupName, msg, nil)
 	}
 
 	c.JSON(http.StatusOK, gin.H{

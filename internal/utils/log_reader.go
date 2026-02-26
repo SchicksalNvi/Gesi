@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"go-cesi/internal/config"
+	"superview/internal/config"
 )
 
 // LogEntry 日志条目结构

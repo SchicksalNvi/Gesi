@@ -5,8 +5,8 @@ import (
 	"log"
 	"time"
 
-	"go-cesi/internal/database"
-	"go-cesi/internal/models"
+	"superview/internal/database"
+	"superview/internal/models"
 	"gorm.io/gorm"
 )
 

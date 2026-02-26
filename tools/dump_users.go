@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"go-cesi/internal/models"
+	"superview/internal/models"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"log"
@@ -18,7 +18,7 @@ func main() {
 	}
 
 	// 连接SQLite数据库
-	dbPath := filepath.Join(cwd, "data", "cesi.db")
+	dbPath := filepath.Join(cwd, "data", "superview.db")
 	fmt.Printf("Connecting to database: %s\n", dbPath)
 	db, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
 	if err != nil {

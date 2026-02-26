@@ -5,8 +5,8 @@ import (
 	"sync"
 	"time"
 
-	"go-cesi/internal/lifecycle"
-	"go-cesi/internal/logger"
+	"superview/internal/lifecycle"
+	"superview/internal/logger"
 	"go.uber.org/zap"
 )
 

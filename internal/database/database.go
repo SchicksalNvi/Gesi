@@ -4,14 +4,14 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
-	"go-cesi/internal/models"
+	"superview/internal/models"
+	"go.uber.org/zap"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -38,12 +38,13 @@ type DatabaseConfig struct {
 }
 
 // GetDefaultConfig 获取默认数据库配置
+// SQLite 在 WAL 模式下建议使用较少的连接数
 func GetDefaultConfig() *DatabaseConfig {
 	return &DatabaseConfig{
-		MaxOpenConns:        25,                // SQLite建议较少的连接数
-		MaxIdleConns:        5,                 // 保持少量空闲连接
-		ConnMaxLifetime:     5 * time.Minute,   // 连接5分钟后重新创建
-		ConnMaxIdleTime:     1 * time.Minute,   // 空闲1分钟后关闭
+		MaxOpenConns:        1,                 // SQLite WAL 模式下建议单连接，避免锁竞争
+		MaxIdleConns:        1,                 // 保持一个空闲连接
+		ConnMaxLifetime:     0,                 // SQLite 不需要连接轮换
+		ConnMaxIdleTime:     0,                 // 保持连接不关闭
 		QueryTimeout:        30 * time.Second,  // 查询超时30秒
 		HealthCheckEnabled:  true,              // 启用健康检查
 		HealthCheckInterval: 30 * time.Second,  // 每30秒检查一次
@@ -64,7 +65,7 @@ func InitDBWithConfig(config *DatabaseConfig) error {
 
 	// 确保数据库目录存在
 	dataDir := filepath.Join(projectRoot, "data")
-	log.Printf("Database directory: %s", dataDir)
+	zap.L().Info("Database directory", zap.String("path", dataDir))
 	if err := os.MkdirAll(dataDir, 0755); err != nil {
 		return fmt.Errorf("failed to create data directory: %v", err)
 	}
@@ -79,7 +80,7 @@ func InitDBWithConfig(config *DatabaseConfig) error {
 	}
 
 	// 连接SQLite数据库
-	dbPath := filepath.Join(dataDir, "cesi.db")
+	dbPath := filepath.Join(dataDir, "superview.db")
 	dsn := fmt.Sprintf("%s?cache=shared&mode=rwc&_journal_mode=WAL&_synchronous=NORMAL&_foreign_keys=1", dbPath)
 	db, err := gorm.Open(sqlite.Open(dsn), gormConfig)
 	if err != nil {
@@ -107,7 +108,7 @@ func InitDBWithConfig(config *DatabaseConfig) error {
 
 	// 在迁移前修复 system_settings 表的空 category 字段
 	if err := fixEmptyCategories(db); err != nil {
-		log.Printf("Warning: failed to fix empty categories: %v", err)
+		zap.L().Warn("Failed to fix empty categories", zap.Error(err))
 	}
 
 	// 自动迁移数据库模式（SystemSettings 单独处理，避免 GORM 迁移问题）
@@ -173,8 +174,9 @@ func InitDBWithConfig(config *DatabaseConfig) error {
 		StartHealthCheck(config.HealthCheckInterval)
 	}
 
-	log.Printf("Database initialized successfully with connection pool (max_open: %d, max_idle: %d)", 
-		config.MaxOpenConns, config.MaxIdleConns)
+	zap.L().Info("Database initialized successfully",
+		zap.Int("max_open_conns", config.MaxOpenConns),
+		zap.Int("max_idle_conns", config.MaxIdleConns))
 	return nil
 }
 
@@ -213,7 +215,7 @@ func StartHealthCheck(interval time.Duration) {
 		}
 	}()
 	
-	log.Printf("Database health check started with interval: %v", interval)
+	zap.L().Info("Database health check started", zap.Duration("interval", interval))
 }
 
 // StopHealthCheck 停止数据库健康检查
@@ -223,7 +225,12 @@ func StopHealthCheck() {
 		healthCheckTicker = nil
 	}
 	if healthCheckStop != nil {
-		close(healthCheckStop)
+		select {
+		case <-healthCheckStop:
+			// 已经关闭
+		default:
+			close(healthCheckStop)
+		}
 		healthCheckStop = nil
 	}
 }
@@ -237,12 +244,12 @@ func performHealthCheck() {
 	
 	if err != nil {
 		if isHealthy {
-			log.Printf("Database health check failed: %v", err)
+			zap.L().Warn("Database health check failed", zap.Error(err))
 			isHealthy = false
 		}
 	} else {
 		if !isHealthy {
-			log.Printf("Database health check recovered")
+			zap.L().Info("Database health check recovered")
 			isHealthy = true
 		}
 	}
@@ -328,7 +335,7 @@ func fixEmptyCategories(db *gorm.DB) error {
 
 	// 表不存在，创建新表
 	if count == 0 {
-		log.Println("Creating system_settings table...")
+		zap.L().Info("Creating system_settings table")
 		createSQL := `CREATE TABLE system_settings (
 			id TEXT PRIMARY KEY,
 			category TEXT DEFAULT 'general',
@@ -347,7 +354,7 @@ func fixEmptyCategories(db *gorm.DB) error {
 		}
 		db.Exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_category_key ON system_settings(category, key)")
 		db.Exec("CREATE INDEX IF NOT EXISTS idx_system_settings_deleted_at ON system_settings(deleted_at)")
-		log.Println("Created system_settings table")
+		zap.L().Info("Created system_settings table")
 		return nil
 	}
 
@@ -363,7 +370,7 @@ func fixEmptyCategories(db *gorm.DB) error {
 		return nil
 	}
 
-	log.Println("Rebuilding system_settings table to remove foreign key constraints...")
+	zap.L().Info("Rebuilding system_settings table to remove foreign key constraints")
 
 	// 备份数据
 	type SettingBackup struct {
@@ -383,7 +390,7 @@ func fixEmptyCategories(db *gorm.DB) error {
 	if err := db.Raw(`SELECT id, COALESCE(category, 'general') as category, key, value, 
 		COALESCE(value_type, 'string') as value_type, description, is_public, updated_by, 
 		created_at, updated_at FROM system_settings WHERE deleted_at IS NULL`).Scan(&backups).Error; err != nil {
-		log.Printf("Warning: failed to backup system_settings: %v", err)
+		zap.L().Warn("Failed to backup system_settings", zap.Error(err))
 		return nil
 	}
 
@@ -423,7 +430,7 @@ func fixEmptyCategories(db *gorm.DB) error {
 	db.Exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_category_key ON system_settings(category, key)")
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_system_settings_deleted_at ON system_settings(deleted_at)")
 
-	log.Printf("Successfully rebuilt system_settings table with %d records", len(backups))
+	zap.L().Info("Successfully rebuilt system_settings table", zap.Int("records", len(backups)))
 	return nil
 }
 
@@ -431,7 +438,7 @@ func fixEmptyCategories(db *gorm.DB) error {
 func runCustomMigrations(db *gorm.DB) error {
 	// 删除旧的全局唯一索引（如果存在）
 	if err := db.Exec("DROP INDEX IF EXISTS idx_alert_unique").Error; err != nil {
-		log.Printf("Warning: failed to drop old index idx_alert_unique: %v", err)
+		zap.L().Warn("Failed to drop old index idx_alert_unique", zap.Error(err))
 	}
 	
 	// 创建条件唯一索引：仅对 status='active' 的记录生效
@@ -449,10 +456,10 @@ func runCustomMigrations(db *gorm.DB) error {
 	// 修复 system_settings 表的外键约束问题
 	// SQLite 不支持直接删除外键，需要重建表
 	if err := fixSystemSettingsForeignKey(db); err != nil {
-		log.Printf("Warning: failed to fix system_settings foreign key: %v", err)
+		zap.L().Warn("Failed to fix system_settings foreign key", zap.Error(err))
 	}
 	
-	log.Println("Custom migrations completed successfully")
+	zap.L().Info("Custom migrations completed successfully")
 	return nil
 }
 
@@ -476,7 +483,7 @@ func fixSystemSettingsForeignKey(db *gorm.DB) error {
 		return nil // 外键不存在，跳过
 	}
 	
-	log.Println("Migrating system_settings table to remove foreign key constraint...")
+	zap.L().Info("Migrating system_settings table to remove foreign key constraint")
 	
 	// SQLite 重建表的步骤
 	// 1. 禁用外键检查
@@ -563,6 +570,6 @@ func fixSystemSettingsForeignKey(db *gorm.DB) error {
 		return err
 	}
 	
-	log.Println("Successfully migrated system_settings table")
+	zap.L().Info("Successfully migrated system_settings table")
 	return nil
 }

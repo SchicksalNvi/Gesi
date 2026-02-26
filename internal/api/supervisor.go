@@ -4,8 +4,8 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"go-cesi/internal/supervisor"
-	"go-cesi/internal/errors"
+	"superview/internal/supervisor"
+	"superview/internal/errors"
 )
 
 type SupervisorAPI struct {

@@ -1,7 +1,7 @@
 package validation
 
 import (
-	"go-cesi/internal/models"
+	"superview/internal/models"
 	"golang.org/x/crypto/bcrypt"
 )
 

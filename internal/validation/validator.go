@@ -241,71 +241,25 @@ func (v *Validator) ValidateCommand(field, command string) {
 	}
 }
 
-// SanitizeInput 清理输入，防止SQL注入和XSS攻击
+// SanitizeInput 清理输入，仅做 XSS 防护。
+// SQL 注入由 GORM 参数化查询处理，不在此层过滤 SQL 关键字，
+// 避免破坏合法数据（如邮箱中的 @、用户名中包含 select 等）。
 func SanitizeInput(input string) string {
-	// 限制输入长度，防止DoS攻击
 	if len(input) > 10000 {
 		input = input[:10000]
 	}
-	
-	// 移除或转义危险字符
-	input = strings.ReplaceAll(input, "'", "''")
-	input = strings.ReplaceAll(input, "\\", "\\\\")
-	input = strings.ReplaceAll(input, ";", "")
-	input = strings.ReplaceAll(input, "--", "")
-	input = strings.ReplaceAll(input, "/*", "")
-	input = strings.ReplaceAll(input, "*/", "")
-	input = strings.ReplaceAll(input, "#", "")
-	input = strings.ReplaceAll(input, "@", "")
-	
-	// XSS防护 - 移除HTML/JavaScript标签
+
+	// XSS 防护 - 移除危险的 HTML/JavaScript 标签和属性
 	xssPatterns := []string{
 		"<script", "</script>", "<iframe", "</iframe>",
 		"javascript:", "vbscript:", "onload=", "onerror=",
 		"onclick=", "onmouseover=", "onfocus=", "onblur=",
 	}
-	
+
 	for _, pattern := range xssPatterns {
 		input = regexp.MustCompile(`(?i)`+regexp.QuoteMeta(pattern)).ReplaceAllString(input, "")
 	}
-	
-	// 增强的SQL关键字过滤
-	sqlKeywords := []string{
-		"DROP", "DELETE", "INSERT", "UPDATE", "ALTER", "CREATE",
-		"EXEC", "EXECUTE", "UNION", "SELECT", "SCRIPT", "TRUNCATE",
-		"GRANT", "REVOKE", "BACKUP", "RESTORE", "SHUTDOWN",
-		"WAITFOR", "DELAY", "BENCHMARK", "SLEEP", "LOAD_FILE",
-		"INTO OUTFILE", "INTO DUMPFILE", "INFORMATION_SCHEMA",
-	}
-	
-	for _, keyword := range sqlKeywords {
-		// 使用单词边界确保精确匹配
-		pattern := `(?i)\b` + regexp.QuoteMeta(keyword) + `\b`
-		input = regexp.MustCompile(pattern).ReplaceAllString(input, "")
-	}
-	
-	// 移除SQL注入常见模式
-	sqlInjectionPatterns := []string{
-		`(?i)\b(or|and)\s+\d+\s*=\s*\d+`,
-		`(?i)\b(or|and)\s+['"]\w+['"]\s*=\s*['"]\w+['"]`,
-		`(?i)['"];\s*(drop|delete|insert|update)`,
-		`(?i)\bunion\s+select`,
-		`(?i)\bhaving\s+\d+\s*=\s*\d+`,
-		`(?i)\bgroup\s+by\s+\d+`,
-		`(?i)\border\s+by\s+\d+`,
-		`(?i)0x[0-9a-f]+`, // 十六进制编码
-		`(?i)char\(\d+\)`, // CHAR函数
-		`(?i)concat\s*\(`, // CONCAT函数
-		`(?i)substring\s*\(`, // SUBSTRING函数
-	}
-	
-	for _, pattern := range sqlInjectionPatterns {
-		input = regexp.MustCompile(pattern).ReplaceAllString(input, "")
-	}
-	
-	// 移除多余的空白字符
-	input = regexp.MustCompile(`\s+`).ReplaceAllString(input, " ")
-	
+
 	return strings.TrimSpace(input)
 }
 

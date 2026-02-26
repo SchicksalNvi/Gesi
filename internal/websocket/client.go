@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	"go-cesi/internal/logger"
+	"superview/internal/logger"
 	"go.uber.org/zap"
 )
 

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"go-cesi/internal/models"
+	"superview/internal/models"
 	"gorm.io/gorm"
 )
 

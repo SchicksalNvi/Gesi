@@ -3,10 +3,11 @@ package services
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"time"
 
-	"go-cesi/internal/models"
+	"superview/internal/logger"
+	"superview/internal/models"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
@@ -148,6 +149,7 @@ func (s *AlertService) AcknowledgeAlert(id uint, userIDStr string) error {
 		Where("id = ?", id).
 		Updates(map[string]interface{}{
 			"status":     models.AlertStatusAcknowledged,
+			"acked_by":   userIDStr,
 			"acked_at":   now,
 			"updated_at": now,
 		}).Error
@@ -160,6 +162,7 @@ func (s *AlertService) ResolveAlert(id uint, userIDStr string) error {
 		Where("id = ?", id).
 		Updates(map[string]interface{}{
 			"status":      models.AlertStatusResolved,
+			"resolved_by": userIDStr,
 			"resolved_at": now,
 			"end_time":    now,
 			"updated_at":  now,
@@ -289,7 +292,7 @@ func (s *AlertService) CheckAlertRules() error {
 	for _, rule := range rules {
 		err := s.checkSingleRule(&rule)
 		if err != nil {
-			log.Printf("Error checking rule %d: %v", rule.ID, err)
+			logger.Error("Error checking rule", zap.Uint("rule_id", rule.ID), zap.Error(err))
 		}
 	}
 
@@ -389,7 +392,7 @@ func (s *AlertService) sendAlertNotifications(alert *models.Alert) error {
 
 		err = s.db.Create(notification).Error
 		if err != nil {
-			log.Printf("Error creating notification: %v", err)
+			logger.Error("Error creating notification", zap.Error(err))
 			continue
 		}
 
@@ -433,7 +436,7 @@ func (s *AlertService) sendNotification(notification *models.Notification, chann
 
 	if err != nil {
 		notification.MarkAsFailed(err)
-		log.Printf("Failed to send notification %d: %v", notification.ID, err)
+		logger.Error("Failed to send notification", zap.Uint("notification_id", notification.ID), zap.Error(err))
 	} else {
 		notification.MarkAsSent()
 	}
@@ -453,7 +456,7 @@ func (s *AlertService) sendEmailNotification(notification *models.Notification, 
 
 	// 这里应该实现实际的邮件发送逻辑
 	// 为了演示，我们只是记录日志
-	log.Printf("Sending email notification to %s: %s", config["to"], notification.Message)
+	logger.Info("Sending email notification", zap.String("to", config["to"].(string)), zap.String("message", notification.Message))
 	return nil
 }
 
@@ -468,7 +471,7 @@ func (s *AlertService) sendSlackNotification(notification *models.Notification, 
 
 	// 这里应该实现实际的Slack通知发送逻辑
 	// 为了演示，我们只是记录日志
-	log.Printf("Sending Slack notification to %s: %s", config["webhook_url"], notification.Message)
+	logger.Info("Sending Slack notification", zap.String("webhook_url", config["webhook_url"].(string)), zap.String("message", notification.Message))
 	return nil
 }
 
@@ -483,7 +486,7 @@ func (s *AlertService) sendWebhookNotification(notification *models.Notification
 
 	// 这里应该实现实际的Webhook发送逻辑
 	// 为了演示，我们只是记录日志
-	log.Printf("Sending webhook notification to %s: %s", config["url"], notification.Message)
+	logger.Info("Sending webhook notification", zap.String("url", config["url"].(string)), zap.String("message", notification.Message))
 	return nil
 }
 
@@ -498,7 +501,7 @@ func (s *AlertService) sendDingTalkNotification(notification *models.Notificatio
 
 	// 这里应该实现实际的钉钉通知发送逻辑
 	// 为了演示，我们只是记录日志
-	log.Printf("Sending DingTalk notification to %s: %s", config["webhook_url"], notification.Message)
+	logger.Info("Sending DingTalk notification", zap.String("webhook_url", config["webhook_url"].(string)), zap.String("message", notification.Message))
 	return nil
 }
 

@@ -28,7 +28,7 @@ import { useStore } from '../../store';
 const { RangePicker } = DatePicker;
 
 const Logs: React.FC = () => {
-  const { t } = useStore();
+  const { t, user } = useStore();
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -38,7 +38,6 @@ const Logs: React.FC = () => {
   const [resourceFilter, setResourceFilter] = useState<string>('');
   const [usernameFilter, setUsernameFilter] = useState<string>('');
   const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
-  const [autoRefresh, setAutoRefresh] = useState(true);
   const [pagination, setPagination] = useState<PaginationInfo>({
     page: 1,
     page_size: 20,
@@ -52,17 +51,12 @@ const Logs: React.FC = () => {
     loadLogs();
   }, []);
 
-  // 使用统一的自动刷新 Hook
-  const { autoRefreshEnabled, setAutoRefreshEnabled } = useAutoRefresh(
-    () => {
-      // 只在第一页时自动刷新
-      if (pagination.page === 1) {
-        loadLogs();
-      }
-    },
-    autoRefresh,
-    [pagination.page]
-  );
+  // Auto refresh (only on first page)
+  useAutoRefresh(() => {
+    if (pagination.page === 1) {
+      loadLogs();
+    }
+  });
 
   const buildFilters = (): ActivityLogsFilters => {
     const filters: ActivityLogsFilters = {
@@ -83,7 +77,7 @@ const Logs: React.FC = () => {
     return filters;
   };
 
-  const loadLogs = async (customFilters?: Partial<ActivityLogsFilters>) => {
+  async function loadLogs(customFilters?: Partial<ActivityLogsFilters>) {
     setLoading(true);
     setError(null);
     
@@ -101,7 +95,7 @@ const Logs: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }
 
   const handleSearch = () => {
     setPagination(prev => ({ ...prev, page: 1 }));
@@ -276,26 +270,22 @@ const Logs: React.FC = () => {
         <h1 style={{ margin: 0 }}>{t.logs.activityLogs}</h1>
         <Space>
           <Button
-            type={autoRefresh ? 'default' : 'dashed'}
-            onClick={() => setAutoRefresh(!autoRefresh)}
-          >
-            Auto Refresh: {autoRefresh ? 'ON' : 'OFF'}
-          </Button>
-          <Button
             icon={<DownloadOutlined />}
             onClick={handleExport}
             disabled={loading}
           >
             {t.common.export}
           </Button>
-          <Button
-            danger
-            icon={<DeleteOutlined />}
-            onClick={handleClearLogs}
-            disabled={loading}
-          >
-            {t.logs.clearLogs}
-          </Button>
+          {user?.is_admin && (
+            <Button
+              danger
+              icon={<DeleteOutlined />}
+              onClick={handleClearLogs}
+              disabled={loading}
+            >
+              {t.logs.clearLogs}
+            </Button>
+          )}
           <Button
             type="primary"
             icon={<ReloadOutlined />}
@@ -354,6 +344,9 @@ const Logs: React.FC = () => {
               { label: t.processes.restart, value: 'restart_process' },
               { label: 'Login', value: 'login' },
               { label: t.nav.logout, value: 'logout' },
+              { label: t.users.addUser, value: 'create_user' },
+              { label: t.users.deleteUser, value: 'delete_user' },
+              { label: t.users.resetPassword, value: 'change_password' },
             ]}
           />
           <Select

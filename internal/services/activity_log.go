@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"go-cesi/internal/models"
+	"superview/internal/models"
 	"gorm.io/gorm"
 )
 
@@ -35,6 +35,19 @@ func (s *ActivityLogService) LogWithContext(c *gin.Context, level, action, resou
 		}
 	}
 
+	// fallback: 如果 user 对象不存在，尝试用 user_id 查库
+	if username == "" {
+		if uid, exists := c.Get("user_id"); exists {
+			if uidStr, ok := uid.(string); ok && uidStr != "" {
+				userID = uidStr
+				var user models.User
+				if s.db.Where("id = ?", uidStr).First(&user).Error == nil {
+					username = user.Username
+				}
+			}
+		}
+	}
+
 	log := &models.ActivityLog{
 		Level:     level,
 		Message:   message,
@@ -61,6 +74,19 @@ func (s *ActivityLogService) LogError(c *gin.Context, action, resource, target s
 		if u, ok := user.(*models.User); ok {
 			userID = u.ID
 			username = u.Username
+		}
+	}
+
+	// fallback: 如果 user 对象不存在，尝试用 user_id 查库
+	if username == "" {
+		if uid, exists := c.Get("user_id"); exists {
+			if uidStr, ok := uid.(string); ok && uidStr != "" {
+				userID = uidStr
+				var user models.User
+				if s.db.Where("id = ?", uidStr).First(&user).Error == nil {
+					username = user.Username
+				}
+			}
 		}
 	}
 

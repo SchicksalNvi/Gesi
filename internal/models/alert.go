@@ -20,7 +20,7 @@ type AlertRule struct {
 	NodeID      *uint          `json:"node_id,omitempty" gorm:"index:idx_node_id" validate:"omitempty,gt=0"`
 	ProcessName *string        `json:"process_name,omitempty" gorm:"size:100;index:idx_process_name" validate:"omitempty,max=100"`
 	Tags        string         `json:"tags" gorm:"size:500" validate:"omitempty,max=500,json"`
-	CreatedBy   uint           `json:"created_by" gorm:"not null;index:idx_alert_rule_created_by" validate:"required,gt=0"`
+	CreatedBy   string         `json:"created_by" gorm:"size:36;not null;index:idx_alert_rule_created_by"`
 	CreatedAt   time.Time      `json:"created_at" gorm:"not null;index:idx_alert_rule_created_at"`
 	UpdatedAt   time.Time      `json:"updated_at" gorm:"not null"`
 	DeletedAt   gorm.DeletedAt `json:"deleted_at,omitempty" gorm:"index"`
@@ -42,9 +42,9 @@ type Alert struct {
 	Value       float64        `json:"value" validate:"gte=0"`
 	StartTime   time.Time      `json:"start_time" gorm:"not null;index:idx_start_time" validate:"required"`
 	EndTime     *time.Time     `json:"end_time,omitempty" gorm:"index:idx_end_time"`
-	AckedBy     *uint          `json:"acked_by,omitempty" gorm:"index:idx_acked_by" validate:"omitempty,gt=0"`
+	AckedBy     *string        `json:"acked_by,omitempty" gorm:"size:36;index:idx_acked_by"`
 	AckedAt     *time.Time     `json:"acked_at,omitempty"`
-	ResolvedBy  *uint          `json:"resolved_by,omitempty" gorm:"index:idx_resolved_by" validate:"omitempty,gt=0"`
+	ResolvedBy  *string        `json:"resolved_by,omitempty" gorm:"size:36;index:idx_resolved_by"`
 	ResolvedAt  *time.Time     `json:"resolved_at,omitempty"`
 	Metadata    string         `json:"metadata" gorm:"type:text" validate:"omitempty,json"`
 	CreatedAt   time.Time      `json:"created_at" gorm:"not null;index:idx_alert_created_at"`
@@ -71,7 +71,7 @@ type NotificationChannel struct {
 	Config      string         `json:"config" gorm:"type:text"`      // JSON格式的配置信息
 	Enabled     bool           `json:"enabled" gorm:"default:true"`
 	Description string         `json:"description" gorm:"size:500"`
-	CreatedBy   uint           `json:"created_by"`
+	CreatedBy   string         `json:"created_by" gorm:"size:36"`
 	CreatedAt   time.Time      `json:"created_at"`
 	UpdatedAt   time.Time      `json:"updated_at"`
 	DeletedAt   gorm.DeletedAt `json:"deleted_at,omitempty" gorm:"index"`
@@ -207,7 +207,7 @@ func (a *Alert) GetDuration() time.Duration {
 }
 
 // Acknowledge 确认告警
-func (a *Alert) Acknowledge(userID uint) {
+func (a *Alert) Acknowledge(userID string) {
 	a.Status = AlertStatusAcknowledged
 	a.AckedBy = &userID
 	now := time.Now()
@@ -215,7 +215,7 @@ func (a *Alert) Acknowledge(userID uint) {
 }
 
 // Resolve 解决告警
-func (a *Alert) Resolve(userID uint) {
+func (a *Alert) Resolve(userID string) {
 	a.Status = AlertStatusResolved
 	a.ResolvedBy = &userID
 	now := time.Now()

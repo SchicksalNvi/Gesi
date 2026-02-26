@@ -1,15 +1,15 @@
-# GESI
+# Superview
 
-Go Centralized Supervisor Interface - 多节点 Supervisor 进程管理系统
+Centralized Supervisor Interface - 多节点 Supervisor 进程管理系统
 
 ## 快速开始
 
 ```bash
 # 编译
-./gesi.sh build
+./superview.sh build
 
 # 启动
-./gesi.sh start
+./superview.sh start
 
 # 访问
 http://localhost:8081
@@ -20,14 +20,14 @@ http://localhost:8081
 ## 管理命令
 
 ```bash
-./gesi.sh build           # 编译前后端
-./gesi.sh build-backend   # 仅编译后端
-./gesi.sh build-frontend  # 仅编译前端
-./gesi.sh start           # 后台启动
-./gesi.sh stop            # 停止
-./gesi.sh restart         # 重启
-./gesi.sh status          # 查看状态
-./gesi.sh run             # 前台运行（开发用）
+./superview.sh build           # 编译前后端
+./superview.sh build-backend   # 仅编译后端
+./superview.sh build-frontend  # 仅编译前端
+./superview.sh start           # 后台启动
+./superview.sh stop            # 停止
+./superview.sh restart         # 重启
+./superview.sh status          # 查看状态
+./superview.sh run             # 前台运行（开发用）
 ```
 
 ## 配置
@@ -59,7 +59,7 @@ NODE_PASSWORD=supervisor-password
 
 ## Prometheus 监控指标
 
-GESI 支持暴露 Prometheus 格式的监控指标，可接入现有监控系统。
+Superview 支持暴露 Prometheus 格式的监控指标，可接入现有监控系统。
 
 ### 启用配置
 
@@ -77,7 +77,7 @@ password = "secret"      # 可选，Basic Auth 密码
 
 ```yaml
 scrape_configs:
-  - job_name: 'gocesi'
+  - job_name: 'superview'
     static_configs:
       - targets: ['localhost:8081']
     metrics_path: /metrics
@@ -90,21 +90,21 @@ scrape_configs:
 
 | 指标名 | 类型 | 标签 | 说明 |
 |--------|------|------|------|
-| `gesi_node_up` | gauge | node, environment, host, port | 节点连接状态 (1=在线, 0=离线) |
-| `gesi_node_last_ping_timestamp_seconds` | gauge | node | 最后成功连接时间戳 |
-| `gesi_process_state` | gauge | node, process, group | 进程状态码 |
-| `gesi_process_up` | gauge | node, process, group | 进程运行状态 (1=运行中, 0=未运行) |
-| `gesi_process_pid` | gauge | node, process, group | 进程 PID |
-| `gesi_process_uptime_seconds` | gauge | node, process, group | 进程运行时长（秒） |
-| `gesi_process_start_timestamp_seconds` | gauge | node, process, group | 进程启动时间戳 |
-| `gesi_process_exit_status` | gauge | node, process, group | 进程退出状态码 |
-| `gesi_nodes_total` | gauge | environment (可选) | 配置的节点总数 |
-| `gesi_nodes_connected` | gauge | environment (可选) | 已连接节点数 |
-| `gesi_processes_total` | gauge | environment (可选) | 进程总数 |
-| `gesi_processes_running` | gauge | environment (可选) | 运行中进程数 |
-| `gesi_processes_stopped` | gauge | - | 已停止进程数 |
-| `gesi_processes_failed` | gauge | - | 失败进程数 (FATAL/EXITED) |
-| `gesi_info` | gauge | version | 构建信息 |
+| `superview_node_up` | gauge | node, environment, host, port | 节点连接状态 (1=在线, 0=离线) |
+| `superview_node_last_ping_timestamp_seconds` | gauge | node | 最后成功连接时间戳 |
+| `superview_process_state` | gauge | node, process, group | 进程状态码 |
+| `superview_process_up` | gauge | node, process, group | 进程运行状态 (1=运行中, 0=未运行) |
+| `superview_process_pid` | gauge | node, process, group | 进程 PID |
+| `superview_process_uptime_seconds` | gauge | node, process, group | 进程运行时长（秒） |
+| `superview_process_start_timestamp_seconds` | gauge | node, process, group | 进程启动时间戳 |
+| `superview_process_exit_status` | gauge | node, process, group | 进程退出状态码 |
+| `superview_nodes_total` | gauge | environment (可选) | 配置的节点总数 |
+| `superview_nodes_connected` | gauge | environment (可选) | 已连接节点数 |
+| `superview_processes_total` | gauge | environment (可选) | 进程总数 |
+| `superview_processes_running` | gauge | environment (可选) | 运行中进程数 |
+| `superview_processes_stopped` | gauge | - | 已停止进程数 |
+| `superview_processes_failed` | gauge | - | 失败进程数 (FATAL/EXITED) |
+| `superview_info` | gauge | version | 构建信息 |
 
 ### 进程状态码
 
@@ -123,10 +123,10 @@ scrape_configs:
 
 ```yaml
 groups:
-  - name: gesi
+  - name: superview
     rules:
       - alert: NodeDown
-        expr: gesi_node_up == 0
+        expr: superview_node_up == 0
         for: 1m
         labels:
           severity: critical
@@ -134,7 +134,7 @@ groups:
           summary: "Node {{ $labels.node }} is down"
           
       - alert: ProcessDown
-        expr: gesi_process_up == 0
+        expr: superview_process_up == 0
         for: 30s
         labels:
           severity: warning
@@ -142,7 +142,7 @@ groups:
           summary: "Process {{ $labels.process }} on {{ $labels.node }} is not running"
           
       - alert: ProcessFailed
-        expr: gesi_process_state == 200
+        expr: superview_process_state == 200
         for: 0s
         labels:
           severity: critical

@@ -1,21 +1,28 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 
-	"go-cesi/internal/supervisor"
-	"go-cesi/internal/validation"
+	"superview/internal/services"
+	"superview/internal/supervisor"
+	"superview/internal/validation"
 
 	"github.com/gin-gonic/gin"
 )
 
 type NodesAPI struct {
-	service *supervisor.SupervisorService
+	service            *supervisor.SupervisorService
+	activityLogService *services.ActivityLogService
 }
 
-func NewNodesAPI(service *supervisor.SupervisorService) *NodesAPI {
-	return &NodesAPI{service: service}
+func NewNodesAPI(service *supervisor.SupervisorService, activityLogService ...*services.ActivityLogService) *NodesAPI {
+	api := &NodesAPI{service: service}
+	if len(activityLogService) > 0 {
+		api.activityLogService = activityLogService[0]
+	}
+	return api
 }
 
 func (api *NodesAPI) GetNodes(c *gin.Context) {
@@ -47,9 +54,6 @@ func (api *NodesAPI) GetNode(c *gin.Context) {
 		return
 	}
 
-	// 清理输入
-	nodeName = validation.SanitizeInput(nodeName)
-
 	node, err := api.service.GetNode(nodeName)
 	if err != nil {
 		handleNotFound(c, "node", nodeName)
@@ -75,8 +79,6 @@ func (api *NodesAPI) GetNodeProcesses(c *gin.Context) {
 		return
 	}
 
-	// 清理输入
-	nodeName = validation.SanitizeInput(nodeName)
 	
 	node, err := api.service.GetNode(nodeName)
 	if err != nil {
@@ -118,30 +120,75 @@ func (api *NodesAPI) StartProcess(c *gin.Context) {
 		return
 	}
 
-	// 清理输入
-	nodeName = validation.SanitizeInput(nodeName)
-	processName = validation.SanitizeInput(processName)
 
 	if err := api.service.StartProcess(nodeName, processName); err != nil {
 		handleAppError(c, err)
 		return
 	}
+
+	if api.activityLogService != nil {
+		msg := fmt.Sprintf("Started process %s on node %s", processName, nodeName)
+		api.activityLogService.LogWithContext(c, "INFO", "start_process", "process", processName, msg, nil)
+	}
+
 	c.JSON(http.StatusOK, gin.H{"status": "success"})
 }
 
 func (api *NodesAPI) StopProcess(c *gin.Context) {
 	nodeName := c.Param("node_name")
 	processName := c.Param("process_name")
+
+	// 输入验证
+	validator := validation.NewValidator()
+	validator.ValidateNodeName("node_name", nodeName)
+	validator.ValidateProcessName("process_name", processName)
+	validator.ValidateNoSQLInjection("node_name", nodeName)
+	validator.ValidateNoSQLInjection("process_name", processName)
+
+	if validator.HasErrors() {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  "error",
+			"message": "输入验证失败",
+			"errors":  validator.Errors(),
+		})
+		return
+	}
+
+
 	if err := api.service.StopProcess(nodeName, processName); err != nil {
 		handleAppError(c, err)
 		return
 	}
+
+	if api.activityLogService != nil {
+		msg := fmt.Sprintf("Stopped process %s on node %s", processName, nodeName)
+		api.activityLogService.LogWithContext(c, "INFO", "stop_process", "process", processName, msg, nil)
+	}
+
 	c.JSON(http.StatusOK, gin.H{"status": "success"})
 }
 
 func (api *NodesAPI) RestartProcess(c *gin.Context) {
 	nodeName := c.Param("node_name")
 	processName := c.Param("process_name")
+
+	// 输入验证
+	validator := validation.NewValidator()
+	validator.ValidateNodeName("node_name", nodeName)
+	validator.ValidateProcessName("process_name", processName)
+	validator.ValidateNoSQLInjection("node_name", nodeName)
+	validator.ValidateNoSQLInjection("process_name", processName)
+
+	if validator.HasErrors() {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  "error",
+			"message": "输入验证失败",
+			"errors":  validator.Errors(),
+		})
+		return
+	}
+
+
 	if err := api.service.StopProcess(nodeName, processName); err != nil {
 		handleInternalError(c, err)
 		return
@@ -150,12 +197,36 @@ func (api *NodesAPI) RestartProcess(c *gin.Context) {
 		handleInternalError(c, err)
 		return
 	}
+
+	if api.activityLogService != nil {
+		msg := fmt.Sprintf("Restarted process %s on node %s", processName, nodeName)
+		api.activityLogService.LogWithContext(c, "INFO", "restart_process", "process", processName, msg, nil)
+	}
+
 	handleSuccess(c, "Process restarted successfully", nil)
 }
 
 func (api *NodesAPI) GetProcessLogs(c *gin.Context) {
 	nodeName := c.Param("node_name")
 	processName := c.Param("process_name")
+
+	// 输入验证
+	validator := validation.NewValidator()
+	validator.ValidateNodeName("node_name", nodeName)
+	validator.ValidateProcessName("process_name", processName)
+	validator.ValidateNoSQLInjection("node_name", nodeName)
+	validator.ValidateNoSQLInjection("process_name", processName)
+
+	if validator.HasErrors() {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  "error",
+			"message": "输入验证失败",
+			"errors":  validator.Errors(),
+		})
+		return
+	}
+
+
 	logs, err := api.service.GetProcessLogs(nodeName, processName)
 	if err != nil {
 		handleAppError(c, err)
@@ -201,9 +272,6 @@ func (api *NodesAPI) GetProcessLogStream(c *gin.Context) {
 		return
 	}
 
-	// 清理输入
-	nodeName = validation.SanitizeInput(nodeName)
-	processName = validation.SanitizeInput(processName)
 	
 	node, err := api.service.GetNode(nodeName)
 	if err != nil {
@@ -241,29 +309,95 @@ func (api *NodesAPI) GetProcessLogStream(c *gin.Context) {
 // StartAllProcesses starts all processes on a specific node
 func (api *NodesAPI) StartAllProcesses(c *gin.Context) {
 	nodeName := c.Param("node_name")
+
+	// 输入验证
+	validator := validation.NewValidator()
+	validator.ValidateNodeName("node_name", nodeName)
+	validator.ValidateNoSQLInjection("node_name", nodeName)
+
+	if validator.HasErrors() {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  "error",
+			"message": "输入验证失败",
+			"errors":  validator.Errors(),
+		})
+		return
+	}
+
+
 	if err := api.service.StartAllProcesses(nodeName); err != nil {
 		handleAppError(c, err)
 		return
 	}
+
+	if api.activityLogService != nil {
+		msg := fmt.Sprintf("Started all processes on node %s", nodeName)
+		api.activityLogService.LogWithContext(c, "INFO", "start_process", "node", nodeName, msg, nil)
+	}
+
 	c.JSON(http.StatusOK, gin.H{"status": "success", "message": "All processes started"})
 }
 
 // StopAllProcesses stops all processes on a specific node
 func (api *NodesAPI) StopAllProcesses(c *gin.Context) {
 	nodeName := c.Param("node_name")
+
+	// 输入验证
+	validator := validation.NewValidator()
+	validator.ValidateNodeName("node_name", nodeName)
+	validator.ValidateNoSQLInjection("node_name", nodeName)
+
+	if validator.HasErrors() {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  "error",
+			"message": "输入验证失败",
+			"errors":  validator.Errors(),
+		})
+		return
+	}
+
+
 	if err := api.service.StopAllProcesses(nodeName); err != nil {
 		handleAppError(c, err)
 		return
 	}
+
+	if api.activityLogService != nil {
+		msg := fmt.Sprintf("Stopped all processes on node %s", nodeName)
+		api.activityLogService.LogWithContext(c, "INFO", "stop_process", "node", nodeName, msg, nil)
+	}
+
 	c.JSON(http.StatusOK, gin.H{"status": "success", "message": "All processes stopped"})
 }
 
 // RestartAllProcesses restarts all processes on a specific node
 func (api *NodesAPI) RestartAllProcesses(c *gin.Context) {
 	nodeName := c.Param("node_name")
+
+	// 输入验证
+	validator := validation.NewValidator()
+	validator.ValidateNodeName("node_name", nodeName)
+	validator.ValidateNoSQLInjection("node_name", nodeName)
+
+	if validator.HasErrors() {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  "error",
+			"message": "输入验证失败",
+			"errors":  validator.Errors(),
+		})
+		return
+	}
+
+
 	if err := api.service.RestartAllProcesses(nodeName); err != nil {
 		handleInternalError(c, err)
 		return
 	}
+
+	if api.activityLogService != nil {
+		msg := fmt.Sprintf("Restarted all processes on node %s", nodeName)
+		api.activityLogService.LogWithContext(c, "INFO", "restart_process", "node", nodeName, msg, nil)
+	}
+
 	handleSuccess(c, "All processes restarted", nil)
 }
