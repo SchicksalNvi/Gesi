@@ -1,6 +1,7 @@
 # Binaries
 superview
 main
+go-cesi
 *.exe
 *.dll
 *.so
@@ -52,6 +53,7 @@ cookies.txt
 # OS
 .DS_Store
 Thumbs.db
+Slogo.png
 
 # Backup
 backup_*/
