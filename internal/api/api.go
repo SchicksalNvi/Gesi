@@ -21,21 +21,21 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB, service *supervisor.SupervisorServi
 	// 添加性能监控中间件
 	r.Use(middleware.PerformanceMiddleware())
 
-	authService := auth.NewAuthService(db)
-	nodesAPI := NewNodesAPI(service)
-	userAPI := NewUserAPI(db)
-	environmentsAPI := NewEnvironmentsAPI(service)
-	groupsAPI := NewGroupsAPI(service)
 	activityLogService := services.NewActivityLogService(db)
+	authService := auth.NewAuthService(db, activityLogService)
+	nodesAPI := NewNodesAPI(service, activityLogService)
+	userAPI := NewUserAPI(db, activityLogService)
+	environmentsAPI := NewEnvironmentsAPI(service)
+	groupsAPI := NewGroupsAPI(service, activityLogService)
 	processesAPI := NewProcessesAPI(service, activityLogService)
 	activityLogsAPI := NewActivityLogsAPI(activityLogService)
 	healthAPI := NewHealthAPI(db, service)
 	logManagementAPI := NewLogManagementAPI()
 
-	roleHandler := NewRoleHandler(db)
-	processEnhancedHandler := NewProcessEnhancedHandler(db)
-	configurationHandler := NewConfigurationHandler(db)
-	logAnalysisHandler := NewLogAnalysisHandler(db)
+	roleHandler := NewRoleHandler(db, activityLogService)
+	processEnhancedHandler := NewProcessEnhancedHandler(db, activityLogService)
+	configurationHandler := NewConfigurationHandler(db, activityLogService)
+	logAnalysisHandler := NewLogAnalysisHandler(db, activityLogService)
 
 	// Discovery service and API
 	// Requirements: 9.3, 9.4 - Authentication required for all discovery endpoints
@@ -81,7 +81,7 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB, service *supervisor.SupervisorServi
 		}
 
 		// User management API
-		userHandler := NewUserHandler(db)
+		userHandler := NewUserHandler(db, activityLogService)
 		userGroup := apiGroup.Group("/users")
 		{
 			userGroup.GET("", userHandler.GetUsers)
@@ -162,7 +162,7 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB, service *supervisor.SupervisorServi
 		}
 
 		// Alerts API
-		alertHandler := NewAlertHandler(db, hub)
+		alertHandler := NewAlertHandler(db, hub, activityLogService)
 		alertsGroup := apiGroup.Group("/alerts")
 		{
 			// Alert rules management
@@ -332,7 +332,7 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB, service *supervisor.SupervisorServi
 		}
 
 		// Data Management API
-		dataManagementHandler := NewDataManagementAPI()
+		dataManagementHandler := NewDataManagementAPI(activityLogService)
 		dataManagementGroup := apiGroup.Group("/data-management")
 		{
 			// 数据导出
@@ -352,7 +352,7 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB, service *supervisor.SupervisorServi
 		}
 
 		// System Settings API
-		systemSettingsHandler := NewSystemSettingsAPI(db)
+		systemSettingsHandler := NewSystemSettingsAPI(db, activityLogService)
 		systemSettingsGroup := apiGroup.Group("/system-settings")
 		{
 			// 系统设置管理

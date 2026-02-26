@@ -1,21 +1,48 @@
 package auth
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"superview/internal/models"
+	"superview/internal/services"
 	"gorm.io/gorm"
 )
 
 type AuthService struct {
-	db *gorm.DB
+	db                 *gorm.DB
+	activityLogService *services.ActivityLogService
 }
 
-func NewAuthService(db *gorm.DB) *AuthService {
-	return &AuthService{db: db}
+func NewAuthService(db *gorm.DB, activityLogService ...*services.ActivityLogService) *AuthService {
+	s := &AuthService{db: db}
+	if len(activityLogService) > 0 {
+		s.activityLogService = activityLogService[0]
+	}
+	return s
+}
+
+// logAuth 记录认证相关的活动日志
+func (s *AuthService) logAuth(c *gin.Context, action, userID, username, message string) {
+	if s.activityLogService == nil {
+		return
+	}
+	s.activityLogService.LogActivity(&models.ActivityLog{
+		Level:     "INFO",
+		Action:    action,
+		Resource:  "auth",
+		Target:    username,
+		Message:   message,
+		UserID:    userID,
+		Username:  username,
+		IPAddress: c.ClientIP(),
+		UserAgent: c.GetHeader("User-Agent"),
+		Status:    "success",
+		CreatedAt: time.Now(),
+	})
 }
 
 // isSecureRequest 检查请求是否通过 HTTPS
@@ -86,6 +113,8 @@ func (s *AuthService) Login(c *gin.Context) {
 	// 设置Cookie（自动检测 HTTPS 并设置 Secure 标志）
 	s.setCookie(c, "token", token, 3600*24)
 
+	s.logAuth(c, "login", user.ID, user.Username, fmt.Sprintf("User %s logged in", user.Username))
+
 	c.JSON(http.StatusOK, gin.H{
 		"status":  "success",
 		"message": "Login successful",
@@ -106,6 +135,26 @@ func (s *AuthService) Login(c *gin.Context) {
 }
 
 func (s *AuthService) Logout(c *gin.Context) {
+	// 尝试从 token 获取用户信息用于日志记录
+	var tokenString string
+	if auth := c.GetHeader("Authorization"); auth != "" {
+		parts := strings.SplitN(auth, " ", 2)
+		if len(parts) == 2 && parts[0] == "Bearer" {
+			tokenString = parts[1]
+		}
+	}
+	if tokenString == "" {
+		tokenString, _ = c.Cookie("token")
+	}
+	if tokenString != "" {
+		if claims, err := ParseToken(tokenString); err == nil {
+			var user models.User
+			if s.db.Where("id = ?", claims.UserID).First(&user).Error == nil {
+				s.logAuth(c, "logout", user.ID, user.Username, fmt.Sprintf("User %s logged out", user.Username))
+			}
+		}
+	}
+
 	// 清除Cookie（自动检测 HTTPS 并设置 Secure 标志）
 	s.setCookie(c, "token", "", -1)
 
@@ -243,6 +292,13 @@ func (s *AuthService) AuthMiddleware() gin.HandlerFunc {
 
 		// 将用户ID存储在上下文中
 		c.Set("user_id", claims.UserID)
+
+		// 查询完整用户对象，供 activity log 等使用
+		var user models.User
+		if err := s.db.Where("id = ?", claims.UserID).First(&user).Error; err == nil {
+			c.Set("user", &user)
+		}
+
 		c.Next()
 	}
 }

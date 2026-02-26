@@ -1,9 +1,11 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 
+	"superview/internal/services"
 	"superview/internal/supervisor"
 	"superview/internal/validation"
 
@@ -11,11 +13,16 @@ import (
 )
 
 type NodesAPI struct {
-	service *supervisor.SupervisorService
+	service            *supervisor.SupervisorService
+	activityLogService *services.ActivityLogService
 }
 
-func NewNodesAPI(service *supervisor.SupervisorService) *NodesAPI {
-	return &NodesAPI{service: service}
+func NewNodesAPI(service *supervisor.SupervisorService, activityLogService ...*services.ActivityLogService) *NodesAPI {
+	api := &NodesAPI{service: service}
+	if len(activityLogService) > 0 {
+		api.activityLogService = activityLogService[0]
+	}
+	return api
 }
 
 func (api *NodesAPI) GetNodes(c *gin.Context) {
@@ -118,6 +125,12 @@ func (api *NodesAPI) StartProcess(c *gin.Context) {
 		handleAppError(c, err)
 		return
 	}
+
+	if api.activityLogService != nil {
+		msg := fmt.Sprintf("Started process %s on node %s", processName, nodeName)
+		api.activityLogService.LogWithContext(c, "INFO", "start_process", "process", processName, msg, nil)
+	}
+
 	c.JSON(http.StatusOK, gin.H{"status": "success"})
 }
 
@@ -146,6 +159,12 @@ func (api *NodesAPI) StopProcess(c *gin.Context) {
 		handleAppError(c, err)
 		return
 	}
+
+	if api.activityLogService != nil {
+		msg := fmt.Sprintf("Stopped process %s on node %s", processName, nodeName)
+		api.activityLogService.LogWithContext(c, "INFO", "stop_process", "process", processName, msg, nil)
+	}
+
 	c.JSON(http.StatusOK, gin.H{"status": "success"})
 }
 
@@ -178,6 +197,12 @@ func (api *NodesAPI) RestartProcess(c *gin.Context) {
 		handleInternalError(c, err)
 		return
 	}
+
+	if api.activityLogService != nil {
+		msg := fmt.Sprintf("Restarted process %s on node %s", processName, nodeName)
+		api.activityLogService.LogWithContext(c, "INFO", "restart_process", "process", processName, msg, nil)
+	}
+
 	handleSuccess(c, "Process restarted successfully", nil)
 }
 
@@ -304,6 +329,12 @@ func (api *NodesAPI) StartAllProcesses(c *gin.Context) {
 		handleAppError(c, err)
 		return
 	}
+
+	if api.activityLogService != nil {
+		msg := fmt.Sprintf("Started all processes on node %s", nodeName)
+		api.activityLogService.LogWithContext(c, "INFO", "start_process", "node", nodeName, msg, nil)
+	}
+
 	c.JSON(http.StatusOK, gin.H{"status": "success", "message": "All processes started"})
 }
 
@@ -330,6 +361,12 @@ func (api *NodesAPI) StopAllProcesses(c *gin.Context) {
 		handleAppError(c, err)
 		return
 	}
+
+	if api.activityLogService != nil {
+		msg := fmt.Sprintf("Stopped all processes on node %s", nodeName)
+		api.activityLogService.LogWithContext(c, "INFO", "stop_process", "node", nodeName, msg, nil)
+	}
+
 	c.JSON(http.StatusOK, gin.H{"status": "success", "message": "All processes stopped"})
 }
 
@@ -356,5 +393,11 @@ func (api *NodesAPI) RestartAllProcesses(c *gin.Context) {
 		handleInternalError(c, err)
 		return
 	}
+
+	if api.activityLogService != nil {
+		msg := fmt.Sprintf("Restarted all processes on node %s", nodeName)
+		api.activityLogService.LogWithContext(c, "INFO", "restart_process", "node", nodeName, msg, nil)
+	}
+
 	handleSuccess(c, "All processes restarted", nil)
 }

@@ -1,20 +1,27 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"superview/internal/models"
+	"superview/internal/services"
 	"superview/internal/validation"
 	"gorm.io/gorm"
 )
 
 type UserAPI struct {
-	db *gorm.DB
+	db                 *gorm.DB
+	activityLogService *services.ActivityLogService
 }
 
-func NewUserAPI(db *gorm.DB) *UserAPI {
-	return &UserAPI{db: db}
+func NewUserAPI(db *gorm.DB, activityLogService ...*services.ActivityLogService) *UserAPI {
+	api := &UserAPI{db: db}
+	if len(activityLogService) > 0 {
+		api.activityLogService = activityLogService[0]
+	}
+	return api
 }
 
 // 检查当前用户是否为管理员
@@ -224,6 +231,11 @@ func (u *UserAPI) ChangePassword(c *gin.Context) {
 		"status":  "success",
 		"message": "密码修改成功",
 	})
+
+	if u.activityLogService != nil {
+		msg := fmt.Sprintf("User %s changed password", username)
+		u.activityLogService.LogWithContext(c, "INFO", "change_password", "user", username, msg, nil)
+	}
 }
 
 func (u *UserAPI) DeleteUser(c *gin.Context) {
@@ -359,4 +371,9 @@ func (u *UserAPI) UpdateProfile(c *gin.Context) {
 			"updated_at": user.UpdatedAt,
 		},
 	})
+
+	if u.activityLogService != nil {
+		msg := fmt.Sprintf("User %s updated profile", user.Username)
+		u.activityLogService.LogWithContext(c, "INFO", "update_profile", "user", user.Username, msg, nil)
+	}
 }

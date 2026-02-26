@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -15,16 +16,21 @@ import (
 
 // AlertHandler 告警处理器
 type AlertHandler struct {
-	alertService *services.AlertService
-	hub          WebSocketHub
+	alertService       *services.AlertService
+	hub                WebSocketHub
+	activityLogService *services.ActivityLogService
 }
 
 // NewAlertHandler 创建告警处理器实例
-func NewAlertHandler(db *gorm.DB, hub WebSocketHub) *AlertHandler {
-	return &AlertHandler{
+func NewAlertHandler(db *gorm.DB, hub WebSocketHub, activityLogService ...*services.ActivityLogService) *AlertHandler {
+	h := &AlertHandler{
 		alertService: services.NewAlertService(db),
 		hub:          hub,
 	}
+	if len(activityLogService) > 0 {
+		h.activityLogService = activityLogService[0]
+	}
+	return h
 }
 
 // CreateAlertRule 创建告警规则
@@ -105,6 +111,11 @@ func (h *AlertHandler) CreateAlertRule(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, rule)
+
+	if h.activityLogService != nil {
+		msg := fmt.Sprintf("Created alert rule: %s", rule.Name)
+		h.activityLogService.LogWithContext(c, "INFO", "create_alert_rule", "alert_rule", rule.Name, msg, nil)
+	}
 }
 
 // GetAlertRules 获取告警规则列表
@@ -248,6 +259,11 @@ func (h *AlertHandler) UpdateAlertRule(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Alert rule updated successfully"})
+
+	if h.activityLogService != nil {
+		msg := fmt.Sprintf("Updated alert rule ID: %d", id)
+		h.activityLogService.LogWithContext(c, "INFO", "update_alert_rule", "alert_rule", fmt.Sprintf("%d", id), msg, nil)
+	}
 }
 
 // DeleteAlertRule 删除告警规则
@@ -262,6 +278,11 @@ func (h *AlertHandler) DeleteAlertRule(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
+	}
+
+	if h.activityLogService != nil {
+		msg := fmt.Sprintf("Deleted alert rule ID: %d", id)
+		h.activityLogService.LogWithContext(c, "WARNING", "delete_alert_rule", "alert_rule", fmt.Sprintf("%d", id), msg, nil)
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Alert rule deleted successfully"})
@@ -356,6 +377,11 @@ func (h *AlertHandler) AcknowledgeAlert(c *gin.Context) {
 	// Broadcast alert update event
 	h.broadcastAlertEvent("alert_updated", id)
 
+	if h.activityLogService != nil {
+		msg := fmt.Sprintf("Acknowledged alert ID: %d", id)
+		h.activityLogService.LogWithContext(c, "INFO", "acknowledge_alert", "alert", fmt.Sprintf("%d", id), msg, nil)
+	}
+
 	handleSuccess(c, "Alert acknowledged", nil)
 }
 
@@ -379,6 +405,11 @@ func (h *AlertHandler) ResolveAlert(c *gin.Context) {
 
 	// Broadcast alert resolved event
 	h.broadcastAlertEvent("alert_resolved", id)
+
+	if h.activityLogService != nil {
+		msg := fmt.Sprintf("Resolved alert ID: %d", id)
+		h.activityLogService.LogWithContext(c, "INFO", "resolve_alert", "alert", fmt.Sprintf("%d", id), msg, nil)
+	}
 
 	handleSuccess(c, "Alert resolved successfully", nil)
 }
@@ -433,6 +464,11 @@ func (h *AlertHandler) CreateNotificationChannel(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, channel)
+
+	if h.activityLogService != nil {
+		msg := fmt.Sprintf("Created notification channel: %s (%s)", channel.Name, channel.Type)
+		h.activityLogService.LogWithContext(c, "INFO", "create_notification_channel", "notification_channel", channel.Name, msg, nil)
+	}
 }
 
 // GetNotificationChannels 获取通知渠道列表
@@ -527,6 +563,11 @@ func (h *AlertHandler) UpdateNotificationChannel(c *gin.Context) {
 		return
 	}
 
+	if h.activityLogService != nil {
+		msg := fmt.Sprintf("Updated notification channel ID: %d", id)
+		h.activityLogService.LogWithContext(c, "INFO", "update_notification_channel", "notification_channel", fmt.Sprintf("%d", id), msg, nil)
+	}
+
 	c.JSON(http.StatusOK, gin.H{"message": "Notification channel updated successfully"})
 }
 
@@ -542,6 +583,11 @@ func (h *AlertHandler) DeleteNotificationChannel(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
+	}
+
+	if h.activityLogService != nil {
+		msg := fmt.Sprintf("Deleted notification channel ID: %d", id)
+		h.activityLogService.LogWithContext(c, "WARNING", "delete_notification_channel", "notification_channel", fmt.Sprintf("%d", id), msg, nil)
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Notification channel deleted successfully"})

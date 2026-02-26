@@ -35,7 +35,7 @@ config/.env.local
 config/config.toml
 config/nodelist.toml
 !config/*.example.toml
-
+    
 # Temporary files
 *.tmp
 *.swp
@@ -45,7 +45,7 @@ cookies.txt
 
 # IDE
 .vscode/
-#.kiro/
+.kiro/
 .idea/
 *.iml
 

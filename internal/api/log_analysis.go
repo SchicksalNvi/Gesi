@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -17,16 +18,21 @@ import (
 
 // LogAnalysisHandler 日志分析处理器
 type LogAnalysisHandler struct {
-	service *services.LogAnalysisService
-	db      *gorm.DB
+	service            *services.LogAnalysisService
+	db                 *gorm.DB
+	activityLogService *services.ActivityLogService
 }
 
 // NewLogAnalysisHandler 创建日志分析处理器实例
-func NewLogAnalysisHandler(db *gorm.DB) *LogAnalysisHandler {
-	return &LogAnalysisHandler{
+func NewLogAnalysisHandler(db *gorm.DB, activityLogService ...*services.ActivityLogService) *LogAnalysisHandler {
+	h := &LogAnalysisHandler{
 		service: services.NewLogAnalysisService(db),
 		db:      db,
 	}
+	if len(activityLogService) > 0 {
+		h.activityLogService = activityLogService[0]
+	}
+	return h
 }
 
 // CreateLogEntry 创建日志条目
@@ -300,6 +306,11 @@ func (h *LogAnalysisHandler) CreateAnalysisRule(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, rule)
+
+	if h.activityLogService != nil {
+		msg := fmt.Sprintf("Created analysis rule: %s", rule.Name)
+		h.activityLogService.LogWithContext(c, "INFO", "create_analysis_rule", "analysis_rule", rule.Name, msg, nil)
+	}
 }
 
 // GetAnalysisRules 获取分析规则列表
@@ -413,6 +424,11 @@ func (h *LogAnalysisHandler) DeleteAnalysisRule(c *gin.Context) {
 	if err != nil {
 		handleAppError(c, err)
 		return
+	}
+
+	if h.activityLogService != nil {
+		msg := fmt.Sprintf("Deleted analysis rule ID: %d", id)
+		h.activityLogService.LogWithContext(c, "WARNING", "delete_analysis_rule", "analysis_rule", fmt.Sprintf("%d", id), msg, nil)
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Analysis rule deleted successfully"})
@@ -599,6 +615,11 @@ func (h *LogAnalysisHandler) CreateLogFilter(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, filter)
+
+	if h.activityLogService != nil {
+		msg := fmt.Sprintf("Created log filter: %s", filter.Name)
+		h.activityLogService.LogWithContext(c, "INFO", "create_log_filter", "log_filter", filter.Name, msg, nil)
+	}
 }
 
 // GetLogFilters 获取日志过滤器列表
@@ -723,6 +744,11 @@ func (h *LogAnalysisHandler) CreateLogExport(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, export)
+
+	if h.activityLogService != nil {
+		msg := fmt.Sprintf("Created log export: %s", export.Name)
+		h.activityLogService.LogWithContext(c, "INFO", "create_log_export", "log_export", export.Name, msg, nil)
+	}
 }
 
 // GetLogExports 获取日志导出任务列表
@@ -846,6 +872,11 @@ func (h *LogAnalysisHandler) CreateRetentionPolicy(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, policy)
+
+	if h.activityLogService != nil {
+		msg := fmt.Sprintf("Created retention policy: %s", policy.Name)
+		h.activityLogService.LogWithContext(c, "INFO", "create_retention_policy", "retention_policy", policy.Name, msg, nil)
+	}
 }
 
 // GetRetentionPolicies 获取保留策略列表
@@ -902,6 +933,11 @@ func (h *LogAnalysisHandler) DeleteRetentionPolicy(c *gin.Context) {
 		return
 	}
 
+	if h.activityLogService != nil {
+		msg := fmt.Sprintf("Deleted retention policy ID: %d", id)
+		h.activityLogService.LogWithContext(c, "WARNING", "delete_retention_policy", "retention_policy", fmt.Sprintf("%d", id), msg, nil)
+	}
+
 	c.JSON(http.StatusOK, gin.H{"message": "Retention policy deleted successfully"})
 }
 
@@ -911,6 +947,10 @@ func (h *LogAnalysisHandler) ExecuteRetentionPolicies(c *gin.Context) {
 	if err != nil {
 		handleAppError(c, err)
 		return
+	}
+
+	if h.activityLogService != nil {
+		h.activityLogService.LogWithContext(c, "INFO", "execute_retention_policies", "retention_policy", "all", "Executed retention policies", nil)
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Retention policies executed successfully"})

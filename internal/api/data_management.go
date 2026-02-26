@@ -30,14 +30,19 @@ type ImportRecord struct {
 
 // DataManagementAPI 数据管理API
 type DataManagementAPI struct {
-	dataService *services.DataManagementService
+	dataService        *services.DataManagementService
+	activityLogService *services.ActivityLogService
 }
 
 // NewDataManagementAPI 创建数据管理API实例
-func NewDataManagementAPI() *DataManagementAPI {
-	return &DataManagementAPI{
+func NewDataManagementAPI(activityLogService ...*services.ActivityLogService) *DataManagementAPI {
+	api := &DataManagementAPI{
 		dataService: services.NewDataManagementService(),
 	}
+	if len(activityLogService) > 0 {
+		api.activityLogService = activityLogService[0]
+	}
+	return api
 }
 
 // generateID 生成唯一ID
@@ -158,6 +163,11 @@ func (api *DataManagementAPI) ExportData(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, exportRecord)
+
+	if api.activityLogService != nil {
+		msg := fmt.Sprintf("Exported data: type=%s format=%s", req.ExportType, req.Format)
+		api.activityLogService.LogWithContext(c, "INFO", "export_data", "data_management", req.ExportType, msg, nil)
+	}
 }
 
 // GetExportRecords 获取导出记录列表
@@ -301,6 +311,11 @@ func (api *DataManagementAPI) DeleteExportRecord(c *gin.Context) {
 		return
 	}
 
+	if api.activityLogService != nil {
+		msg := fmt.Sprintf("Deleted export record: %s", id)
+		api.activityLogService.LogWithContext(c, "WARNING", "delete_export", "data_management", id, msg, nil)
+	}
+
 	c.JSON(http.StatusOK, SuccessResponse{Message: "Export record deleted successfully"})
 }
 
@@ -351,6 +366,11 @@ func (api *DataManagementAPI) CreateBackup(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, backupRecord)
+
+	if api.activityLogService != nil {
+		msg := fmt.Sprintf("Created backup: %s (%s)", req.Name, req.BackupType)
+		api.activityLogService.LogWithContext(c, "INFO", "create_backup", "data_management", req.Name, msg, nil)
+	}
 }
 
 // GetBackupRecords 获取备份记录列表
@@ -493,6 +513,11 @@ func (api *DataManagementAPI) DeleteBackupRecord(c *gin.Context) {
 		return
 	}
 
+	if api.activityLogService != nil {
+		msg := fmt.Sprintf("Deleted backup record: %s", id)
+		api.activityLogService.LogWithContext(c, "WARNING", "delete_backup", "data_management", id, msg, nil)
+	}
+
 	c.JSON(http.StatusOK, SuccessResponse{Message: "Backup record deleted successfully"})
 }
 
@@ -618,6 +643,11 @@ func (api *DataManagementAPI) ImportData(c *gin.Context) {
 		"type":      importType,
 		"status":    "processing",
 	})
+
+	if api.activityLogService != nil {
+		msg := fmt.Sprintf("Imported data: file=%s type=%s", file.Filename, importType)
+		api.activityLogService.LogWithContext(c, "INFO", "import_data", "data_management", file.Filename, msg, nil)
+	}
 }
 
 // RegisterDataManagementRoutes 注册数据管理路由

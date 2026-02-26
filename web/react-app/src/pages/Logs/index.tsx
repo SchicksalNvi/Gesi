@@ -28,7 +28,7 @@ import { useStore } from '../../store';
 const { RangePicker } = DatePicker;
 
 const Logs: React.FC = () => {
-  const { t, autoRefreshEnabled, setAutoRefreshEnabled } = useStore();
+  const { t, user } = useStore();
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -270,26 +270,22 @@ const Logs: React.FC = () => {
         <h1 style={{ margin: 0 }}>{t.logs.activityLogs}</h1>
         <Space>
           <Button
-            type={autoRefreshEnabled ? 'default' : 'dashed'}
-            onClick={() => setAutoRefreshEnabled(!autoRefreshEnabled)}
-          >
-            Auto Refresh: {autoRefreshEnabled ? 'ON' : 'OFF'}
-          </Button>
-          <Button
             icon={<DownloadOutlined />}
             onClick={handleExport}
             disabled={loading}
           >
             {t.common.export}
           </Button>
-          <Button
-            danger
-            icon={<DeleteOutlined />}
-            onClick={handleClearLogs}
-            disabled={loading}
-          >
-            {t.logs.clearLogs}
-          </Button>
+          {user?.is_admin && (
+            <Button
+              danger
+              icon={<DeleteOutlined />}
+              onClick={handleClearLogs}
+              disabled={loading}
+            >
+              {t.logs.clearLogs}
+            </Button>
+          )}
           <Button
             type="primary"
             icon={<ReloadOutlined />}
@@ -348,6 +344,9 @@ const Logs: React.FC = () => {
               { label: t.processes.restart, value: 'restart_process' },
               { label: 'Login', value: 'login' },
               { label: t.nav.logout, value: 'logout' },
+              { label: t.users.addUser, value: 'create_user' },
+              { label: t.users.deleteUser, value: 'delete_user' },
+              { label: t.users.resetPassword, value: 'change_password' },
             ]}
           />
           <Select

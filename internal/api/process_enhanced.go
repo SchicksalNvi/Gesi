@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -14,16 +15,21 @@ import (
 
 // ProcessEnhancedHandler 进程增强处理器
 type ProcessEnhancedHandler struct {
-	service *services.ProcessEnhancedService
-	db      *gorm.DB
+	service            *services.ProcessEnhancedService
+	db                 *gorm.DB
+	activityLogService *services.ActivityLogService
 }
 
 // NewProcessEnhancedHandler 创建进程增强处理器实例
-func NewProcessEnhancedHandler(db *gorm.DB) *ProcessEnhancedHandler {
-	return &ProcessEnhancedHandler{
+func NewProcessEnhancedHandler(db *gorm.DB, activityLogService ...*services.ActivityLogService) *ProcessEnhancedHandler {
+	h := &ProcessEnhancedHandler{
 		service: services.NewProcessEnhancedService(db),
 		db:      db,
 	}
+	if len(activityLogService) > 0 {
+		h.activityLogService = activityLogService[0]
+	}
+	return h
 }
 
 // StartScheduler 启动任务调度器
@@ -34,11 +40,20 @@ func (h *ProcessEnhancedHandler) StartScheduler(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "Task scheduler started successfully"})
+
+	if h.activityLogService != nil {
+		h.activityLogService.LogWithContext(c, "INFO", "start_scheduler", "scheduler", "task_scheduler", "Started task scheduler", nil)
+	}
 }
 
 // StopScheduler 停止任务调度器
 func (h *ProcessEnhancedHandler) StopScheduler(c *gin.Context) {
 	h.service.StopScheduler()
+
+	if h.activityLogService != nil {
+		h.activityLogService.LogWithContext(c, "WARNING", "stop_scheduler", "scheduler", "task_scheduler", "Stopped task scheduler", nil)
+	}
+
 	c.JSON(http.StatusOK, gin.H{"message": "Task scheduler stopped successfully"})
 }
 
@@ -78,6 +93,11 @@ func (h *ProcessEnhancedHandler) CreateProcessGroup(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, group)
+
+	if h.activityLogService != nil {
+		msg := fmt.Sprintf("Created process group: %s", group.Name)
+		h.activityLogService.LogWithContext(c, "INFO", "create_process_group", "process_group", group.Name, msg, nil)
+	}
 }
 
 // GetProcessGroups 获取进程分组列表
@@ -174,6 +194,11 @@ func (h *ProcessEnhancedHandler) DeleteProcessGroup(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
+	}
+
+	if h.activityLogService != nil {
+		msg := fmt.Sprintf("Deleted process group ID: %d", id)
+		h.activityLogService.LogWithContext(c, "WARNING", "delete_process_group", "process_group", fmt.Sprintf("%d", id), msg, nil)
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Process group deleted successfully"})
@@ -432,6 +457,11 @@ func (h *ProcessEnhancedHandler) CreateScheduledTask(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, task)
+
+	if h.activityLogService != nil {
+		msg := fmt.Sprintf("Created scheduled task: %s", task.Name)
+		h.activityLogService.LogWithContext(c, "INFO", "create_scheduled_task", "scheduled_task", task.Name, msg, nil)
+	}
 }
 
 // GetScheduledTasks 获取定时任务列表
@@ -536,6 +566,11 @@ func (h *ProcessEnhancedHandler) DeleteScheduledTask(c *gin.Context) {
 		return
 	}
 
+	if h.activityLogService != nil {
+		msg := fmt.Sprintf("Deleted scheduled task ID: %d", id)
+		h.activityLogService.LogWithContext(c, "WARNING", "delete_scheduled_task", "scheduled_task", fmt.Sprintf("%d", id), msg, nil)
+	}
+
 	c.JSON(http.StatusOK, gin.H{"message": "Scheduled task deleted successfully"})
 }
 
@@ -603,6 +638,11 @@ func (h *ProcessEnhancedHandler) CreateProcessTemplate(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, template)
+
+	if h.activityLogService != nil {
+		msg := fmt.Sprintf("Created process template: %s", template.Name)
+		h.activityLogService.LogWithContext(c, "INFO", "create_process_template", "process_template", template.Name, msg, nil)
+	}
 }
 
 // GetProcessTemplates 获取进程模板列表
@@ -702,6 +742,11 @@ func (h *ProcessEnhancedHandler) DeleteProcessTemplate(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
+	}
+
+	if h.activityLogService != nil {
+		msg := fmt.Sprintf("Deleted process template ID: %d", id)
+		h.activityLogService.LogWithContext(c, "WARNING", "delete_process_template", "process_template", fmt.Sprintf("%d", id), msg, nil)
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Process template deleted successfully"})
