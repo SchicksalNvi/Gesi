@@ -8,6 +8,8 @@ on:
 jobs:
   release:
     runs-on: default
+    env:
+      PATH: /usr/local/go/bin:/usr/local/bin:/usr/bin:/bin
     steps:
       - name: Checkout
         uses: actions/checkout@v4
