@@ -22,8 +22,8 @@ backend:
 	CGO_ENABLED=0 GOOS=$(GOOS) GOARCH=$(GOARCH) \
 		go build -ldflags="-s -w" -o $(BUILD_DIR)/$(APP_NAME) cmd/main.go
 
-## 打包发布
-release: all
+## 打包发布（前端需提前构建: make frontend）
+release: backend
 	@echo "==> Packaging release $(VERSION)..."
 	$(eval PKG := $(APP_NAME)-$(VERSION)-$(GOOS)-$(GOARCH))
 	@rm -rf $(RELEASE_DIR)/$(PKG)

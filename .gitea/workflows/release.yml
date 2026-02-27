@@ -23,52 +23,29 @@ jobs:
           node-version: '20'
 
       - name: Build frontend
-        run: cd web/react-app && npm ci && npm run build
+        run: make frontend
 
-      - name: Package linux/amd64
+      - name: Build release packages
         run: |
           VERSION=${GITHUB_REF_NAME}
-          PKG=superview-${VERSION}-linux-amd64
-          mkdir -p release/${PKG}/{config,data,logs,pids,web/react-app}
-          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o release/${PKG}/superview cmd/main.go
-          cp -r web/react-app/dist release/${PKG}/web/react-app/dist
-          cp config/config.toml   release/${PKG}/config/config.toml.example
-          cp config/nodelist.toml release/${PKG}/config/nodelist.toml.example
-          cp config/.env          release/${PKG}/config/.env.example
-          cp superview.sh README.md release/${PKG}/
-          cd release && tar -czf ${PKG}.tar.gz ${PKG}
+          make release VERSION=${VERSION} GOOS=linux GOARCH=amd64
+          make release VERSION=${VERSION} GOOS=linux GOARCH=arm64
 
-      - name: Package linux/arm64
-        run: |
-          VERSION=${GITHUB_REF_NAME}
-          PKG=superview-${VERSION}-linux-arm64
-          mkdir -p release/${PKG}/{config,data,logs,pids,web/react-app}
-          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -o release/${PKG}/superview cmd/main.go
-          cp -r web/react-app/dist release/${PKG}/web/react-app/dist
-          cp config/config.toml   release/${PKG}/config/config.toml.example
-          cp config/nodelist.toml release/${PKG}/config/nodelist.toml.example
-          cp config/.env          release/${PKG}/config/.env.example
-          cp superview.sh README.md release/${PKG}/
-          cd release && tar -czf ${PKG}.tar.gz ${PKG}
-
-      - name: Create Release via Gitea API
+      - name: Create Release and Upload
         run: |
           VERSION=${GITHUB_REF_NAME}
           API_URL="${GITHUB_SERVER_URL}/api/v1"
           REPO="${GITHUB_REPOSITORY}"
 
-          # 创建 Release
           RELEASE_ID=$(curl -s -X POST \
             -H "Authorization: token ${GITHUB_TOKEN}" \
             -H "Content-Type: application/json" \
             -d "{\"tag_name\":\"${VERSION}\",\"name\":\"${VERSION}\",\"body\":\"Release ${VERSION}\"}" \
             "${API_URL}/repos/${REPO}/releases" | grep -o '"id":[0-9]*' | head -1 | cut -d: -f2)
 
-          # 上传附件
           for f in release/*.tar.gz; do
-            FILENAME=$(basename "$f")
             curl -s -X POST \
               -H "Authorization: token ${GITHUB_TOKEN}" \
               -F "attachment=@${f}" \
-              "${API_URL}/repos/${REPO}/releases/${RELEASE_ID}/assets?name=${FILENAME}"
+              "${API_URL}/repos/${REPO}/releases/${RELEASE_ID}/assets?name=$(basename $f)"
           done
