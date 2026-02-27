@@ -1,0 +1,60 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Build frontend
+        run: cd web/react-app && npm ci && npm run build
+
+      - name: Build and package (linux/amd64)
+        run: |
+          VERSION=${GITHUB_REF_NAME}
+          PKG=superview-${VERSION}-linux-amd64
+          mkdir -p release/${PKG}/{config,data,logs,pids,web/react-app}
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o release/${PKG}/superview cmd/main.go
+          cp -r web/react-app/dist release/${PKG}/web/react-app/dist
+          cp config/config.toml   release/${PKG}/config/config.toml.example
+          cp config/nodelist.toml release/${PKG}/config/nodelist.toml.example
+          cp config/.env          release/${PKG}/config/.env.example
+          cp superview.sh         release/${PKG}/
+          cp README.md            release/${PKG}/
+          cd release && tar -czf ${PKG}.tar.gz ${PKG}
+
+      - name: Build and package (linux/arm64)
+        run: |
+          VERSION=${GITHUB_REF_NAME}
+          PKG=superview-${VERSION}-linux-arm64
+          mkdir -p release/${PKG}/{config,data,logs,pids,web/react-app}
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -o release/${PKG}/superview cmd/main.go
+          cp -r web/react-app/dist release/${PKG}/web/react-app/dist
+          cp config/config.toml   release/${PKG}/config/config.toml.example
+          cp config/nodelist.toml release/${PKG}/config/nodelist.toml.example
+          cp config/.env          release/${PKG}/config/.env.example
+          cp superview.sh         release/${PKG}/
+          cp README.md            release/${PKG}/
+          cd release && tar -czf ${PKG}.tar.gz ${PKG}
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/*.tar.gz
+          generate_release_notes: true
