@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 	"superview/internal/models"
-	"gorm.io/driver/sqlite"
+	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
 	"log"
 	"os"

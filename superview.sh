@@ -32,6 +32,18 @@ build_frontend() {
         log_warn "Frontend directory not found"
         return 1
     fi
+
+    # Vite 5 requires Node >= 18
+    local node_major
+    node_major=$(node -v 2>/dev/null | sed 's/v\([0-9]*\).*/\1/')
+    if [ -z "$node_major" ]; then
+        log_error "Node.js not found. Install Node.js >= 18."
+        return 1
+    fi
+    if [ "$node_major" -lt 18 ]; then
+        log_error "Node.js >= 18 required (current: $(node -v)). Upgrade Node.js first."
+        return 1
+    fi
     
     log_info "Building frontend..."
     cd "$FRONTEND_DIR"
@@ -149,6 +161,56 @@ run() {
     exec "./$APP_NAME"
 }
 
+# 构建发布包
+release() {
+    local version="${1:-$(date +%Y%m%d)}"
+    local release_dir="release"
+    local targets="${RELEASE_TARGETS:-linux-amd64}"
+
+    # 先构建前端
+    build_frontend
+
+    rm -rf "$release_dir"
+    mkdir -p "$release_dir"
+
+    for target in $targets; do
+        local goos="${target%-*}"
+        local goarch="${target#*-}"
+        local bin_name="$APP_NAME"
+        [ "$goos" = "windows" ] && bin_name="${APP_NAME}.exe"
+
+        local pkg_name="${APP_NAME}-${version}-${goos}-${goarch}"
+        local pkg_dir="${release_dir}/${pkg_name}"
+
+        log_info "Building ${goos}/${goarch}..."
+        mkdir -p "$pkg_dir"
+
+        CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" \
+            go build -ldflags="-s -w" -o "${pkg_dir}/${bin_name}" cmd/main.go
+
+        # 打包前端资源和配置模板
+        cp -r "$FRONTEND_DIR/dist" "${pkg_dir}/web/react-app/dist"
+        mkdir -p "${pkg_dir}/config" "${pkg_dir}/data" "${pkg_dir}/logs" "${pkg_dir}/pids"
+        cp config/config.toml "${pkg_dir}/config/config.toml.example"
+        cp config/nodelist.toml "${pkg_dir}/config/nodelist.toml.example"
+        cp config/.env "${pkg_dir}/config/.env.example"
+        cp superview.sh "${pkg_dir}/"
+        cp README.md "${pkg_dir}/" 2>/dev/null || true
+
+        # 打包
+        if [ "$goos" = "windows" ]; then
+            (cd "$release_dir" && zip -rq "${pkg_name}.zip" "$pkg_name")
+        else
+            tar -czf "${release_dir}/${pkg_name}.tar.gz" -C "$release_dir" "$pkg_name"
+        fi
+        rm -rf "$pkg_dir"
+        log_info "Created: ${release_dir}/${pkg_name}.tar.gz"
+    done
+
+    log_info "Release packages in ${release_dir}/"
+    ls -lh "$release_dir/"
+}
+
 # 帮助
 show_help() {
     cat << EOF
@@ -160,6 +222,7 @@ Superview 管理脚本
   build           编译前后端
   build-backend   仅编译后端
   build-frontend  仅编译前端
+  release [ver]   构建发布包（默认当前日期为版本号）
   start           后台启动
   stop            停止
   restart         重启
@@ -167,10 +230,16 @@ Superview 管理脚本
   run             前台运行（开发用）
   help            显示帮助
 
+环境变量:
+  RELEASE_TARGETS   构建目标平台（空格分隔，默认 linux-amd64）
+                    可选: linux-amd64 linux-arm64 darwin-amd64 darwin-arm64 windows-amd64
+
 示例:
-  $0 build        # 编译
-  $0 start        # 启动
-  $0 restart      # 重启
+  $0 build                          # 编译
+  $0 release v1.0.0                 # 构建 linux-amd64 发布包
+  RELEASE_TARGETS="linux-amd64 linux-arm64" $0 release v1.0.0  # 多平台
+  $0 start                          # 启动
+  $0 restart                        # 重启
 EOF
 }
 
@@ -182,6 +251,7 @@ main() {
         build)          build_all ;;
         build-backend)  build_backend ;;
         build-frontend) build_frontend ;;
+        release)        release "${2:-}" ;;
         start)          start ;;
         stop)           stop ;;
         restart)        restart ;;

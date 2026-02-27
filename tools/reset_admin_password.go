@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"superview/internal/models"
 	"golang.org/x/crypto/bcrypt"
-	"gorm.io/driver/sqlite"
+	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
 	"log"
 	"os"
