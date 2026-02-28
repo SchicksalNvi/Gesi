@@ -29,7 +29,7 @@ internal/database/data/
 # Environment
 .env
 .env.local
-config/.env
+#config/.env
 config/.env.local
 
 # Configuration files (exclude actual configs, include examples)
