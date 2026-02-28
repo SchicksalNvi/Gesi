@@ -1,0 +1,34 @@
+# Superview 节点配置示例
+# 复制此文件为 nodelist.toml 并根据实际情况修改
+
+# 节点配置示例 1
+[[nodes]]
+name = "node-1"
+environment = "production"
+host = "127.0.0.1"
+port = 9001
+username = "user"
+password = "${NODE_PASSWORD}"
+
+# 节点配置示例 2
+[[nodes]]
+name = "node-2"
+environment = "staging"
+host = "192.168.1.11"
+port = 9001
+username = "supervisor"
+password = "${NODE_PASSWORD}"
+
+# 节点配置示例 3
+[[nodes]]
+name = "node-3"
+environment = "development"
+host = "192.168.1.12"
+port = 9001
+username = "supervisor"
+password = "${NODE_PASSWORD}"
+
+# 可以继续添加更多节点...
+# 支持环境变量展开，例如：
+# password = "${NODE_PASSWORD}"
+# host = "${NODE_HOST}"

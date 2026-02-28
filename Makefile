@@ -31,9 +31,9 @@ release: backend
 	@mkdir -p $(RELEASE_DIR)/$(PKG)/{config,data,logs,pids,web/react-app}
 	cp $(BUILD_DIR)/$(APP_NAME) $(RELEASE_DIR)/$(PKG)/
 	cp -r $(FRONTEND)/dist $(RELEASE_DIR)/$(PKG)/web/react-app/dist
-	cp config/config.toml   $(RELEASE_DIR)/$(PKG)/config/config.toml.example
-	cp config/nodelist.toml $(RELEASE_DIR)/$(PKG)/config/nodelist.toml.example
-	cp config/.env          $(RELEASE_DIR)/$(PKG)/config/.env.example
+	cp config/config.toml.example   $(RELEASE_DIR)/$(PKG)/config/config.toml.example
+	cp config/nodelist.toml.example $(RELEASE_DIR)/$(PKG)/config/nodelist.toml.example
+	cp config/.env.example          $(RELEASE_DIR)/$(PKG)/config/.env.example
 	cp superview.sh         $(RELEASE_DIR)/$(PKG)/
 	cp README.md            $(RELEASE_DIR)/$(PKG)/ 2>/dev/null || true
 	cd $(RELEASE_DIR) && tar -czf $(PKG).tar.gz $(PKG)

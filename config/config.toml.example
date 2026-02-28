@@ -1,0 +1,58 @@
+# Superview 系统配置示例
+# 复制此文件为 config.toml 并根据实际情况修改
+
+# 服务器配置
+[server]
+port = 8081
+
+# 管理员账户配置（仅首次启动时用于初始化，之后通过 Web UI 管理）
+[admin]
+username = "admin"
+password = "${ADMIN_PASSWORD}"  # 从环境变量获取管理员密码
+email = "${ADMIN_EMAIL}"        # 从环境变量获取管理员邮箱
+
+# 数据库配置
+database = "data/superview.db"
+
+# Prometheus 监控指标配置
+[metrics]
+enabled = true                  # 是否启用 /metrics 端点
+path = "/metrics"               # 指标暴露路径
+username = "${METRICS_USERNAME}"  # Basic Auth 用户名（可选，从环境变量获取）
+password = "${METRICS_PASSWORD}"  # Basic Auth 密码（可选，从环境变量获取）
+
+# 性能配置
+[performance]
+memory_monitoring_enabled = true
+memory_update_interval = "30s"
+
+# 扩展性配置 - 支持大规模节点部署
+# max_concurrent_connections = 100    # 最大并发连接数（默认100，支持上百个节点）
+# max_websocket_connections = 500     # 最大WebSocket连接数（默认500）
+
+# WebSocket 配置
+[websocket]
+# 允许的来源列表（CORS），支持多个域名
+# 如果不配置，默认允许 localhost:3000 和 localhost:8081
+# 也可通过环境变量 WEBSOCKET_ALLOWED_ORIGINS 设置（逗号分隔）
+# allowed_origins = ["http://localhost:3000", "http://localhost:8081", "https://your-domain.com"]
+
+# CORS 配置
+[cors]
+# 允许的来源列表，用于 HTTP API 请求
+# 如果不配置，默认允许 localhost:3000 和 localhost:8081
+# allowed_origins = ["http://localhost:3000", "http://127.0.0.1:3000", "https://your-domain.com"]
+
+# 开发者工具配置
+[developer_tools]
+enabled = false
+
+# 注意：节点配置已移至 config/nodelist.toml
+# 如需向后兼容，仍可在此文件中定义节点：
+# [[nodes]]
+# name = "legacy-node"
+# environment = "production"
+# host = "127.0.0.1"
+# port = 9001
+# username = "user"
+# password = "${NODE_PASSWORD}"
