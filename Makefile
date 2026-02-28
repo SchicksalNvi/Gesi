@@ -13,7 +13,7 @@ all: backend frontend
 ## 前端构建
 frontend:
 	@echo "==> Building frontend..."
-	cd $(FRONTEND) && npm ci && npm run build
+	cd $(FRONTEND) && NODE_OPTIONS=--max-old-space-size=768 npm ci && npm run build
 
 ## 后端构建
 backend:
