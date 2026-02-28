@@ -20,6 +20,7 @@ backend:
 	@echo "==> Building backend ($(GOOS)/$(GOARCH))..."
 	@mkdir -p $(BUILD_DIR)
 	CGO_ENABLED=0 GOOS=$(GOOS) GOARCH=$(GOARCH) \
+	GOGC=20 GOMEMLIMIT=1200MiB \
 		go build -ldflags="-s -w" -o $(BUILD_DIR)/$(APP_NAME) cmd/main.go
 
 ## 打包发布（前端需提前构建: make frontend）
