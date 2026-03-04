@@ -316,6 +316,56 @@ func main() {
 		}
 	}
 
+	// 从数据库加载已发现的节点（扫描发现的节点）
+	var dbNodes []models.Node
+	if err := db.Find(&dbNodes).Error; err != nil {
+		logger.Error("Failed to load nodes from database", zap.Error(err))
+	} else {
+		logger.Info("Loading nodes from database", zap.Int("nodes_count", len(dbNodes)))
+		for _, node := range dbNodes {
+			// 跳过已经从配置文件加载的节点（避免重复）
+			exists := false
+			for _, configNode := range nodeConfig.Nodes {
+				if configNode.Name == node.Name {
+					exists = true
+					break
+				}
+			}
+			if exists {
+				logger.Debug("Skipping node from database (already loaded from config)",
+					zap.String("node_name", node.Name))
+				continue
+			}
+
+			logger.Info("Adding node from database",
+				zap.String("name", node.Name),
+				zap.String("host", node.Host),
+				zap.Int("port", node.Port),
+				zap.String("status", node.Status))
+			
+			environment := "discovered"
+			if node.Environment != "" {
+				environment = node.Environment
+			}
+			
+			err := supervisorService.AddNode(
+				node.Name,
+				environment,
+				node.Host,
+				node.Port,
+				node.Username,
+				node.Password,
+			)
+			if err != nil {
+				logger.Error("Failed to add node from database",
+					zap.String("node_name", node.Name),
+					zap.Error(err))
+			} else {
+				logger.Info("Successfully added node from database", zap.String("node_name", node.Name))
+			}
+		}
+	}
+
 	// 启动自动刷新和状态监控（从系统设置读取间隔）
 	refreshInterval := getRefreshIntervalFromSettings(db)
 	stopRefresh := supervisorService.StartAutoRefresh(refreshInterval)

@@ -77,7 +77,7 @@ func setupTestRouter(t *testing.T, db *gorm.DB) *gin.Engine {
 
 	discoveryRepo := repository.NewDiscoveryRepository(db)
 	nodeRepo := repository.NewNodeRepository(db)
-	discoveryService := services.NewDiscoveryService(db, discoveryRepo, nodeRepo, hub)
+	discoveryService := services.NewDiscoveryService(db, discoveryRepo, nodeRepo, hub, nil)
 	activityLogService := services.NewActivityLogService(db)
 	discoveryAPI := NewDiscoveryAPI(discoveryService, activityLogService)
 

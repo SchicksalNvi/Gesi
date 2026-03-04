@@ -552,11 +552,25 @@ func (s *Scanner) registerDiscoveredNode(ctx context.Context, taskID uint, probe
 		return
 	}
 
-	logger.Info("Discovered node registered",
+	logger.Info("Discovered node registered in database",
 		zap.Uint("task_id", taskID),
 		zap.String("node_name", nodeName),
 		zap.String("host", probe.IP),
 		zap.Int("port", probe.Port))
+
+	// Add node to SupervisorService memory
+	supervisorSvc := s.service.GetSupervisorService()
+	if supervisorSvc != nil {
+		if err := supervisorSvc.AddNode(nodeName, "discovered", probe.IP, probe.Port, username, password); err != nil {
+			logger.Warn("Failed to add discovered node to supervisor service",
+				zap.String("node_name", nodeName),
+				zap.Error(err))
+			// Not fatal - node is in database, can be loaded on restart
+		} else {
+			logger.Info("Discovered node loaded into supervisor service",
+				zap.String("node_name", nodeName))
+		}
+	}
 
 	// Log node registration - Requirement 8.2
 	if activityLog := s.service.GetActivityLogService(); activityLog != nil {

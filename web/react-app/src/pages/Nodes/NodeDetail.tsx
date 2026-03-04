@@ -41,6 +41,7 @@ const NodeDetail: React.FC = () => {
   const [actionLoading, setActionLoading] = useState<Record<string, boolean>>({});
   const [logViewerVisible, setLogViewerVisible] = useState(false);
   const [selectedProcess, setSelectedProcess] = useState<Process | null>(null);
+  const [pageSize, setPageSize] = useState(10);
 
   useEffect(() => {
     if (nodeName) {
@@ -305,7 +306,13 @@ const NodeDetail: React.FC = () => {
                   columns={processColumns}
                   dataSource={processes}
                   rowKey="name"
-                  pagination={{ pageSize: 10 }}
+                  pagination={{
+                    pageSize: pageSize,
+                    showSizeChanger: true,
+                    pageSizeOptions: ['10', '20', '50', '100'],
+                    onShowSizeChange: (_, size) => setPageSize(size),
+                    showTotal: (total) => `${t.common.total} ${total} ${t.processes.title}`,
+                  }}
                   scroll={{ x: 800 }}
                 />
               </Card>

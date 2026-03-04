@@ -41,7 +41,7 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB, service *supervisor.SupervisorServi
 	// Requirements: 9.3, 9.4 - Authentication required for all discovery endpoints
 	discoveryRepo := repository.NewDiscoveryRepository(db)
 	nodeRepo := repository.NewNodeRepository(db)
-	discoveryService := services.NewDiscoveryService(db, discoveryRepo, nodeRepo, hub)
+	discoveryService := services.NewDiscoveryService(db, discoveryRepo, nodeRepo, hub, service)
 	discoveryAPI := NewDiscoveryAPI(discoveryService, activityLogService)
 
 	// Auth routes
