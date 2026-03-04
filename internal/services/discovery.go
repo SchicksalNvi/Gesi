@@ -40,24 +40,31 @@ type ScanContext struct {
 	Pool   *utils.WorkerPool
 }
 
+// SupervisorService interface for adding discovered nodes to memory
+type SupervisorService interface {
+	AddNode(name, environment, host string, port int, username, password string) error
+}
+
 // DiscoveryService handles node discovery operations.
 type DiscoveryService struct {
 	db                 *gorm.DB
 	repo               repository.DiscoveryRepository
 	nodeRepo           repository.NodeRepository
 	hub                WebSocketHub
+	supervisorService  SupervisorService
 	activityLogService *ActivityLogService
 	activeScans        map[uint]*ScanContext
 	mu                 sync.RWMutex
 }
 
 // NewDiscoveryService creates a new DiscoveryService instance.
-func NewDiscoveryService(db *gorm.DB, repo repository.DiscoveryRepository, nodeRepo repository.NodeRepository, hub WebSocketHub) *DiscoveryService {
+func NewDiscoveryService(db *gorm.DB, repo repository.DiscoveryRepository, nodeRepo repository.NodeRepository, hub WebSocketHub, supervisorService SupervisorService) *DiscoveryService {
 	return &DiscoveryService{
 		db:                 db,
 		repo:               repo,
 		nodeRepo:           nodeRepo,
 		hub:                hub,
+		supervisorService:  supervisorService,
 		activityLogService: NewActivityLogService(db),
 		activeScans:        make(map[uint]*ScanContext),
 	}
@@ -327,4 +334,9 @@ func (s *DiscoveryService) GetHub() WebSocketHub {
 // Requirements: 8.1, 8.2, 8.3, 8.4
 func (s *DiscoveryService) GetActivityLogService() *ActivityLogService {
 	return s.activityLogService
+}
+
+// GetSupervisorService returns the supervisor service for adding discovered nodes.
+func (s *DiscoveryService) GetSupervisorService() SupervisorService {
+	return s.supervisorService
 }

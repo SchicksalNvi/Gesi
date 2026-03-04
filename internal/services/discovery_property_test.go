@@ -386,7 +386,7 @@ func TestTaskCreationInvariants(t *testing.T) {
 			nodeRepo := newMockNodeRepository(db)
 			hub := &mockWebSocketHub{}
 			
-			service := NewDiscoveryService(db, repo, nodeRepo, hub)
+			service := NewDiscoveryService(db, repo, nodeRepo, hub, nil)
 			
 			taskIDs := make(map[uint]bool)
 			
@@ -434,7 +434,7 @@ func TestTaskCreationInvariants(t *testing.T) {
 			nodeRepo := newMockNodeRepository(db)
 			hub := &mockWebSocketHub{}
 			
-			service := NewDiscoveryService(db, repo, nodeRepo, hub)
+			service := NewDiscoveryService(db, repo, nodeRepo, hub, nil)
 			
 			cidr := fmt.Sprintf("%d.%d.%d.%d/%d", o1, o2, o3, o4, prefix)
 			req := &DiscoveryRequest{
@@ -476,7 +476,7 @@ func TestTaskCreationInvariants(t *testing.T) {
 			nodeRepo := newMockNodeRepository(db)
 			hub := &mockWebSocketHub{}
 			
-			service := NewDiscoveryService(db, repo, nodeRepo, hub)
+			service := NewDiscoveryService(db, repo, nodeRepo, hub, nil)
 			
 			beforeCreate := time.Now()
 			
@@ -527,7 +527,7 @@ func TestTaskCreationInvariants(t *testing.T) {
 			nodeRepo := newMockNodeRepository(db)
 			hub := &mockWebSocketHub{}
 			
-			service := NewDiscoveryService(db, repo, nodeRepo, hub)
+			service := NewDiscoveryService(db, repo, nodeRepo, hub, nil)
 			
 			cidr := fmt.Sprintf("%d.%d.%d.%d/%d", o1, o2, o3, o4, prefix)
 			req := &DiscoveryRequest{
