@@ -304,6 +304,34 @@ func (s *SupervisorService) GetNode(name string) (*Node, error) {
 	return node, nil
 }
 
+// UpdateNodeInfo updates a node's name and/or environment in memory.
+// If the name changes, the node is re-keyed in the map.
+func (s *SupervisorService) UpdateNodeInfo(oldName, newName, environment string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if atomic.LoadInt32(&s.shutdown) != 0 {
+		return errors.NewInternalError("service is shutting down", nil)
+	}
+
+	node, exists := s.nodes[oldName]
+	if !exists {
+		return errors.NewNotFoundError("node", oldName)
+	}
+
+	if newName != oldName {
+		if _, dup := s.nodes[newName]; dup {
+			return errors.NewConflictError("node", "node "+newName+" already exists")
+		}
+		delete(s.nodes, oldName)
+		node.Name = newName
+		s.nodes[newName] = node
+	}
+
+	node.Environment = environment
+	return nil
+}
+
 func (s *SupervisorService) GetAllNodes() []*Node {
 	// 检查是否已关闭
 	if atomic.LoadInt32(&s.shutdown) != 0 {

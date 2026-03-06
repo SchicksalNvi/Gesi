@@ -290,64 +290,49 @@ func main() {
 	alertMonitor.Start()
 	logger.Info("Alert Monitor started")
 
-	// 添加配置的节点
-	logger.Info("Loading nodes from config", zap.Int("nodes_count", len(nodeConfig.Nodes)))
+	// 同步 nodelist 配置到数据库（配置作为种子，数据库是唯一真相源）
+	logger.Info("Syncing nodelist config to database", zap.Int("config_nodes", len(nodeConfig.Nodes)))
 	for _, node := range nodeConfig.Nodes {
-		logger.Info("Adding node",
-			zap.String("name", node.Name),
-			zap.String("environment", node.Environment),
-			zap.String("host", node.Host),
-			zap.Int("port", node.Port),
-			zap.String("username", node.Username))
-		err := supervisorService.AddNode(
-			node.Name,
-			node.Environment,
-			node.Host,
-			node.Port,
-			node.Username,
-			node.Password,
-		)
-		if err != nil {
-			logger.Error("Failed to add node",
-				zap.String("node_name", node.Name),
+		var count int64
+		db.Model(&models.Node{}).Where("host = ? AND port = ?", node.Host, node.Port).Count(&count)
+		if count > 0 {
+			logger.Debug("Node already in database, skipping",
+				zap.String("host", node.Host),
+				zap.Int("port", node.Port))
+			continue
+		}
+		dbNode := models.Node{
+			Name:        node.Name,
+			Host:        node.Host,
+			Port:        node.Port,
+			Username:    node.Username,
+			Password:    node.Password,
+			Environment: node.Environment,
+			Status:      "configured",
+		}
+		if err := db.Create(&dbNode).Error; err != nil {
+			logger.Error("Failed to seed node to database",
+				zap.String("name", node.Name),
 				zap.Error(err))
 		} else {
-			logger.Info("Successfully added node", zap.String("node_name", node.Name))
+			logger.Info("Seeded node to database",
+				zap.String("name", node.Name),
+				zap.String("host", node.Host),
+				zap.Int("port", node.Port))
 		}
 	}
 
-	// 从数据库加载已发现的节点（扫描发现的节点）
-	var dbNodes []models.Node
-	if err := db.Find(&dbNodes).Error; err != nil {
+	// 从数据库加载所有节点到 SupervisorService（数据库是唯一真相源）
+	var allNodes []models.Node
+	if err := db.Find(&allNodes).Error; err != nil {
 		logger.Error("Failed to load nodes from database", zap.Error(err))
 	} else {
-		logger.Info("Loading nodes from database", zap.Int("nodes_count", len(dbNodes)))
-		for _, node := range dbNodes {
-			// 跳过已经从配置文件加载的节点（避免重复）
-			exists := false
-			for _, configNode := range nodeConfig.Nodes {
-				if configNode.Name == node.Name {
-					exists = true
-					break
-				}
+		logger.Info("Loading all nodes from database", zap.Int("count", len(allNodes)))
+		for _, node := range allNodes {
+			environment := node.Environment
+			if environment == "" {
+				environment = "default"
 			}
-			if exists {
-				logger.Debug("Skipping node from database (already loaded from config)",
-					zap.String("node_name", node.Name))
-				continue
-			}
-
-			logger.Info("Adding node from database",
-				zap.String("name", node.Name),
-				zap.String("host", node.Host),
-				zap.Int("port", node.Port),
-				zap.String("status", node.Status))
-			
-			environment := "discovered"
-			if node.Environment != "" {
-				environment = node.Environment
-			}
-			
 			err := supervisorService.AddNode(
 				node.Name,
 				environment,
@@ -357,11 +342,12 @@ func main() {
 				node.Password,
 			)
 			if err != nil {
-				logger.Error("Failed to add node from database",
+				logger.Error("Failed to add node",
 					zap.String("node_name", node.Name),
 					zap.Error(err))
 			} else {
-				logger.Info("Successfully added node from database", zap.String("node_name", node.Name))
+				logger.Info("Node loaded", zap.String("name", node.Name),
+					zap.String("host", node.Host), zap.Int("port", node.Port))
 			}
 		}
 	}

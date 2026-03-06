@@ -530,12 +530,19 @@ func (n *Node) Serialize() map[string]interface{} {
 		}
 	}
 	
+	var lastPing interface{}
+	if !n.LastPing.IsZero() {
+		lastPing = n.LastPing
+	}
+
 	return map[string]interface{}{
 		"name":           n.Name,
 		"environment":    n.Environment,
 		"is_connected":   n.IsConnected,
 		"host":           n.Host,
 		"port":           n.Port,
+		"username":       n.Username,
+		"last_ping":      lastPing,
 		"process_count":  len(n.Processes),
 		"running_count":  runningCount,
 	}
