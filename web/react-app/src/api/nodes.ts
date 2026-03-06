@@ -47,6 +47,10 @@ export const nodesApi = {
   // Get single node
   getNode: (nodeName: string) => apiClient.get<NodeResponse>(`/nodes/${nodeName}`),
 
+  // Update node name/environment
+  updateNode: (nodeName: string, data: { name: string; environment: string }) =>
+    apiClient.put(`/nodes/${nodeName}`, data),
+
   // Get node processes
   getNodeProcesses: (nodeName: string) =>
     apiClient.get<ProcessesResponse>(`/nodes/${nodeName}/processes`),

@@ -13,6 +13,7 @@ import {
   Spin,
   Row,
   Col,
+  Input,
   Statistic,
 } from 'antd';
 import {
@@ -24,6 +25,8 @@ import {
   InfoCircleOutlined,
   CheckCircleOutlined,
   CloseCircleOutlined,
+  EditOutlined,
+  SaveOutlined,
 } from '@ant-design/icons';
 import { nodesApi } from '@/api/nodes';
 import { Node, Process } from '@/types';
@@ -42,6 +45,10 @@ const NodeDetail: React.FC = () => {
   const [logViewerVisible, setLogViewerVisible] = useState(false);
   const [selectedProcess, setSelectedProcess] = useState<Process | null>(null);
   const [pageSize, setPageSize] = useState(10);
+  const [editing, setEditing] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editEnvironment, setEditEnvironment] = useState('');
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (nodeName) {
@@ -117,6 +124,38 @@ const NodeDetail: React.FC = () => {
   const handleViewLogs = (process: Process) => {
     setSelectedProcess(process);
     setLogViewerVisible(true);
+  };
+
+  const handleEditStart = () => {
+    if (node) {
+      setEditName(node.name);
+      setEditEnvironment(node.environment || '');
+      setEditing(true);
+    }
+  };
+
+  const handleEditSave = async () => {
+    if (!nodeName || !editName.trim()) return;
+    setSaving(true);
+    try {
+      await nodesApi.updateNode(nodeName, {
+        name: editName.trim(),
+        environment: editEnvironment.trim(),
+      });
+      message.success('Node updated');
+      setEditing(false);
+      // 如果名称变了，跳转到新名称的页面
+      if (editName.trim() !== nodeName) {
+        navigate(`/nodes/${editName.trim()}`);
+      } else {
+        loadNodeDetail();
+      }
+    } catch (error) {
+      console.error('Failed to update node:', error);
+      message.error('Failed to update node');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const getProcessStateColor = (state: number) => {
@@ -322,15 +361,38 @@ const NodeDetail: React.FC = () => {
             key: 'info',
             label: t.nodeDetail.nodeInfo,
             children: (
-              <Card>
+              <Card extra={
+                editing ? (
+                  <Space>
+                    <Button onClick={() => setEditing(false)}>
+                      {t.common.cancel}
+                    </Button>
+                    <Button type="primary" icon={<SaveOutlined />} onClick={handleEditSave} loading={saving}>
+                      {t.common.save}
+                    </Button>
+                  </Space>
+                ) : (
+                  <Button icon={<EditOutlined />} onClick={handleEditStart}>
+                    {t.common.edit}
+                  </Button>
+                )
+              }>
                 <Descriptions bordered column={2}>
-                  <Descriptions.Item label={t.common.name}>{node.name}</Descriptions.Item>
+                  <Descriptions.Item label={t.common.name}>
+                    {editing ? (
+                      <Input value={editName} onChange={e => setEditName(e.target.value)} />
+                    ) : node.name}
+                  </Descriptions.Item>
                   <Descriptions.Item label={t.nodeDetail.host}>{node.host}</Descriptions.Item>
                   <Descriptions.Item label={t.nodeDetail.port}>{node.port}</Descriptions.Item>
                   <Descriptions.Item label={t.nodes.environment}>
-                    <Tag color={node.environment === 'production' ? 'red' : 'blue'}>
-                      {node.environment || 'development'}
-                    </Tag>
+                    {editing ? (
+                      <Input value={editEnvironment} onChange={e => setEditEnvironment(e.target.value)} placeholder="e.g. production, staging" />
+                    ) : (
+                      <Tag color={node.environment === 'production' ? 'red' : 'blue'}>
+                        {node.environment || 'default'}
+                      </Tag>
+                    )}
                   </Descriptions.Item>
                   <Descriptions.Item label={t.nodeDetail.username}>{node.username}</Descriptions.Item>
                   <Descriptions.Item label={t.common.status}>

@@ -5,20 +5,23 @@ import (
 	"net/http"
 	"strconv"
 
+	"superview/internal/models"
 	"superview/internal/services"
 	"superview/internal/supervisor"
 	"superview/internal/validation"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 type NodesAPI struct {
 	service            *supervisor.SupervisorService
+	db                 *gorm.DB
 	activityLogService *services.ActivityLogService
 }
 
-func NewNodesAPI(service *supervisor.SupervisorService, activityLogService ...*services.ActivityLogService) *NodesAPI {
-	api := &NodesAPI{service: service}
+func NewNodesAPI(service *supervisor.SupervisorService, db *gorm.DB, activityLogService ...*services.ActivityLogService) *NodesAPI {
+	api := &NodesAPI{service: service, db: db}
 	if len(activityLogService) > 0 {
 		api.activityLogService = activityLogService[0]
 	}
@@ -400,4 +403,55 @@ func (api *NodesAPI) RestartAllProcesses(c *gin.Context) {
 	}
 
 	handleSuccess(c, "All processes restarted", nil)
+}
+
+// UpdateNode updates a node's name and environment
+func (api *NodesAPI) UpdateNode(c *gin.Context) {
+	nodeName := c.Param("node_name")
+
+	var req struct {
+		Name        string `json:"name" binding:"required,min=1,max=100"`
+		Environment string `json:"environment" binding:"max=50"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		handleBadRequest(c, err)
+		return
+	}
+
+	// 更新数据库（按 old name 查找）
+	var node models.Node
+	if err := api.db.Where("name = ?", nodeName).First(&node).Error; err != nil {
+		handleAppError(c, err)
+		return
+	}
+
+	// 检查新名称是否冲突
+	if req.Name != nodeName {
+		var count int64
+		api.db.Model(&models.Node{}).Where("name = ? AND id != ?", req.Name, node.ID).Count(&count)
+		if count > 0 {
+			c.JSON(http.StatusConflict, gin.H{"status": "error", "message": "node name already exists"})
+			return
+		}
+	}
+
+	node.Name = req.Name
+	node.Environment = req.Environment
+	if err := api.db.Save(&node).Error; err != nil {
+		handleInternalError(c, err)
+		return
+	}
+
+	// 更新内存中的节点
+	if err := api.service.UpdateNodeInfo(nodeName, req.Name, req.Environment); err != nil {
+		// 数据库已更新，内存更新失败不致命，重启后会恢复
+		fmt.Printf("Warning: failed to update node in memory: %v\n", err)
+	}
+
+	if api.activityLogService != nil {
+		msg := fmt.Sprintf("Updated node %s -> name=%s, environment=%s", nodeName, req.Name, req.Environment)
+		api.activityLogService.LogWithContext(c, "INFO", "update_node", "node", req.Name, msg, nil)
+	}
+
+	c.JSON(http.StatusOK, gin.H{"status": "success", "message": "Node updated"})
 }
