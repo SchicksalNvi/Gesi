@@ -28,7 +28,11 @@ release: backend
 	@echo "==> Packaging release $(VERSION)..."
 	$(eval PKG := $(APP_NAME)-$(VERSION)-$(GOOS)-$(GOARCH))
 	@rm -rf $(RELEASE_DIR)/$(PKG)
-	@mkdir -p $(RELEASE_DIR)/$(PKG)/{config,data,logs,pids,web/react-app}
+	@mkdir -p $(RELEASE_DIR)/$(PKG)/config \
+		$(RELEASE_DIR)/$(PKG)/data \
+		$(RELEASE_DIR)/$(PKG)/logs \
+		$(RELEASE_DIR)/$(PKG)/pids \
+		$(RELEASE_DIR)/$(PKG)/web/react-app
 	cp $(BUILD_DIR)/$(APP_NAME) $(RELEASE_DIR)/$(PKG)/
 	cp -r $(FRONTEND)/dist $(RELEASE_DIR)/$(PKG)/web/react-app/dist
 	cp config/config.toml.example   $(RELEASE_DIR)/$(PKG)/config/config.toml.example

@@ -33,13 +33,8 @@ jobs:
         run: |
           VERSION=${GITHUB_REF_NAME}
 
-          # Linux builds
           make release VERSION=${VERSION} GOOS=linux GOARCH=amd64
           make release VERSION=${VERSION} GOOS=linux GOARCH=arm64
-
-          # macOS builds (optional)
-          make release VERSION=${VERSION} GOOS=darwin GOARCH=amd64
-          make release VERSION=${VERSION} GOOS=darwin GOARCH=arm64
 
       - name: Generate release notes
         id: release_notes
@@ -54,8 +49,6 @@ jobs:
 
           - **Linux AMD64**: \`superview-${VERSION}-linux-amd64.tar.gz\`
           - **Linux ARM64**: \`superview-${VERSION}-linux-arm64.tar.gz\`
-          - **macOS Intel**: \`superview-${VERSION}-darwin-amd64.tar.gz\`
-          - **macOS Apple Silicon**: \`superview-${VERSION}-darwin-arm64.tar.gz\`
 
           ### 快速部署
 
