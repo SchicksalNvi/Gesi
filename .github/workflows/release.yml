@@ -1,0 +1,97 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          cache: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: web/react-app/package-lock.json
+
+      - name: Build frontend
+        run: make frontend
+
+      - name: Build release packages
+        run: |
+          VERSION=${GITHUB_REF_NAME}
+
+          # Linux builds
+          make release VERSION=${VERSION} GOOS=linux GOARCH=amd64
+          make release VERSION=${VERSION} GOOS=linux GOARCH=arm64
+
+          # macOS builds (optional)
+          make release VERSION=${VERSION} GOOS=darwin GOARCH=amd64
+          make release VERSION=${VERSION} GOOS=darwin GOARCH=arm64
+
+      - name: Generate release notes
+        id: release_notes
+        run: |
+          VERSION=${GITHUB_REF_NAME}
+          cat > release_notes.md << EOF
+          ## Superview ${VERSION}
+
+          ### 下载说明
+
+          请根据你的系统架构选择对应的安装包：
+
+          - **Linux AMD64**: \`superview-${VERSION}-linux-amd64.tar.gz\`
+          - **Linux ARM64**: \`superview-${VERSION}-linux-arm64.tar.gz\`
+          - **macOS Intel**: \`superview-${VERSION}-darwin-amd64.tar.gz\`
+          - **macOS Apple Silicon**: \`superview-${VERSION}-darwin-arm64.tar.gz\`
+
+          ### 快速部署
+
+          \`\`\`bash
+          tar -xzf superview-${VERSION}-linux-amd64.tar.gz
+          cd superview-${VERSION}-linux-amd64
+
+          # 配置
+          cp config/config.toml.example config/config.toml
+          cp config/nodelist.toml.example config/nodelist.toml
+          cp config/.env.example config/.env
+          # 编辑配置文件...
+
+          # 启动
+          ./superview.sh start
+          \`\`\`
+
+          ### 更新日志
+
+          查看完整更新日志请访问 [CHANGELOG](https://github.com/${{ github.repository }}/compare/${{ github.event.before }}...${{ github.ref_name }})
+          EOF
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/*.tar.gz
+          body_path: release_notes.md
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-packages
+          path: release/*.tar.gz
+          retention-days: 30
