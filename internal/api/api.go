@@ -23,7 +23,7 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB, service *supervisor.SupervisorServi
 
 	activityLogService := services.NewActivityLogService(db)
 	authService := auth.NewAuthService(db, activityLogService)
-	nodesAPI := NewNodesAPI(service, activityLogService)
+	nodesAPI := NewNodesAPI(service, db, activityLogService)
 	userAPI := NewUserAPI(db, activityLogService)
 	environmentsAPI := NewEnvironmentsAPI(service)
 	groupsAPI := NewGroupsAPI(service, activityLogService)
@@ -68,6 +68,7 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB, service *supervisor.SupervisorServi
 		{
 			nodesGroup.GET("", nodesAPI.GetNodes)
 			nodesGroup.GET("/:node_name", nodesAPI.GetNode)
+			nodesGroup.PUT("/:node_name", nodesAPI.UpdateNode)
 			nodesGroup.GET("/:node_name/processes", nodesAPI.GetNodeProcesses)
 			nodesGroup.POST("/:node_name/processes/:process_name/start", nodesAPI.StartProcess)
 			nodesGroup.POST("/:node_name/processes/:process_name/stop", nodesAPI.StopProcess)
